@@ -1,0 +1,81 @@
+---
+title: "Benchmarks: Abstract CLI"
+description: Abstract CLI overhead — startup, RSS, subcommands, end-to-end latency.
+---
+
+# Abstract CLI Benchmarks
+
+Measures framework overhead, not model speed. Apple Silicon, release build.
+
+## Startup
+
+| Metric | Abstract | Notes |
+|--------|----------|-------|
+| `--version` (avg, 50 runs) | 32ms | Includes Python subprocess overhead (~20ms) |
+| `--version` (native) | ~8ms | Direct wall-clock |
+| `--help` | 21ms | |
+
+## Binary & Memory
+
+| Metric | Value |
+|--------|-------|
+| Binary size | 6.0 MB |
+| Peak RSS (`--help`) | 4.9 MB |
+
+## Subcommand Latency
+
+20 iterations each:
+
+| Subcommand | Avg |
+|------------|-----|
+| `--help` | 21ms |
+| `sessions list` | 21ms |
+| `config show` | 20ms |
+| `mcp list` | 21ms |
+| `memory show` | 22ms |
+
+All subcommands complete in ~21ms — process startup dominates. The operation itself adds under 1ms.
+
+## End-to-End Agentic Latency
+
+Full round-trip: CLI startup + config + system prompt + API call + streaming + rendering.
+
+Using OpenAI gpt-4o:
+
+| Test | Avg (5 runs) |
+|------|-------------|
+| Simple response ("say OK") | 1078ms |
+| Multi-word response | 1094ms |
+| JSON output mode | 1004ms |
+
+Estimated overhead breakdown:
+
+| Phase | Time |
+|-------|------|
+| Process startup | ~8ms |
+| Config + memory context | ~2ms |
+| System prompt assembly | ~1ms |
+| Tool definition serialization | ~1ms |
+| HTTP connection + TLS | ~50-100ms |
+| **Framework overhead** | **~60-110ms** |
+
+Everything else is network + model inference.
+
+## Sequential Throughput
+
+10 consecutive prompts, compared across all three tools:
+
+| Tool | Total | Per-request |
+|------|-------|-------------|
+| Abstract | 15637ms | **1564ms/req** |
+| Codex CLI | 41518ms | 4152ms/req |
+| Claude Code | 120787ms | 12079ms/req |
+
+Abstract processes 10 prompts in 16 seconds. Codex takes 42 seconds. Claude Code takes 2 minutes.
+
+## Run
+
+```bash
+./run_tool_bench_claude.sh --iterations 20 --full
+./run_tool_bench_codex.sh --iterations 20 --full
+```

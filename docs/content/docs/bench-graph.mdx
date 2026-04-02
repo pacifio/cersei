@@ -1,0 +1,54 @@
+---
+title: "Benchmarks: Graph Memory"
+description: Grafeo graph database performance — store, recall, query, graph ON vs OFF.
+---
+
+# Graph Memory Benchmarks
+
+Grafeo embedded graph database. Apple Silicon, release build, `memory_bench.rs`.
+
+## Operations
+
+| Operation | Time | Notes |
+|-----------|------|-------|
+| Store single node | 30 us | UUID + content + metadata |
+| Store 100 nodes (bulk) | 8572 us (86 us/node) | Amortized with WAL |
+| Tag memory (topic) | 1241 us | Creates/links Topic node |
+| Link memories (edge) | 2681 us | Creates RELATES_TO edge |
+| Query by type | 3200 us | Filter all Memory nodes |
+| Query by topic | 77 us | Traverse Topic-Memory edges |
+| Recall (hit) | 98 us | Indexed content lookup |
+| Stats | 480 us | Count nodes/edges |
+
+Benchmark dataset: 1503 memories, 123 topics, 152 relationships.
+
+## Graph ON vs OFF
+
+Same operations on identical 100-file dataset:
+
+| Operation | Graph OFF | Graph ON | Delta |
+|-----------|-----------|----------|-------|
+| Scan 100 files | 1310 us | 1308 us | -0.2% |
+| Recall (100 files) | 1359 us | **103 us** | **-92.5%** |
+| Build context | 17 us | 16 us | -6.4% |
+
+Graph recall is **92.5% faster** than text-matching recall. The graph does indexed lookups on node content instead of scanning every file.
+
+Scan and context building are unaffected — graph adds zero overhead to those paths.
+
+## Scaling
+
+| File Count | Scan (graph OFF) | Recall (graph ON) |
+|------------|-----------------|-------------------|
+| 10 | 141 us | ~10 us |
+| 100 | 1212 us | 103 us |
+| 200 | 2411 us | ~103 us |
+| 500 | 6154 us | ~103 us |
+
+Text-matching recall scales linearly with file count. Graph recall is constant — it queries the index regardless of dataset size.
+
+## Run
+
+```bash
+cargo run --release -p abstract-cli --example memory_bench
+```

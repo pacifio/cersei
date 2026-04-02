@@ -1,0 +1,55 @@
+---
+title: Slash Commands
+description: Interactive commands available inside the Abstract REPL.
+---
+
+# Slash Commands
+
+Type these inside the Abstract REPL:
+
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `/help` | `/h`, `/?` | Show command list |
+| `/clear` | | Clear conversation, start fresh |
+| `/compact` | | Trigger manual context compaction |
+| `/cost` | | Show token usage and cost |
+| `/commit` | | Generate a git commit with AI message |
+| `/review` | | AI code review of current changes |
+| `/memory` | `/mem` | Show memory status (graph stats, memdir, CLAUDE.md) |
+| `/model <name>` | | Switch model (`opus`, `sonnet`, `haiku`, `gpt-4o`) |
+| `/config` | `/cfg` | Show or set config values |
+| `/diff` | | Show `git diff` with syntax highlighting |
+| `/resume [id]` | | Resume a previous session |
+| `/exit` | `/quit`, `/q` | Exit the REPL |
+
+## CLI Subcommands
+
+```bash
+abstract sessions list       # List sessions
+abstract sessions show <id>  # Show transcript
+abstract sessions rm <id>    # Delete session
+abstract config show         # Show config
+abstract config set <k> <v>  # Set config value
+abstract memory show         # Show memory context
+abstract memory clear        # Clear all memory
+abstract mcp add <n> <cmd>   # Add MCP server
+abstract mcp list            # List MCP servers
+abstract mcp remove <name>   # Remove MCP server
+abstract init                # Initialize project
+abstract login [provider]    # Authenticate
+abstract logout              # Remove credentials
+```
+
+## Flags
+
+```bash
+--resume [session-id]   Resume a session (default: last)
+-m, --model <name>      Model override
+-p, --provider <name>   Provider override (anthropic, openai)
+--fast                   Low effort, minimal thinking
+--max                    Maximum thinking budget
+--no-permissions         Auto-approve all (CI mode)
+--json                   NDJSON output for piping
+-v, --verbose            Debug logging
+-C, --directory <path>   Working directory override
+```

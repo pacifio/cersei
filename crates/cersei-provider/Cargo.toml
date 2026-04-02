@@ -1,0 +1,22 @@
+[package]
+name = "cersei-provider"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Provider trait and built-in LLM providers for the Cersei SDK"
+
+[dependencies]
+cersei-types = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+reqwest-eventsource = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+base64 = { workspace = true }
+url = { workspace = true }

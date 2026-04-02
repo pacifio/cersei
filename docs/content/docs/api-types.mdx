@@ -1,0 +1,113 @@
+---
+title: Types (cersei-types)
+description: Provider-agnostic core types — messages, content blocks, errors, stream events.
+---
+
+# cersei-types
+
+Provider-agnostic types shared across all Cersei crates.
+
+## Message
+
+```rust
+pub struct Message {
+    pub role: Role,
+    pub content: MessageContent,
+    pub metadata: Option<MessageMetadata>,
+}
+
+pub enum Role {
+    User,
+    Assistant,
+    System,
+}
+```
+
+Construct messages with helpers:
+
+```rust
+Message::user("Hello")
+Message::assistant("Hi there!")
+Message::system("You are helpful.")
+message.get_text()  // -> Option<&str>
+```
+
+## ContentBlock
+
+```rust
+pub enum ContentBlock {
+    Text { text: String },
+    Image { source: ImageSource, media_type: String },
+    ToolUse { id: String, name: String, input: Value },
+    ToolResult { tool_use_id: String, content: String, is_error: bool },
+    Thinking { thinking: String },
+    Document { source: String, media_type: String },
+    Opaque(Value),
+}
+```
+
+## Usage
+
+```rust
+pub struct Usage {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_creation_input_tokens: u64,
+    pub cache_read_input_tokens: u64,
+    pub cost_usd: Option<f64>,
+}
+```
+
+Supports merging:
+
+```rust
+usage.merge(&other_usage);
+```
+
+## StopReason
+
+```rust
+pub enum StopReason {
+    EndTurn,
+    MaxTokens,
+    ToolUse,
+    StopSequence,
+}
+```
+
+## StreamEvent
+
+Events emitted during streaming completion:
+
+```rust
+pub enum StreamEvent {
+    MessageStart { id: String, model: String },
+    ContentBlockStart { index: usize, block_type: String, id: Option<String>, name: Option<String> },
+    TextDelta { index: usize, text: String },
+    InputJsonDelta { index: usize, partial_json: String },
+    ThinkingDelta { index: usize, thinking: String },
+    ContentBlockStop { index: usize },
+    MessageDelta { stop_reason: Option<StopReason>, usage: Option<Usage> },
+    MessageStop,
+    Ping,
+    Error { message: String },
+}
+```
+
+## CerseiError
+
+```rust
+pub enum CerseiError {
+    Auth(String),
+    Provider(String),
+    Tool(String),
+    Memory(String),
+    Http(reqwest::Error),
+    Json(serde_json::Error),
+    Io(std::io::Error),
+    Cancelled,
+    Other(anyhow::Error),
+}
+```
+
+All errors implement `std::error::Error`. Use `Result<T>` which is `std::result::Result<T, CerseiError>`.

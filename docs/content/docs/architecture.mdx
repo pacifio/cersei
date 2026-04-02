@@ -1,0 +1,80 @@
+---
+title: Architecture
+description: How Cersei is structured — design principles, crate organization, data flow.
+---
+
+# Architecture
+
+Cersei is a workspace of 9 crates plus the Abstract CLI. Every component is modular and replaceable via traits.
+
+## Design Principles
+
+1. **Trait-based extensibility** — Provider, Tool, Memory, Permission, Hook are all traits. Swap any implementation.
+2. **Zero-cost abstractions** — In-process tool dispatch at 0.02-0.09ms. No IPC, no subprocess spawning.
+3. **Streaming-first** — All async operations emit events. Never blocks waiting for tool results.
+4. **POSIX-native I/O** — Direct syscalls where possible. File ops use `std::fs`, shell uses `nix`.
+5. **Compatible** — Session format (JSONL), memory format (MEMORY.md), and skill format (.claude/commands/) are all Claude Code compatible.
+
+## Crate Map
+
+```
+cersei                    Facade — re-exports all sub-crates via prelude
+  cersei-types            Messages, errors, stream events (no dependencies)
+  cersei-provider         Provider trait + Anthropic/OpenAI clients
+  cersei-tools            34 tools, permissions, bash classifier, skills
+  cersei-tools-derive     #[derive(Tool)] proc macro
+  cersei-agent            Agent builder, agentic loop, compact, events
+  cersei-memory           Memory trait, memdir, CLAUDE.md, graph, sessions
+  cersei-hooks            Hook/middleware trait + shell hooks
+  cersei-mcp              MCP client (JSON-RPC 2.0, stdio)
+abstract-cli              CLI coding agent ("abstract")
+```
+
+## Dependency Flow
+
+```
+cersei-types (leaf — no internal deps)
+    ^
+cersei-provider (depends on types)
+    ^
+cersei-tools (depends on types, mcp)
+    ^
+cersei-agent (depends on types, provider, tools, memory, hooks, mcp)
+    ^
+cersei (facade — depends on everything)
+    ^
+abstract-cli (depends on cersei facade)
+```
+
+`cersei-memory`, `cersei-hooks`, and `cersei-mcp` are siblings — they depend on `cersei-types` but not on each other.
+
+## Data Flow
+
+```
+User Input
+    |
+    v
+Agent::run_stream(prompt)
+    |
+    +---> System prompt assembly (cersei-agent/system_prompt.rs)
+    |         +---> CLAUDE.md hierarchy (cersei-memory/claudemd.rs)
+    |         +---> MEMORY.md index (cersei-memory/memdir.rs)
+    |
+    +---> Provider::complete(request) (cersei-provider)
+    |         +---> SSE stream parsing
+    |         +---> StreamEvent emission
+    |
+    +---> Tool dispatch (cersei-tools)
+    |         +---> Permission check
+    |         +---> Tool::execute()
+    |         +---> Hook pipeline (pre/post)
+    |
+    +---> Context management (cersei-agent/compact.rs)
+    |         +---> Token counting
+    |         +---> Auto-compact at 90%
+    |         +---> Tool result budgeting
+    |
+    +---> Event channel (broadcast or callback)
+              +---> AgentEvent (26 variants)
+              +---> Multiple consumers
+```

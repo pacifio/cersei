@@ -1,0 +1,107 @@
+---
+title: Provider (cersei-provider)
+description: Provider trait and built-in LLM clients — Anthropic, OpenAI, custom.
+---
+
+# cersei-provider
+
+Abstraction over LLM backends. Every provider implements streaming completion, token counting, and capability discovery.
+
+## Provider Trait
+
+```rust
+#[async_trait]
+pub trait Provider: Send + Sync {
+    fn name(&self) -> &str;
+    fn context_window(&self, model: &str) -> u64;
+    fn capabilities(&self, model: &str) -> ProviderCapabilities;
+    async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream>;
+    async fn complete_blocking(&self, request: CompletionRequest) -> Result<CompletionResponse>;
+    async fn count_tokens(&self, messages: &[Message], model: &str) -> Result<u64>;
+}
+```
+
+## Anthropic
+
+```rust
+// From environment variable
+let provider = Anthropic::from_env()?;
+
+// With explicit key
+let provider = Anthropic::new(Auth::ApiKey("sk-ant-...".into()));
+
+// Builder
+let provider = Anthropic::builder()
+    .api_key("sk-ant-...")
+    .model("claude-sonnet-4-6")
+    .thinking(8192)
+    .build()?;
+```
+
+Default model: `claude-sonnet-4-6`. Context window: 200,000 tokens. Supports streaming, tool use, vision, extended thinking, prompt caching.
+
+## OpenAI
+
+```rust
+// From environment variable
+let provider = OpenAi::from_env()?;
+
+// Builder (Ollama, Azure, vLLM, etc.)
+let provider = OpenAi::builder()
+    .base_url("http://localhost:11434/v1")
+    .model("llama3.1:70b")
+    .api_key("ollama")
+    .build()?;
+```
+
+Compatible with any OpenAI-format API. Default model: `gpt-4o`.
+
+## Auth
+
+```rust
+pub enum Auth {
+    ApiKey(String),
+    Bearer(String),
+    OAuth { client_id: String, token: OAuthToken },
+    Custom(Arc<dyn AuthProvider>),
+}
+```
+
+## CompletionRequest
+
+```rust
+pub struct CompletionRequest {
+    pub model: String,
+    pub messages: Vec<Message>,
+    pub system: Option<String>,
+    pub tools: Vec<ToolDefinition>,
+    pub max_tokens: u32,
+    pub temperature: Option<f32>,
+    pub stop_sequences: Vec<String>,
+    pub options: ProviderOptions,
+}
+```
+
+## Custom Provider
+
+Implement `Provider` for any LLM backend:
+
+```rust
+struct MyProvider;
+
+#[async_trait]
+impl Provider for MyProvider {
+    fn name(&self) -> &str { "my-llm" }
+    fn context_window(&self, _model: &str) -> u64 { 128_000 }
+    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
+        ProviderCapabilities {
+            streaming: true,
+            tool_use: true,
+            ..Default::default()
+        }
+    }
+    async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
+        // Your implementation here
+    }
+}
+```

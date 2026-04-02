@@ -1,0 +1,31 @@
+[package]
+name = "cersei-memory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Memory trait and backends for the Cersei SDK"
+
+[dependencies]
+cersei-types = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+parking_lot = { workspace = true }
+dirs = { workspace = true }
+tempfile = { workspace = true }
+
+[features]
+default = []
+graph = ["grafeo"]
+
+[dependencies.grafeo]
+path = "/Users/adib/Desktop/atlas/_inspirations/grafeo/crates/grafeo"
+optional = true
+default-features = false
+features = ["gql", "grafeo-file", "wal"]

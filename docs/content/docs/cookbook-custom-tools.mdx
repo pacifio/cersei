@@ -1,0 +1,145 @@
+---
+title: "Cookbook: Custom Tools"
+description: Build custom tools for database queries, API calls, deploy pipelines, and more.
+---
+
+# Cookbook: Custom Tools
+
+## Database Query Tool
+
+```rust
+use cersei::prelude::*;
+
+#[derive(Tool)]
+#[tool(name = "db_query", description = "Execute a SQL query", permission = "execute")]
+struct DbQueryTool {
+    pool: sqlx::PgPool,
+}
+
+#[async_trait]
+impl ToolExecute for DbQueryTool {
+    type Input = DbQueryInput;
+    async fn run(&self, input: DbQueryInput, _ctx: &ToolContext) -> ToolResult {
+        match sqlx::query(&input.sql).fetch_all(&self.pool).await {
+            Ok(rows) => ToolResult::success(format!("{} rows returned", rows.len())),
+            Err(e) => ToolResult::error(format!("Query failed: {e}")),
+        }
+    }
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct DbQueryInput {
+    /// The SQL query to execute
+    sql: String,
+}
+```
+
+## HTTP API Tool
+
+```rust
+#[derive(Tool)]
+#[tool(name = "api_call", description = "Call an HTTP API endpoint", permission = "execute")]
+struct ApiCallTool;
+
+#[async_trait]
+impl ToolExecute for ApiCallTool {
+    type Input = ApiCallInput;
+    async fn run(&self, input: ApiCallInput, _ctx: &ToolContext) -> ToolResult {
+        let client = reqwest::Client::new();
+        let resp = match input.method.as_str() {
+            "POST" => client.post(&input.url).body(input.body.unwrap_or_default()).send().await,
+            _ => client.get(&input.url).send().await,
+        };
+
+        match resp {
+            Ok(r) => {
+                let status = r.status().as_u16();
+                let body = r.text().await.unwrap_or_default();
+                ToolResult::success(format!("HTTP {status}: {body}"))
+            }
+            Err(e) => ToolResult::error(format!("Request failed: {e}")),
+        }
+    }
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct ApiCallInput {
+    url: String,
+    #[serde(default = "default_get")]
+    method: String,
+    body: Option<String>,
+}
+
+fn default_get() -> String { "GET".into() }
+```
+
+## Deploy Tool
+
+```rust
+#[derive(Tool)]
+#[tool(name = "deploy", description = "Deploy to production", permission = "dangerous")]
+struct DeployTool;
+
+#[async_trait]
+impl ToolExecute for DeployTool {
+    type Input = DeployInput;
+    async fn run(&self, input: DeployInput, ctx: &ToolContext) -> ToolResult {
+        let output = std::process::Command::new("bash")
+            .args(["-c", &format!("cd {} && ./deploy.sh {}", ctx.working_dir.display(), input.env)])
+            .output();
+
+        match output {
+            Ok(o) if o.status.success() => {
+                ToolResult::success(String::from_utf8_lossy(&o.stdout).to_string())
+            }
+            Ok(o) => ToolResult::error(String::from_utf8_lossy(&o.stderr).to_string()),
+            Err(e) => ToolResult::error(format!("Deploy failed: {e}")),
+        }
+    }
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct DeployInput {
+    /// Target environment: staging or production
+    env: String,
+}
+```
+
+## Registering Custom Tools
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())  // built-in tools
+    .tool(DbQueryTool { pool })      // + custom
+    .tool(ApiCallTool)               // + custom
+    .tool(DeployTool)                // + custom
+    .build()?;
+```
+
+## Manual Tool (without derive)
+
+```rust
+struct ManualTool;
+
+#[async_trait]
+impl Tool for ManualTool {
+    fn name(&self) -> &str { "manual" }
+    fn description(&self) -> &str { "A manually implemented tool" }
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "input": { "type": "string", "description": "The input value" }
+            },
+            "required": ["input"]
+        })
+    }
+    fn permission_level(&self) -> PermissionLevel { PermissionLevel::ReadOnly }
+
+    async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
+        let text = input["input"].as_str().unwrap_or("");
+        ToolResult::success(format!("Processed: {text}"))
+    }
+}
+```

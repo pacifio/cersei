@@ -1,0 +1,16 @@
+[package]
+name = "cersei-benchmark"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Benchmark suite for Cersei SDK tool I/O performance"
+
+[dependencies]
+cersei = { path = "../../crates/cersei" }
+cersei-types = { path = "../../crates/cersei-types" }
+cersei-tools = { path = "../../crates/cersei-tools" }
+tokio = { version = "1.44", features = ["full"] }
+serde_json = "1"
+anyhow = "1"
+tempfile = "3"
+which = "7"

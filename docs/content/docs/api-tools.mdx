@@ -1,0 +1,370 @@
+---
+title: Tools (cersei-tools)
+description: Tool trait, 34 built-in tools, permission system, bash classifier, skill discovery.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+
+# cersei-tools
+
+Tool execution system with 34 built-in tools, a granular permission model, a bash command safety classifier, and skill discovery from Claude Code and OpenCode formats.
+
+---
+
+## Tool Trait
+
+Every tool implements this trait. The `#[derive(Tool)]` macro generates the boilerplate for you.
+
+```rust
+#[async_trait]
+pub trait Tool: Send + Sync {
+    /// Tool name (used by the model to invoke it)
+    fn name(&self) -> &str;
+
+    /// Human-readable description shown to the model
+    fn description(&self) -> &str;
+
+    /// JSON Schema for the input parameters
+    fn input_schema(&self) -> Value;
+
+    /// Permission level required
+    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+
+    /// Category for grouping
+    fn category(&self) -> ToolCategory { ToolCategory::Custom }
+
+    /// Execute with JSON input and context
+    async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult;
+}
+```
+
+### ToolResult
+
+```rust
+ToolResult::success("File contents here")
+ToolResult::error("Permission denied")
+ToolResult::success("data").with_metadata(json!({"size": 1024}))
+```
+
+| Method | Description |
+|--------|-------------|
+| `ToolResult::success(content)` | Successful execution. Content is returned to the model. |
+| `ToolResult::error(content)` | Execution failed. The model sees the error and can retry or adapt. |
+| `.with_metadata(value)` | Attach structured metadata (not shown to model, available in events). |
+
+### ToolContext
+
+Passed to every tool execution. Provides environment and shared state.
+
+<TypeTable
+  type={{
+    working_dir: {
+      type: 'PathBuf',
+      description: 'Current working directory for file operations.',
+      required: true,
+    },
+    session_id: {
+      type: 'String',
+      description: 'Active session identifier.',
+      required: true,
+    },
+    permissions: {
+      type: 'Arc<dyn PermissionPolicy>',
+      description: 'Permission checker for tool access control.',
+      required: true,
+    },
+    cost_tracker: {
+      type: 'Arc<CostTracker>',
+      description: 'Cumulative token and cost tracking.',
+      required: true,
+    },
+    mcp_manager: {
+      type: 'Option<Arc<McpManager>>',
+      description: 'MCP server connections, if any are configured.',
+    },
+    extensions: {
+      type: 'Extensions',
+      description: 'Type-map for injecting custom data into the tool context.',
+      required: true,
+    },
+  }}
+/>
+
+---
+
+## Built-in Tool Sets
+
+Convenience functions that return pre-configured tool collections:
+
+| Function | Count | Tools Included |
+|----------|-------|----------------|
+| `cersei::tools::all()` | 34 | Everything below |
+| `cersei::tools::coding()` | 10 | filesystem + shell + web |
+| `cersei::tools::filesystem()` | 6 | Read, Write, Edit, Glob, Grep, NotebookEdit |
+| `cersei::tools::shell()` | 2 | Bash, PowerShell |
+| `cersei::tools::web()` | 2 | WebFetch, WebSearch |
+| `cersei::tools::planning()` | 3 | EnterPlanMode, ExitPlanMode, TodoWrite |
+| `cersei::tools::scheduling()` | 5 | CronCreate, CronList, CronDelete, Sleep, RemoteTrigger |
+| `cersei::tools::orchestration()` | 9 | SendMessage, Tasks (6), Worktree (2) |
+| `cersei::tools::none()` | 0 | Empty (for chat-only agents) |
+
+### Tool Catalog
+
+**Filesystem (6 tools)**
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| `FileReadTool` | ReadOnly | Read files with optional line offset/limit. Returns `cat -n` format. |
+| `FileWriteTool` | Write | Create or overwrite files. Creates parent directories automatically. |
+| `FileEditTool` | Write | String replacement edits. Requires unique match in the file. |
+| `GlobTool` | ReadOnly | Pattern matching across directories. Returns matching paths sorted by mtime. |
+| `GrepTool` | ReadOnly | Regex search using `rg` (ripgrep) with fallback to system `grep`. |
+| `NotebookEditTool` | Write | Edit Jupyter notebook cells by index. |
+
+**Shell (2 tools)**
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| `BashTool` | Execute | Execute shell commands. Persistent `cwd` and `env` across calls. Configurable timeout. |
+| `PowerShellTool` | Execute | Windows PowerShell execution. Same persistence model as Bash. |
+
+**Web (2 tools)**
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| `WebFetchTool` | ReadOnly | Fetch and process URLs. HTML is converted to text. |
+| `WebSearchTool` | ReadOnly | Web search. Requires `CERSEI_SEARCH_API_KEY`. |
+
+**Planning (3 tools)**
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| `EnterPlanModeTool` | None | Switch to structured planning mode. |
+| `ExitPlanModeTool` | None | Exit planning mode with approval. |
+| `TodoWriteTool` | None | Create and manage task lists. |
+
+**Scheduling (5 tools)**
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| `CronCreateTool` | Execute | Create a scheduled job. |
+| `CronListTool` | ReadOnly | List scheduled jobs. |
+| `CronDeleteTool` | Execute | Delete a scheduled job. |
+| `SleepTool` | None | Async sleep for a duration. |
+| `RemoteTriggerTool` | Execute | Invoke a remote trigger. |
+
+**Orchestration (9 tools)**
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| `SendMessageTool` | None | Send messages between agents. |
+| `TaskCreateTool` | Execute | Create a long-running background task. |
+| `TaskGetTool` | ReadOnly | Get task status. |
+| `TaskUpdateTool` | Execute | Update a running task. |
+| `TaskListTool` | ReadOnly | List all tasks. |
+| `TaskStopTool` | Execute | Stop a running task. |
+| `TaskOutputTool` | ReadOnly | Get task output. |
+| `EnterWorktreeTool` | Execute | Create a git worktree for isolated work. |
+| `ExitWorktreeTool` | Execute | Exit and clean up worktree. |
+
+---
+
+## Custom Tools
+
+### With Derive Macro
+
+The fastest way to create a tool. The macro generates `Tool` impl, JSON schema, and input deserialization from your `ToolExecute` implementation.
+
+```rust
+use cersei::prelude::*;
+
+#[derive(Tool)]
+#[tool(name = "search", description = "Search the documentation", permission = "read_only")]
+struct SearchTool;
+
+#[async_trait]
+impl ToolExecute for SearchTool {
+    type Input = SearchInput;
+
+    async fn run(&self, input: SearchInput, ctx: &ToolContext) -> ToolResult {
+        // Your implementation
+        let results = do_search(&input.query, input.limit);
+        ToolResult::success(format!("Found {} results for '{}'", results.len(), input.query))
+    }
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct SearchInput {
+    /// The search query
+    query: String,
+
+    /// Maximum number of results to return
+    #[serde(default = "default_limit")]
+    limit: usize,
+}
+
+fn default_limit() -> usize { 10 }
+```
+
+**Derive attributes:**
+
+| Attribute | Values | Description |
+|-----------|--------|-------------|
+| `name` | any string | Tool name the model uses to invoke it |
+| `description` | any string | Shown to the model in the tool list |
+| `permission` | `none`, `read_only`, `write`, `execute`, `dangerous` | Required permission level |
+
+The `Input` type must derive `Deserialize` (serde) and `JsonSchema` (schemars). Field doc comments become parameter descriptions in the schema.
+
+### Manual Implementation
+
+For full control, implement `Tool` directly:
+
+```rust
+struct ManualTool;
+
+#[async_trait]
+impl Tool for ManualTool {
+    fn name(&self) -> &str { "manual_tool" }
+    fn description(&self) -> &str { "A manually implemented tool" }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "description": "The input value"
+                }
+            },
+            "required": ["input"]
+        })
+    }
+
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::ReadOnly
+    }
+
+    async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
+        let text = input["input"].as_str().unwrap_or("");
+        ToolResult::success(format!("Processed: {text}"))
+    }
+}
+```
+
+### Registration
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())  // 10 built-in tools
+    .tool(SearchTool)                // + your custom tool
+    .tool(ManualTool)                // + another
+    .build()?;
+```
+
+---
+
+## Permission Levels
+
+Every tool declares a permission level. The agent's `PermissionPolicy` checks this before execution.
+
+<TypeTable
+  type={{
+    None: {
+      type: 'PermissionLevel::None',
+      description: 'Always allowed. Planning, sleep, status checks.',
+    },
+    ReadOnly: {
+      type: 'PermissionLevel::ReadOnly',
+      description: 'File reads, searches, listing. No side effects.',
+    },
+    Write: {
+      type: 'PermissionLevel::Write',
+      description: 'File creation, modification. Reversible changes.',
+    },
+    Execute: {
+      type: 'PermissionLevel::Execute',
+      description: 'Shell commands, task creation. Side effects.',
+    },
+    Dangerous: {
+      type: 'PermissionLevel::Dangerous',
+      description: 'Destructive operations. Requires explicit approval.',
+    },
+    Forbidden: {
+      type: 'PermissionLevel::Forbidden',
+      description: 'Never allowed. Blocked regardless of policy.',
+    },
+  }}
+/>
+
+### Built-in Policies
+
+| Policy | Behavior |
+|--------|----------|
+| `AllowAll` | Permit everything. For trusted environments and testing. |
+| `AllowReadOnly` | Only `None` and `ReadOnly` tools. Safe for analysis tasks. |
+| `DenyAll` | Block everything. For pure chat agents. |
+| `RuleBased::new(rules)` | Custom rules matching tool names and actions. |
+| `InteractivePolicy::new(handler)` | Defer to a callback function for decisions. |
+
+```rust
+// Rule-based example
+let rules = vec![
+    PermissionRule { tool_name: Some("Bash".into()), action: PermissionAction::Deny },
+    PermissionRule { tool_name: Some("Read".into()), action: PermissionAction::Allow },
+];
+Agent::builder().permission_policy(RuleBased::new(rules))
+```
+
+---
+
+## Bash Classifier
+
+The `BashTool` includes a command safety classifier that analyzes shell commands before execution:
+
+- `ls`, `cat`, `head` → `ReadOnly`
+- `echo`, `cp`, `mv` → `Write`
+- `npm install`, `cargo build` → `Execute`
+- `rm -rf`, `dd`, `mkfs` → `Dangerous`
+- `shutdown`, `reboot` → `Forbidden`
+
+This runs automatically — you don't need to configure it. The classifier's output is checked against the agent's `PermissionPolicy`.
+
+---
+
+## Skills Discovery
+
+The `SkillTool` discovers and runs prompt templates from disk:
+
+```rust
+let skill_tool = SkillTool::new().with_project_root(".");
+```
+
+**Discovery locations (in order):**
+
+| Location | Format |
+|----------|--------|
+| `.claude/commands/*.md` | Claude Code format |
+| `.claude/skills/*/SKILL.md` | OpenCode format |
+| `~/.claude/commands/*.md` | User-level (global) |
+| Bundled | simplify, debug, commit, verify, stuck, remember, loop |
+
+Skills support `$ARGUMENTS` template expansion. The model invokes them with `skill="name" args="..."`.
+
+---
+
+## Shell State Persistence
+
+The `BashTool` and `PowerShellTool` maintain persistent state across invocations within a session:
+
+```rust
+// First call: cd /tmp
+// Second call: pwd → /tmp (remembers cwd)
+// Third call: export FOO=bar
+// Fourth call: echo $FOO → bar (remembers env vars)
+```
+
+State is stored in a global registry keyed by `session_id`. Call `clear_session_shell_state(id)` to reset.

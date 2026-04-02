@@ -1,0 +1,97 @@
+---
+title: Quick Start
+description: Build your first coding agent in 10 lines of Rust.
+---
+
+## Install
+
+```toml
+[dependencies]
+cersei = { git = "https://github.com/pacifio/cersei" }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+```
+
+For graph memory:
+
+```toml
+cersei-memory = { git = "https://github.com/pacifio/cersei", features = ["graph"] }
+```
+
+## Prerequisites
+
+- Rust 1.75+ (edition 2021)
+- An LLM provider API key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
+- For the Grep tool: `rg` (ripgrep) is preferred but falls back to `grep`
+
+## Your First Agent
+
+```rust
+use cersei::prelude::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let output = Agent::builder()
+        .provider(Anthropic::from_env()?)
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowAll)
+        .run_with("What files are in the current directory?")
+        .await?;
+
+    println!("{}", output.text());
+    Ok(())
+}
+```
+
+## With Streaming
+
+```rust
+use cersei::prelude::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let agent = Agent::builder()
+        .provider(Anthropic::from_env()?)
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowAll)
+        .build()?;
+
+    let mut stream = agent.run_stream("Fix the failing tests");
+    while let Some(event) = stream.next().await {
+        match event {
+            AgentEvent::TextDelta(t) => print!("{t}"),
+            AgentEvent::ToolStart { name, .. } => eprintln!("[{name}]"),
+            AgentEvent::Complete(_) => break,
+            _ => {}
+        }
+    }
+    Ok(())
+}
+```
+
+## With OpenAI
+
+```rust
+let output = Agent::builder()
+    .provider(OpenAi::from_env()?)
+    .model("gpt-4o")
+    .tools(cersei::tools::coding())
+    .run_with("Explain this codebase")
+    .await?;
+```
+
+## With Custom Provider
+
+```rust
+let provider = OpenAi::builder()
+    .base_url("http://localhost:11434/v1")  // Ollama
+    .model("llama3.1:70b")
+    .api_key("ollama")
+    .build()?;
+
+let output = Agent::builder()
+    .provider(provider)
+    .tools(cersei::tools::coding())
+    .run_with("Refactor this function")
+    .await?;
+```

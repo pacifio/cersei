@@ -1,0 +1,330 @@
+---
+title: Memory (cersei-memory)
+description: Three-tier memory system — graph DB, flat files, CLAUDE.md hierarchy, session persistence.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+
+# cersei-memory
+
+Three-tier memory system designed to outperform Claude Code's file-based approach. An embedded graph database (Grafeo) handles relationship-aware recall in 98 microseconds — replacing the LLM call that Claude Code makes every turn.
+
+<Callout type="info">
+Graph memory is a compile-time feature. Enable it with `cersei-memory = { features = ["graph"] }`. It's ON by default in the `cersei` facade and the Abstract CLI.
+</Callout>
+
+---
+
+## Architecture
+
+```
+Tier 1: Graph Memory (Grafeo)     — Relationship-aware indexed recall
+Tier 2: Flat Files (memdir)       — Claude Code compatible .md files
+Tier 3: CLAUDE.md Hierarchy       — 4-level instruction loading
+       + Session Storage (JSONL)  — Append-only transcripts
+```
+
+When you call `recall()`, the MemoryManager queries the graph first. If the graph returns results, they're used directly. If not (or if graph isn't enabled), it falls back to scanning flat files with text matching.
+
+---
+
+## MemoryManager
+
+The unified interface that composes all three tiers.
+
+```rust
+use cersei::memory::manager::MemoryManager;
+
+let mm = MemoryManager::new(project_root)
+    .with_graph(Path::new("./memory.grafeo"))?;
+```
+
+### Constructor and Configuration
+
+<TypeTable
+  type={{
+    'MemoryManager::new(root)': {
+      type: 'impl AsRef<Path>',
+      description: 'Create with default paths derived from project root.',
+      required: true,
+    },
+    '.with_graph(path)': {
+      type: 'impl AsRef<Path>',
+      description: 'Enable persistent graph memory at the given file path.',
+    },
+    '.with_graph_in_memory()': {
+      type: '()',
+      description: 'Enable in-memory graph. Lost on restart — useful for tests.',
+    },
+    '.with_memory_dir(dir)': {
+      type: 'impl Into<PathBuf>',
+      description: 'Override the memory directory. Default: auto-discovered from project root.',
+    },
+    '.with_sessions_dir(dir)': {
+      type: 'impl Into<PathBuf>',
+      description: 'Override the sessions directory.',
+    },
+  }}
+/>
+
+### Context Building
+
+These methods build the memory content that gets injected into the system prompt:
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `build_context()` | `String` | Full system prompt section: CLAUDE.md hierarchy + MEMORY.md index merged |
+| `scan()` | `Vec<MemoryFileMeta>` | All memory files with frontmatter metadata, sorted by recency |
+| `load_file(path)` | `Option<MemoryFile>` | Load a specific memory file with content (frontmatter stripped) |
+
+```rust
+// Build the complete memory context for the system prompt
+let context = mm.build_context();
+
+// Scan all memory files
+for meta in mm.scan() {
+    println!("{}: {} (type: {:?})", meta.filename, meta.description.unwrap_or_default(), meta.memory_type);
+}
+```
+
+### Recall and Query
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `recall(query, limit)` | `Vec<String>` | Query-based recall. Graph first, text fallback. |
+| `by_type(MemoryType)` | `Vec<String>` | Filter by type (graph only, empty without graph) |
+| `by_topic(topic)` | `Vec<String>` | Filter by topic tag (graph only) |
+
+```rust
+// Recall — graph indexed lookup in 98us, or text scan in 1.3ms
+let results = mm.recall("testing preferences", 5);
+
+// Filter by type
+let user_memories = mm.by_type(MemoryType::User);
+
+// Filter by topic
+let rust_memories = mm.by_topic("rust");
+```
+
+### Graph Operations
+
+These only work when graph is enabled. They're no-ops otherwise.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `store_memory(content, type, confidence)` | `Option<String>` | Store a memory node. Returns UUID. |
+| `tag_memory(id, topic)` | `()` | Associate a memory with a topic. Creates the topic if needed. |
+| `link_memories(from, to, relationship)` | `()` | Create a RELATES_TO edge between two memories. |
+| `has_graph()` | `bool` | Whether graph is enabled. |
+| `graph_stats()` | `GraphStats` | Counts: memories, topics, relationships, sessions. |
+
+```rust
+// Store a memory
+let id = mm.store_memory(
+    "User prefers functional patterns over OOP",
+    MemoryType::User,
+    0.9,  // confidence 0.0 to 1.0
+);
+
+// Tag it
+if let Some(ref id) = id {
+    mm.tag_memory(id, "coding-style");
+    mm.tag_memory(id, "preferences");
+}
+
+// Link two memories
+mm.link_memories(&id_a, &id_b, "contradicts");
+mm.link_memories(&id_c, &id_d, "extends");
+
+// Check stats
+let stats = mm.graph_stats();
+println!("{} memories, {} topics, {} relationships", stats.memory_count, stats.topic_count, stats.relationship_count);
+```
+
+### Session Operations
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `write_user_message(session_id, msg)` | `io::Result<String>` | Append user message to JSONL. Returns UUID. |
+| `write_assistant_message(session_id, msg, parent)` | `io::Result<String>` | Append assistant message. Optionally links to parent UUID. |
+| `load_session_messages(session_id)` | `Result<Vec<Message>>` | Load all messages, applying tombstones. |
+| `list_sessions()` | `Vec<SessionInfo>` | List all session files. |
+| `session_path(session_id)` | `PathBuf` | Get the JSONL file path for a session. |
+
+```rust
+// Write
+let user_id = mm.write_user_message("session-1", Message::user("Hello"))?;
+let asst_id = mm.write_assistant_message("session-1", Message::assistant("Hi!"), Some(&user_id))?;
+
+// Load
+let messages = mm.load_session_messages("session-1")?;
+assert_eq!(messages.len(), 2);
+```
+
+---
+
+## Graph Schema
+
+The Grafeo graph stores three node types and three edge types:
+
+```
+Node Types:
+  (:Memory) { id, content, mem_type, confidence, created_at, updated_at }
+  (:Topic)  { name }
+  (:Session) { session_id, started_at, model, turns }
+
+Edge Types:
+  (:Memory) -[:RELATES_TO { relationship, weight }]-> (:Memory)
+  (:Topic)  -[:TAGGED]->                              (:Memory)
+  (:Session) -[:PRODUCED]->                           (:Memory)
+```
+
+### Memory Types
+
+<TypeTable
+  type={{
+    User: {
+      type: 'MemoryType::User',
+      description: 'About the user\'s role, goals, knowledge. Example: "Senior Rust developer", "Prefers dark mode".',
+    },
+    Feedback: {
+      type: 'MemoryType::Feedback',
+      description: 'Guidance on how to approach work. Example: "Don\'t mock the database in tests".',
+    },
+    Project: {
+      type: 'MemoryType::Project',
+      description: 'Facts about ongoing work, deadlines. Example: "API rewrite due March 15".',
+    },
+    Reference: {
+      type: 'MemoryType::Reference',
+      description: 'Pointers to external systems. Example: "Bugs tracked in Linear project INGEST".',
+    },
+  }}
+/>
+
+### Performance
+
+| Operation | Latency |
+|-----------|---------|
+| Store single node | 30us |
+| Store 100 nodes (bulk) | 86us/node |
+| Tag memory | 1241us |
+| Link memories | 2681us |
+| Query by topic | 77us |
+| Recall (indexed) | 98us |
+| Stats | 480us |
+
+Graph recall is **92.5% faster** than text-matching recall because it queries an index instead of scanning every file. See [Graph Benchmarks](/docs/bench-graph).
+
+---
+
+## Memdir (Flat Files)
+
+Compatible with Claude Code's memory directory format.
+
+**Location:** `~/.claude/projects/<sanitized-root>/memory/`
+
+**File format:**
+```markdown
+---
+name: Memory Title
+description: One-line description for recall
+type: user
+---
+
+Actual memory content here.
+```
+
+**Limits:**
+- `MEMORY.md` index: max 200 lines or 25KB
+- Memory files scanned: max 200, sorted newest-first
+- Types: `user`, `feedback`, `project`, `reference`
+
+---
+
+## CLAUDE.md Hierarchy
+
+Loaded in priority order (highest to lowest):
+
+| Scope | Path | Purpose |
+|-------|------|---------|
+| Managed | `~/.claude/rules/*.md` | Organization rules (alphabetically sorted) |
+| User | `~/.claude/CLAUDE.md` | User-level preferences |
+| Project | `{root}/CLAUDE.md` | Project-level instructions |
+| Local | `{root}/.claude/CLAUDE.md` | Local overrides (gitignored) |
+
+All levels are merged into a single context string. Supports `@include <path>` directives (max depth 10, max 40KB per include, circular reference detection). Frontmatter is stripped automatically.
+
+---
+
+## Session Storage (JSONL)
+
+Append-only JSONL transcripts compatible with Claude Code's session format.
+
+**Entry types:**
+
+| Type | Description |
+|------|-------------|
+| `User` | User message with UUID, timestamp, parent link |
+| `Assistant` | Assistant message with UUID, timestamp, parent link |
+| `System` | System message |
+| `Summary` | Compaction summary (replaces multiple messages) |
+| `Tombstone` | Soft-delete marker (skipped on load) |
+
+**Location:** `~/.claude/projects/<sanitized-root>/<session-id>.jsonl`
+
+Max 50MB per session file. Malformed lines are skipped silently.
+
+---
+
+## Auto-Dream (Background Consolidation)
+
+Three-gate system that runs after each agent turn to decide if memory consolidation is needed:
+
+| Gate | Condition | Default |
+|------|-----------|---------|
+| Time | Hours since last consolidation | 24 hours |
+| Session | New sessions since last run | 5 sessions |
+| Lock | No concurrent consolidation | Stale after 1 hour |
+
+All three gates must pass before consolidation triggers. The process runs as a background task — it doesn't block the user.
+
+```rust
+let dreamer = AutoDream::new(memory_dir, conversations_dir);
+
+if dreamer.should_consolidate() {
+    dreamer.acquire_lock()?;
+    // Run consolidation agent...
+    dreamer.update_state()?;
+    dreamer.release_lock()?;
+}
+```
+
+---
+
+## Session Memory Extraction
+
+Automatic extraction of memories from conversations. Triggers after 20+ messages and 3+ tool calls since last extraction.
+
+**Categories extracted:**
+
+| Category | Confidence Range | Example |
+|----------|-----------------|---------|
+| UserPreference | 0.7-1.0 | "Prefers functional patterns" |
+| ProjectFact | 0.8-1.0 | "API uses REST with JSON" |
+| CodePattern | 0.5-0.8 | "Uses builder pattern for config" |
+| Decision | 0.7-0.9 | "Chose PostgreSQL over SQLite" |
+| Constraint | 0.8-1.0 | "Must support Python 3.8+" |
+
+```rust
+// Check if extraction should run
+if session_memory::should_extract(&messages, &state) {
+    // Parse extraction output from the model
+    let memories = session_memory::parse_extraction_output(&model_output);
+
+    // Persist to memory directory
+    session_memory::persist_memories(&memories, &memory_path)?;
+}
+```

@@ -1,0 +1,154 @@
+---
+title: "Cookbook: Agent Deployment"
+description: Deploy Cersei agents as services, CLI tools, API endpoints, and background workers.
+---
+
+# Cookbook: Agent Deployment
+
+## As a CLI Tool
+
+Build a single-binary coding agent:
+
+```rust
+use cersei::prelude::*;
+use clap::Parser;
+
+#[derive(Parser)]
+struct Cli {
+    prompt: Option<String>,
+    #[arg(long)]
+    model: Option<String>,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    let model = cli.model.as_deref().unwrap_or("claude-sonnet-4-6");
+
+    let agent = Agent::builder()
+        .provider(Anthropic::from_env()?)
+        .tools(cersei::tools::all())
+        .model(model)
+        .permission_policy(AllowAll)
+        .auto_compact(true)
+        .build()?;
+
+    if let Some(prompt) = cli.prompt {
+        let output = agent.run(&prompt).await?;
+        println!("{}", output.text());
+    } else {
+        // REPL loop
+        loop {
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            if input.trim().is_empty() { break; }
+            let output = agent.run(input.trim()).await?;
+            println!("{}", output.text());
+        }
+    }
+    Ok(())
+}
+```
+
+## As an HTTP API
+
+```rust
+use axum::{routing::post, Json, Router};
+use cersei::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize)]
+struct AgentRequest { prompt: String }
+
+#[derive(Serialize)]
+struct AgentResponse { response: String, tokens: u64, turns: u32 }
+
+async fn handle(Json(req): Json<AgentRequest>) -> Json<AgentResponse> {
+    let output = Agent::builder()
+        .provider(Anthropic::from_env().unwrap())
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowReadOnly)
+        .max_turns(5)
+        .run_with(&req.prompt)
+        .await
+        .unwrap();
+
+    Json(AgentResponse {
+        response: output.text().to_string(),
+        tokens: output.usage.output_tokens,
+        turns: output.turns,
+    })
+}
+
+#[tokio::main]
+async fn main() {
+    let app = Router::new().route("/agent", post(handle));
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+## With Session Persistence
+
+```rust
+let memory = JsonlMemory::new("./sessions");
+
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .memory(memory)
+    .session_id(&session_id)
+    .auto_compact(true)
+    .build()?;
+
+// Conversations resume automatically across restarts
+```
+
+## With Graph Memory
+
+```rust
+use cersei::memory::manager::MemoryManager;
+
+let mm = MemoryManager::new(project_root)
+    .with_graph(Path::new("./agent.grafeo"))?;
+
+// Store facts the agent learns
+mm.store_memory("User prefers functional patterns", MemoryType::User, 0.9);
+mm.tag_memory(&id, "coding-style");
+
+// Recall during conversations
+let relevant = mm.recall("coding style preferences", 5);
+```
+
+## Background Worker (Cron)
+
+```rust
+// Run agent on a schedule
+loop {
+    let output = Agent::builder()
+        .provider(Anthropic::from_env()?)
+        .tools(cersei::tools::coding())
+        .working_dir("./my-project")
+        .max_turns(10)
+        .permission_policy(AllowAll)
+        .run_with("Check for new issues and fix any simple bugs")
+        .await?;
+
+    println!("Agent completed: {} turns, {} tool calls", output.turns, output.tool_calls.len());
+    tokio::time::sleep(Duration::from_secs(3600)).await;
+}
+```
+
+## Multi-Agent Coordination
+
+```rust
+// Agent with sub-agent capabilities
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::all())  // includes AgentTool, Tasks, SendMessage
+    .system_prompt("You are a coordinator. Delegate tasks to sub-agents.")
+    .build()?;
+
+// The model can now spawn sub-agents, create tasks, and send messages
+// between agents using the built-in orchestration tools
+```

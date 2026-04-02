@@ -1,0 +1,434 @@
+---
+title: Agent (cersei-agent)
+description: Agent builder, agentic loop, streaming events, auto-compact, sub-agents, coordinator mode.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+
+# cersei-agent
+
+The high-level Agent API. Builder pattern for configuration, an agentic loop that handles tool dispatch and multi-turn conversations, a 26-variant event system for observation, and automatic context management.
+
+<Callout type="info">
+Most users interact with Cersei through this crate. The `cersei` facade re-exports `Agent`, `AgentBuilder`, `AgentOutput`, `AgentEvent`, and `AgentStream` directly.
+</Callout>
+
+---
+
+## Agent Builder
+
+Every agent starts with a builder. The only required field is `.provider()` — everything else has sensible defaults.
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .system_prompt("You are a coding assistant.")
+    .model("claude-sonnet-4-6")
+    .max_turns(10)
+    .max_tokens(16384)
+    .permission_policy(AllowAll)
+    .build()?;
+```
+
+### Builder Methods
+
+<TypeTable
+  type={{
+    '.provider(p)': {
+      type: 'impl Provider',
+      description: 'The LLM backend. Anthropic, OpenAI, or custom.',
+      required: true,
+    },
+    '.tool(t)': {
+      type: 'impl Tool',
+      description: 'Add a single tool. Can be called multiple times.',
+    },
+    '.tools(vec)': {
+      type: 'Vec<Box<dyn Tool>>',
+      description: 'Add multiple tools at once. Use cersei::tools::coding() for the standard set.',
+    },
+    '.system_prompt(s)': {
+      type: 'impl Into<String>',
+      description: 'Static system prompt. Cached by providers that support prompt caching.',
+    },
+    '.append_system_prompt(s)': {
+      type: 'impl Into<String>',
+      description: 'Dynamic section appended after the cache boundary. Rebuilt each turn.',
+    },
+    '.model(s)': {
+      type: '&str',
+      description: 'Model identifier. "claude-sonnet-4-6", "gpt-4o", etc.',
+      default: 'provider default',
+    },
+    '.max_turns(n)': {
+      type: 'u32',
+      description: 'Maximum agentic loop iterations before stopping.',
+      default: '5',
+    },
+    '.max_tokens(n)': {
+      type: 'u32',
+      description: 'Max output tokens per model call.',
+      default: '16384',
+    },
+    '.temperature(t)': {
+      type: 'f32',
+      description: 'Sampling temperature. Overridden by effort level if set.',
+      default: 'provider default',
+    },
+    '.thinking_budget(n)': {
+      type: 'u32',
+      description: 'Extended thinking token budget. Enables thinking deltas in events.',
+    },
+    '.working_dir(p)': {
+      type: 'impl AsRef<Path>',
+      description: 'Working directory for file tools and shell commands.',
+      default: 'current dir',
+    },
+    '.permission_policy(p)': {
+      type: 'impl PermissionPolicy',
+      description: 'Controls which tools the agent can execute.',
+      default: 'AllowAll',
+    },
+    '.memory(m)': {
+      type: 'impl Memory',
+      description: 'Session persistence backend. JsonlMemory, InMemory, or custom.',
+    },
+    '.session_id(s)': {
+      type: '&str',
+      description: 'Session identifier for memory load/save.',
+    },
+    '.hook(h)': {
+      type: 'impl Hook',
+      description: 'Add lifecycle middleware. Can be called multiple times.',
+    },
+    '.on_event(f)': {
+      type: 'Fn(&AgentEvent)',
+      description: 'Synchronous callback for every event. Simplest observation method.',
+    },
+    '.enable_broadcast(cap)': {
+      type: 'usize',
+      description: 'Enable broadcast channel with given capacity. Call .subscribe() after build.',
+      default: 'disabled',
+    },
+    '.auto_compact(b)': {
+      type: 'bool',
+      description: 'Summarize old messages when context reaches threshold.',
+      default: 'false',
+    },
+    '.compact_threshold(f)': {
+      type: 'f64',
+      description: 'Trigger compaction at this fraction of context window.',
+      default: '0.9',
+    },
+    '.tool_result_budget(n)': {
+      type: 'usize',
+      description: 'Truncate oldest tool results when total chars exceed this.',
+      default: '0 (unlimited)',
+    },
+    '.cancel_token(t)': {
+      type: 'CancellationToken',
+      description: 'External cancellation signal. Call .cancel() to abort the loop.',
+      default: 'new token',
+    },
+    '.mcp_server(cfg)': {
+      type: 'McpServerConfig',
+      description: 'Connect to an MCP server. Tools are merged with built-in tools.',
+    },
+  }}
+/>
+
+<Callout>
+`.build()` returns `Result<Agent>`. It can fail if the provider requires authentication that isn't configured.
+</Callout>
+
+---
+
+## Execution Modes
+
+### One-Shot (shorthand)
+
+The simplest way to run an agent — builds, executes, and returns in one call:
+
+```rust
+let output = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .run_with("Fix the failing tests")
+    .await?;
+
+println!("{}", output.text());
+println!("Turns: {}, Tool calls: {}", output.turns, output.tool_calls.len());
+```
+
+### Blocking (reusable agent)
+
+Build once, run multiple times. The agent maintains conversation history across calls:
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .build()?;
+
+// First turn
+let output1 = agent.run("What files are in src/?").await?;
+
+// Second turn — the agent remembers the first
+let output2 = agent.run("Now fix the bug in main.rs").await?;
+```
+
+### Streaming (events in real-time)
+
+Returns an `AgentStream` that yields events as they happen. Supports bidirectional control — you can respond to permission requests, inject messages, or cancel mid-stream.
+
+```rust
+let mut stream = agent.run_stream("Deploy the application");
+
+while let Some(event) = stream.next().await {
+    match event {
+        AgentEvent::TextDelta(t) => print!("{t}"),
+        AgentEvent::ThinkingDelta(t) => { /* thinking content */ }
+        AgentEvent::ToolStart { name, input, .. } => {
+            eprintln!("\n[Tool: {name}]");
+        }
+        AgentEvent::ToolEnd { name, duration, is_error, .. } => {
+            let status = if is_error { "FAIL" } else { "OK" };
+            eprintln!("[{name}: {status} in {}ms]", duration.as_millis());
+        }
+        AgentEvent::PermissionRequired(req) => {
+            // Interactive approval
+            stream.respond_permission(req.id, PermissionDecision::Allow);
+        }
+        AgentEvent::Complete(output) => {
+            eprintln!("\nDone: {} turns", output.turns);
+            break;
+        }
+        AgentEvent::Error(msg) => {
+            eprintln!("Error: {msg}");
+            break;
+        }
+        _ => {}
+    }
+}
+```
+
+---
+
+## AgentOutput
+
+Returned by `run()`, `run_with()`, and `AgentStream::collect()`.
+
+```rust
+pub struct AgentOutput {
+    pub message: Message,
+    pub usage: Usage,
+    pub stop_reason: StopReason,
+    pub turns: u32,
+    pub tool_calls: Vec<ToolCallRecord>,
+}
+```
+
+<TypeTable
+  type={{
+    message: {
+      type: 'Message',
+      description: 'The final assistant message with all content blocks.',
+      required: true,
+    },
+    usage: {
+      type: 'Usage',
+      description: 'Cumulative token usage across all turns.',
+      required: true,
+    },
+    stop_reason: {
+      type: 'StopReason',
+      description: 'Why the loop ended: EndTurn, MaxTokens, ToolUse, StopSequence.',
+      required: true,
+    },
+    turns: {
+      type: 'u32',
+      description: 'Number of model calls (each tool-use cycle is one turn).',
+      required: true,
+    },
+    tool_calls: {
+      type: 'Vec<ToolCallRecord>',
+      description: 'Every tool call made, with name, input, result, duration, and error status.',
+      required: true,
+    },
+  }}
+/>
+
+```rust
+// Access the text response
+let text = output.text();  // -> &str
+
+// Inspect tool calls
+for call in &output.tool_calls {
+    println!("{}: {}ms (error: {})", call.name, call.duration.as_millis(), call.is_error);
+}
+```
+
+---
+
+## AgentEvent
+
+26 variants covering every observable moment in the agentic loop:
+
+### Content Events
+
+| Variant | Fields | Emitted When |
+|---------|--------|-------------|
+| `TextDelta(String)` | text chunk | Model streams a text token |
+| `ThinkingDelta(String)` | thinking chunk | Model streams a thinking token (extended thinking) |
+
+### Tool Events
+
+| Variant | Fields | Emitted When |
+|---------|--------|-------------|
+| `ToolStart { name, id, input }` | tool name, call ID, JSON input | Tool dispatch begins |
+| `ToolEnd { name, id, result, is_error, duration }` | tool name, call ID, result text, error flag, wall-clock time | Tool execution completes |
+
+### Lifecycle Events
+
+| Variant | Fields | Emitted When |
+|---------|--------|-------------|
+| `TurnComplete { turn, usage }` | turn number, token usage | One model call + tool cycle finishes |
+| `TokenWarning { pct_used, state }` | context % used, warning/critical | Context window approaching limit |
+| `CompactStart { reason }` | threshold/manual/overflow | Context compaction begins |
+| `CompactEnd { messages_after, tokens_freed }` | remaining messages, tokens reclaimed | Compaction finishes |
+| `SessionLoaded { session_id, message_count }` | session ID, number of messages | Session resumed from memory |
+
+### Control Events
+
+| Variant | Fields | Emitted When |
+|---------|--------|-------------|
+| `PermissionRequired(PermissionRequest)` | tool name, description, level | Tool needs approval (interactive policy) |
+| `CostUpdate { turn_cost, cumulative_cost, input_tokens, output_tokens }` | costs and token counts | After each model call |
+| `SubAgentSpawned { agent_id, prompt }` | sub-agent ID, task description | Sub-agent created |
+| `SubAgentComplete { agent_id, result }` | sub-agent ID, output | Sub-agent finished |
+
+### Terminal Events
+
+| Variant | Fields | Emitted When |
+|---------|--------|-------------|
+| `Status(String)` | status message | Informational update |
+| `Error(String)` | error message | Unrecoverable error |
+| `Complete(AgentOutput)` | final output | Agent loop finished successfully |
+
+---
+
+## AgentStream
+
+Bidirectional control channel. Receive events and send commands back.
+
+### Methods
+
+<TypeTable
+  type={{
+    'next()': {
+      type: 'async fn -> Option<AgentEvent>',
+      description: 'Receive the next event. Returns None when the stream ends.',
+    },
+    'respond_permission()': {
+      type: 'fn(request_id: String, decision: PermissionDecision)',
+      description: 'Answer a PermissionRequired event.',
+    },
+    'cancel()': {
+      type: 'fn()',
+      description: 'Signal the agent to stop after the current turn.',
+    },
+    'inject_message()': {
+      type: 'fn(message: String)',
+      description: 'Insert a user message into the conversation mid-stream.',
+    },
+    'collect()': {
+      type: 'async fn -> Result<AgentOutput>',
+      description: 'Consume all events and return the final output.',
+    },
+    'collect_text()': {
+      type: 'async fn -> Result<String>',
+      description: 'Consume all events and return concatenated text deltas.',
+    },
+  }}
+/>
+
+---
+
+## Effort Levels
+
+Control thinking depth and temperature via a single setting:
+
+```rust
+use cersei_agent::effort::EffortLevel;
+
+let effort = EffortLevel::from_str("max");
+let budget = effort.thinking_budget_tokens();  // 32768
+let temp = effort.temperature();               // Some(1.0)
+```
+
+<TypeTable
+  type={{
+    Low: {
+      type: '1024 tokens, temp 0.3',
+      description: 'Quick answers, simple tasks.',
+    },
+    Medium: {
+      type: '4096 tokens, default temp',
+      description: 'General-purpose. This is the default.',
+      default: 'true',
+    },
+    High: {
+      type: '8192 tokens, default temp',
+      description: 'Complex reasoning, architecture decisions.',
+    },
+    Max: {
+      type: '32768 tokens, temp 1.0',
+      description: 'Hardest problems, deep analysis.',
+    },
+  }}
+/>
+
+---
+
+## Auto-Compact
+
+When the conversation approaches the context window limit, the agent automatically summarizes older messages to free space. This happens transparently — the model continues working without interruption.
+
+```rust
+Agent::builder()
+    .auto_compact(true)           // enable
+    .compact_threshold(0.9)       // trigger at 90% of context window
+    .tool_result_budget(50_000)   // also truncate oldest tool results above 50K chars
+```
+
+The compaction pipeline:
+1. Count tokens in the current conversation
+2. If above threshold, group old messages by topic
+3. Call the LLM to summarize each group
+4. Replace original messages with summaries
+5. Free tool results above the budget
+
+Events emitted: `CompactStart`, `CompactEnd` (with `messages_after` and `tokens_freed`).
+
+---
+
+## System Prompt Caching
+
+The system prompt is split into two sections separated by `__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__`:
+
+```
+[Static section — cached by the provider]
+__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__
+[Dynamic section — rebuilt each turn]
+```
+
+```rust
+Agent::builder()
+    .system_prompt("You are a coding assistant. Always use Rust.")  // static, cached
+    .append_system_prompt("Current time: 2024-01-01")               // dynamic, per-turn
+```
+
+Anthropic's prompt caching caches everything before the boundary. This saves tokens and latency on multi-turn conversations.

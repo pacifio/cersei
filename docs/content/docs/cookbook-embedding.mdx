@@ -1,0 +1,129 @@
+---
+title: "Cookbook: Embedding in Apps"
+description: Embed Cersei agents inside existing Rust applications.
+---
+
+# Cookbook: Embedding Agents
+
+## In a Tauri Desktop App
+
+```rust
+use cersei::prelude::*;
+use tauri::Manager;
+
+#[tauri::command]
+async fn ask_agent(prompt: String) -> Result<String, String> {
+    let output = Agent::builder()
+        .provider(Anthropic::from_env().map_err(|e| e.to_string())?)
+        .tools(cersei::tools::filesystem())
+        .permission_policy(AllowReadOnly)
+        .max_turns(3)
+        .run_with(&prompt)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(output.text().to_string())
+}
+```
+
+## In an Actix-web Server
+
+```rust
+use actix_web::{web, App, HttpResponse, HttpServer};
+use cersei::prelude::*;
+use std::sync::Arc;
+
+struct AppState {
+    provider: Arc<dyn Provider>,
+}
+
+async fn agent_endpoint(
+    body: web::Json<serde_json::Value>,
+    state: web::Data<AppState>,
+) -> HttpResponse {
+    let prompt = body["prompt"].as_str().unwrap_or("");
+    let output = Agent::builder()
+        .provider(Arc::clone(&state.provider))
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowReadOnly)
+        .run_with(prompt)
+        .await;
+
+    match output {
+        Ok(o) => HttpResponse::Ok().json(serde_json::json!({ "response": o.text() })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    }
+}
+```
+
+## Streaming to WebSocket
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .enable_broadcast(256)
+    .build()?;
+
+let mut rx = agent.subscribe().unwrap();
+
+// Forward events to WebSocket
+tokio::spawn(async move {
+    while let Ok(event) = rx.recv().await {
+        match event {
+            AgentEvent::TextDelta(t) => ws_send(&t).await,
+            AgentEvent::ToolStart { name, .. } => ws_send(&format!("[{name}]")).await,
+            AgentEvent::Complete(_) => break,
+            _ => {}
+        }
+    }
+});
+
+agent.run("Fix the tests").await?;
+```
+
+## With Custom Memory Backend
+
+```rust
+struct PostgresMemory { pool: PgPool }
+
+#[async_trait]
+impl Memory for PostgresMemory {
+    async fn store(&self, session_id: &str, messages: &[Message]) -> Result<()> {
+        let json = serde_json::to_string(messages)?;
+        sqlx::query("INSERT INTO sessions (id, messages) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET messages = $2")
+            .bind(session_id)
+            .bind(&json)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn load(&self, session_id: &str) -> Result<Vec<Message>> {
+        let row = sqlx::query_scalar::<_, String>("SELECT messages FROM sessions WHERE id = $1")
+            .bind(session_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(json) => Ok(serde_json::from_str(&json)?),
+            None => Ok(vec![]),
+        }
+    }
+
+    // ... implement search, sessions, delete
+}
+```
+
+## Extension Points
+
+| What | How |
+|------|-----|
+| Custom provider | `impl Provider` |
+| Custom tool | `#[derive(Tool)]` or `impl Tool` |
+| Custom permissions | `impl PermissionPolicy` |
+| Custom memory | `impl Memory` |
+| Custom hooks | `impl Hook` |
+| Custom reporters | `impl Reporter` |
+| MCP servers | `McpServerConfig` |
+| Skills | `.claude/commands/*.md` |
+| Graph memory | `features = ["graph"]` |

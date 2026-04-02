@@ -1,0 +1,109 @@
+---
+title: Examples
+description: Runnable example programs covering every major Cersei feature.
+---
+
+# Examples
+
+All examples live in the `examples/` directory and run with:
+
+```bash
+cargo run --example <name> --release
+```
+
+## Catalog
+
+| Example | Description |
+|---------|-------------|
+| `simple_agent` | Minimal agent in 3 lines |
+| `custom_tools` | Define and register custom tools with `#[derive(Tool)]` |
+| `streaming_events` | `run_stream()` with colored terminal output |
+| `multi_listener` | Broadcast channel with multiple consumers |
+| `resumable_session` | Persist and resume conversations with `JsonlMemory` |
+| `custom_provider` | Echo provider + OpenAI-compatible endpoints |
+| `hooks_middleware` | Cost guard + audit logger + tool blocker |
+| `benchmark_io` | Full I/O benchmark suite |
+| `usage_report` | Token/cost tracking and billing estimates |
+| `coding_agent` | End-to-end: build a Python todo CLI |
+| `oauth_login` | Anthropic OAuth PKCE login flow |
+
+## Stress Tests
+
+```bash
+cargo run --example stress_core_infrastructure --release  # system prompt, compact, bash classifier
+cargo run --example stress_tools --release                 # all 34 tools, registry, performance
+cargo run --example stress_orchestration --release         # sub-agents, coordinator, tasks
+cargo run --example stress_skills --release                # bundled + disk skills
+cargo run --example stress_memory --release                # memdir, CLAUDE.md, sessions, graph
+```
+
+160 unit tests, 262 stress checks, 0 failures.
+
+## simple_agent
+
+```rust
+use cersei::prelude::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let output = Agent::builder()
+        .provider(Anthropic::from_env()?)
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowAll)
+        .run_with("What files are in the current directory?")
+        .await?;
+
+    println!("{}", output.text());
+    Ok(())
+}
+```
+
+## custom_tools
+
+```rust
+#[derive(Tool)]
+#[tool(name = "weather", description = "Get current weather", permission = "none")]
+struct WeatherTool;
+
+#[async_trait]
+impl ToolExecute for WeatherTool {
+    type Input = WeatherInput;
+    async fn run(&self, input: WeatherInput, _ctx: &ToolContext) -> ToolResult {
+        ToolResult::success(format!("72F and sunny in {}", input.city))
+    }
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct WeatherInput { city: String }
+```
+
+## hooks_middleware
+
+```rust
+Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .hook(CostGuard { max_usd: 5.0 })
+    .hook(AuditLogger)
+    .hook(BlockDangerous)
+    .permission_policy(AllowAll)
+    .run_with("Deploy the app")
+    .await?;
+```
+
+## resumable_session
+
+```rust
+let memory = JsonlMemory::new("./sessions");
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .memory(memory)
+    .session_id("my-project-session")
+    .build()?;
+
+// First run
+agent.run("What's in src/?").await?;
+
+// Later — resumes with full context
+agent.run("Now fix the bug you found").await?;
+```

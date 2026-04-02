@@ -1,0 +1,149 @@
+---
+title: Data Flow
+description: How data moves through the agentic loop — from prompt to tool call to response.
+---
+
+# Data Flow
+
+## The Agentic Loop
+
+```
+1. User sends prompt
+2. Agent builds system prompt (CLAUDE.md + memory + tools)
+3. Agent calls Provider::complete() with streaming
+4. Provider returns CompletionStream (SSE events)
+5. Agent processes events:
+   - TextDelta → forward to listeners
+   - ToolUse → dispatch to tool, collect result
+   - StopReason::ToolUse → add tool result, go to step 3
+   - StopReason::EndTurn → return AgentOutput
+6. Auto-compact if context > 90% of window
+7. Persist session to JSONL
+```
+
+Each iteration of steps 3-5 is one "turn". The agent loops until `StopReason::EndTurn`, max turns reached, or cancellation.
+
+## Event Pipeline
+
+Three observation mechanisms, from simplest to most powerful:
+
+### Callback (synchronous)
+
+```rust
+Agent::builder()
+    .on_event(|e| match e {
+        AgentEvent::TextDelta(t) => print!("{t}"),
+        AgentEvent::ToolStart { name, .. } => eprintln!("[{name}]"),
+        _ => {}
+    })
+```
+
+### Broadcast (multi-consumer)
+
+```rust
+let agent = Agent::builder().enable_broadcast(256).build()?;
+
+let mut rx = agent.subscribe().unwrap();
+tokio::spawn(async move {
+    while let Ok(e) = rx.recv().await {
+        // consumer 1
+    }
+});
+
+let mut rx2 = agent.subscribe().unwrap();
+tokio::spawn(async move {
+    while let Ok(e) = rx2.recv().await {
+        // consumer 2
+    }
+});
+```
+
+### Stream (bidirectional control)
+
+```rust
+let mut stream = agent.run_stream("Deploy");
+
+while let Some(event) = stream.next().await {
+    match event {
+        AgentEvent::PermissionRequired(req) => {
+            stream.respond_permission(req.id, PermissionDecision::Allow);
+        }
+        AgentEvent::Complete(output) => break,
+        _ => {}
+    }
+}
+
+// Inject messages mid-stream
+stream.inject_message("Actually, stop and explain first");
+
+// Cancel
+stream.cancel();
+```
+
+## Tool Dispatch
+
+```
+Agent receives ToolUse block from model
+    |
+    v
+Look up tool by name in Vec<Box<dyn Tool>>
+    |
+    v
+Check PermissionPolicy::check(request)
+    |
+    +---> Denied → return error to model
+    |
+    v
+Run Hook pipeline (PreToolUse)
+    |
+    +---> Blocked → return error to model
+    |
+    v
+Tool::execute(input, context)
+    |
+    v
+Run Hook pipeline (PostToolUse)
+    |
+    v
+Return ToolResult to model as next message
+```
+
+Dispatch is in-process. No subprocess, no IPC. A Read tool call completes in 0.09ms.
+
+## Context Management
+
+```
+Before each turn:
+    |
+    v
+Count tokens (provider.count_tokens or estimate)
+    |
+    +---> Below 90% → proceed normally
+    |
+    +---> Above 90% → auto-compact
+              |
+              v
+         Group old messages by topic
+              |
+              v
+         Summarize via LLM call
+              |
+              v
+         Replace originals with summaries
+              |
+              v
+         Free tool results above budget
+```
+
+## Session Persistence
+
+```
+Each user message → append to JSONL
+Each assistant message → append to JSONL
+Compaction summary → append Summary entry
+Deleted messages → append Tombstone entry
+
+Load: read all lines, collect tombstone UUIDs, skip tombstoned entries
+```
+
+Format is Claude Code compatible. Sessions stored at `~/.claude/projects/<sanitized-root>/<session-id>.jsonl`.

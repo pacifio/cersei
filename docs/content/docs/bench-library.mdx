@@ -1,0 +1,62 @@
+---
+title: "Benchmarks: Library"
+description: Cersei SDK tool dispatch and I/O performance.
+---
+
+# Library Benchmarks
+
+Cersei SDK in-process performance. Apple Silicon, release build, 50 iterations with warmup.
+
+## Tool Dispatch
+
+| Tool | Avg | Min | Max |
+|------|-----|-----|-----|
+| Edit | 0.02ms | 0.02ms | 0.04ms |
+| Glob | 0.05ms | 0.05ms | 0.13ms |
+| Write | 0.06ms | 0.05ms | 0.19ms |
+| Read | 0.09ms | 0.08ms | 0.12ms |
+| Grep | 6.04ms | 4.88ms | 6.82ms |
+| Bash | 16.67ms | 16.39ms | 17.00ms |
+
+Grep latency is dominated by `rg` process spawn. Bash latency is shell execution. Everything else is pure in-process I/O.
+
+## Session I/O
+
+| Operation | Speed |
+|-----------|-------|
+| Session write (single) | 27 us/entry |
+| Session write (100 burst) | 26.5 us/entry |
+| Session load (100 entries) | 268 us |
+| Session load (1000 entries) | 2633 us |
+
+Write throughput: ~36000 entries/sec. Load scales linearly at ~2.6 us/entry.
+
+## Context Building
+
+| Operation | Speed |
+|-----------|-------|
+| Full context (CLAUDE.md + MEMORY.md) | 45 us |
+| Load MEMORY.md (200 lines) | 14.6 us |
+
+## Auto-Dream Gates
+
+| Operation | Speed |
+|-----------|-------|
+| `should_consolidate()` | 10 us |
+| `should_extract()` | sub-1 us |
+| `parse_extraction_output()` | 0.7 us |
+
+Per-turn overhead for memory gates: under 12 microseconds.
+
+## Run
+
+```bash
+# Tool I/O
+cargo run --example benchmark_io --release
+
+# Memory + sessions
+cargo run --example stress_memory --release
+
+# Full standalone suite
+cd examples/benchmark && cargo run --release
+```

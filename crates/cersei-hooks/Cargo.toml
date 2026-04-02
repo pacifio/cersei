@@ -1,0 +1,15 @@
+[package]
+name = "cersei-hooks"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Hook/middleware system for the Cersei SDK"
+
+[dependencies]
+cersei-types = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }

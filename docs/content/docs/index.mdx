@@ -1,0 +1,305 @@
+---
+title: Introduction
+description: The Rust SDK for building coding agents. Tool execution, LLM streaming, graph memory, sub-agent orchestration, MCP — as composable library functions.
+---
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+# Cersei
+
+The complete Rust SDK for building coding agents.
+
+Every building block of a production coding agent — tool execution, LLM streaming, sub-agent orchestration, persistent memory with an embedded graph database, skills, MCP integration — shipped as composable library functions. Build a Claude Code replacement, embed an agent in your app, or create something new.
+
+```rust
+use cersei::prelude::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let output = Agent::builder()
+        .provider(Anthropic::from_env()?)
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowAll)
+        .run_with("Fix the failing tests in src/")
+        .await?;
+
+    println!("{}", output.text());
+    Ok(())
+}
+```
+
+<Callout type="info">
+Cersei is modular — use the full SDK or pick individual crates. The `cersei` facade re-exports everything. Individual crates like `cersei-tools` or `cersei-memory` work standalone.
+</Callout>
+
+---
+
+## Why Cersei
+
+Claude Code and OpenCode are closed, monolithic CLI apps. You can't embed them in your own application, swap the memory backend, or customize the tool pipeline. Cersei gives you the same capabilities as decomposed library functions.
+
+| | Claude Code | OpenCode | Cersei SDK | Abstract CLI |
+|---|---|---|---|---|
+| Form factor | CLI app | CLI app | Library | CLI app |
+| Embeddable | No | No | Yes | No (uses SDK) |
+| Provider | Anthropic only | Multi | Multi | Multi |
+| Language | TypeScript | TypeScript | Rust | Rust |
+| Memory | File + LLM recall | SQLite | File + Graph DB | File + Graph DB |
+| Custom tools | Plugins | Plugins | `impl Tool` trait | Via SDK |
+| Startup | ~266ms | ~300ms | N/A (library) | ~32ms |
+| Peak RSS | 333 MB | — | N/A | 4.9 MB |
+
+---
+
+## Performance at a Glance
+
+Numbers from `run_tool_bench_claude.sh` and `run_tool_bench_codex.sh`. Apple Silicon, release builds.
+
+### Startup Time
+
+<StartupChart />
+
+| Tool | Startup | Ratio |
+|------|---------|-------|
+| Abstract | **22ms** | — |
+| Codex CLI | 57ms | 2.6x slower |
+| Claude Code | 266ms | 12x slower |
+
+### Peak Memory (RSS)
+
+<RSSChart />
+
+| Tool | RSS | Ratio |
+|------|-----|-------|
+| Abstract | **4.7 MB** | — |
+| Codex CLI | 44.7 MB | 9.5x more |
+| Claude Code | 333 MB | 71x more |
+
+### Memory Recall — The Largest Gap
+
+Both Claude Code and Codex call an LLM every turn to rank memory files. Cersei's embedded graph database does indexed lookups in 98 microseconds — no LLM call, no API cost. Note the log scale.
+
+<RecallChart />
+
+| Operation | Abstract | Claude Code | Codex CLI |
+|-----------|----------|-------------|-----------|
+| Memory recall (agent) | **98us** (graph) | 7545ms (Sonnet) | 5751ms (GPT) |
+| Memory write (agent) | **28us** (graph) | 20687ms | 5882ms |
+| File scan (100 files) | **1.2ms** | 26.6ms | — |
+
+### Sequential Throughput
+
+10 consecutive prompts, per-request average:
+
+<ThroughputChart />
+
+| Tool | Per-request | Ratio |
+|------|-------------|-------|
+| Abstract | **1564ms** | — |
+| Codex CLI | 4152ms | 2.7x slower |
+| Claude Code | 12079ms | 7.7x slower |
+
+### Graph ON vs OFF
+
+Enabling the graph database adds zero overhead to scan and context building, and makes recall 92.5% faster:
+
+<GraphComparisonChart />
+
+The recall bar drops from 1359us to 103us with graph enabled. There's no reason to turn it off.
+
+### Tool Dispatch (SDK-level)
+
+50 iterations per tool, in-process — no IPC, no subprocess:
+
+<ToolDispatchChart />
+
+Grep and Bash latency is dominated by subprocess spawn. Everything else is pure in-process I/O.
+
+<Callout>
+Full benchmark methodology, per-test breakdowns, and reproduction steps: [Benchmark Report](https://github.com/pacifio/cersei/blob/main/crates/abstract-cli/benchmarks/REPORT.md)
+</Callout>
+
+---
+
+## What's Inside
+
+<Cards>
+  <Card title="34 Built-in Tools" href="/docs/api-tools">
+    File I/O, shell execution, web fetch, planning, scheduling, orchestration, skills discovery. Every tool a coding agent needs, with a permission system and bash safety classifier.
+  </Card>
+  <Card title="Multi-Provider LLM" href="/docs/api-provider">
+    Anthropic (Claude), OpenAI (GPT), Ollama, Azure, vLLM — any OpenAI-compatible endpoint. Streaming SSE, token counting, prompt caching, extended thinking.
+  </Card>
+  <Card title="Graph Memory" href="/docs/api-memory">
+    Three-tier memory: embedded Grafeo graph DB for relationship-aware recall, flat files compatible with Claude Code, and CLAUDE.md hierarchy. Session persistence via append-only JSONL.
+  </Card>
+  <Card title="Agent Runtime" href="/docs/api-agent">
+    Builder pattern with 20+ configuration options. Agentic loop with 26-variant event streaming, auto-compact at 90% context, effort levels, bidirectional stream control.
+  </Card>
+  <Card title="Sub-Agent Orchestration" href="/docs/data-flow">
+    Spawn parallel workers, coordinate tasks, pass messages between agents. Built-in AgentTool, TaskCreate/Get/Update/Stop/Output, SendMessage, and Worktree isolation.
+  </Card>
+  <Card title="Hooks and Middleware" href="/docs/api-hooks">
+    Intercept any lifecycle event — pre/post tool use, model turns. Cost gating, audit logging, tool blocking, input modification. Shell hooks for external integrations.
+  </Card>
+</Cards>
+
+---
+
+## Quick Start
+
+<Tabs items={['Anthropic', 'OpenAI', 'Ollama']}>
+  <Tab value="Anthropic">
+```rust
+use cersei::prelude::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let output = Agent::builder()
+        .provider(Anthropic::from_env()?)  // reads ANTHROPIC_API_KEY
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowAll)
+        .run_with("What files are in the current directory?")
+        .await?;
+
+    println!("{}", output.text());
+    Ok(())
+}
+```
+  </Tab>
+  <Tab value="OpenAI">
+```rust
+use cersei::prelude::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let output = Agent::builder()
+        .provider(OpenAi::from_env()?)  // reads OPENAI_API_KEY
+        .model("gpt-4o")
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowAll)
+        .run_with("Explain the architecture of this project")
+        .await?;
+
+    println!("{}", output.text());
+    Ok(())
+}
+```
+  </Tab>
+  <Tab value="Ollama">
+```rust
+use cersei::prelude::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let provider = OpenAi::builder()
+        .base_url("http://localhost:11434/v1")
+        .model("llama3.1:70b")
+        .api_key("ollama")
+        .build()?;
+
+    let output = Agent::builder()
+        .provider(provider)
+        .tools(cersei::tools::coding())
+        .permission_policy(AllowAll)
+        .run_with("Refactor this function for readability")
+        .await?;
+
+    println!("{}", output.text());
+    Ok(())
+}
+```
+  </Tab>
+</Tabs>
+
+### With Streaming
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .permission_policy(AllowAll)
+    .build()?;
+
+let mut stream = agent.run_stream("Fix the failing tests");
+while let Some(event) = stream.next().await {
+    match event {
+        AgentEvent::TextDelta(t) => print!("{t}"),
+        AgentEvent::ToolStart { name, .. } => eprintln!("\n[{name}]"),
+        AgentEvent::ToolEnd { name, duration, .. } => {
+            eprintln!("[{name} done in {}ms]", duration.as_millis());
+        }
+        AgentEvent::Complete(output) => {
+            eprintln!("\n--- {} turns, {} tool calls ---", output.turns, output.tool_calls.len());
+            break;
+        }
+        _ => {}
+    }
+}
+```
+
+### With Graph Memory
+
+```rust
+use cersei::memory::manager::MemoryManager;
+
+let mm = MemoryManager::new(project_root)
+    .with_graph(Path::new("./agent.grafeo"))?;
+
+// Store facts the agent discovers
+let id = mm.store_memory("User prefers functional patterns", MemoryType::User, 0.9);
+mm.tag_memory(&id.unwrap(), "coding-style");
+
+// Later — recall in 98 microseconds, no LLM call
+let results = mm.recall("coding style", 5);
+```
+
+---
+
+## Install
+
+```toml
+[dependencies]
+cersei = { git = "https://github.com/pacifio/cersei" }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+```
+
+For graph memory:
+
+```toml
+cersei-memory = { git = "https://github.com/pacifio/cersei", features = ["graph"] }
+```
+
+For the Abstract CLI (complete coding agent):
+
+```bash
+cargo install --git https://github.com/pacifio/cersei abstract-cli
+```
+
+---
+
+## Explore
+
+<Cards>
+  <Card title="Quick Start" href="/docs/quick-start">
+    First agent in 10 lines. Streaming, multi-provider, custom tools.
+  </Card>
+  <Card title="API Reference" href="/docs/api-agent">
+    Agent builder, provider trait, tool system, memory, hooks, MCP.
+  </Card>
+  <Card title="Architecture" href="/docs/architecture">
+    Crate map, dependency flow, data flow through the agentic loop.
+  </Card>
+  <Card title="Cookbooks" href="/docs/cookbook-custom-tools">
+    Database tools, HTTP APIs, deploy pipelines, embedding in Tauri/Actix/WebSocket.
+  </Card>
+  <Card title="Abstract CLI" href="/docs/abstract">
+    Complete coding agent CLI. REPL, graph memory, 34 tools, slash commands.
+  </Card>
+  <Card title="Benchmarks" href="/docs/bench-vs-claude-code">
+    Abstract vs Claude Code vs Codex. Startup, memory, throughput, graph recall.
+  </Card>
+</Cards>

@@ -1,0 +1,107 @@
+[package]
+name = "cersei"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Cersei: A modular Rust SDK for building coding agents"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
+
+[dependencies]
+cersei-types = { workspace = true }
+cersei-provider = { workspace = true }
+cersei-tools = { workspace = true }
+cersei-tools-derive = { workspace = true }
+cersei-agent = { workspace = true }
+cersei-memory = { workspace = true }
+cersei-hooks = { workspace = true }
+cersei-mcp = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+parking_lot = { workspace = true }
+which = { workspace = true }
+uuid = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+url = { workspace = true }
+reqwest = { workspace = true }
+chrono = { workspace = true }
+dirs = { workspace = true }
+futures = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tempfile = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[[example]]
+name = "simple_agent"
+path = "../../examples/simple_agent.rs"
+
+[[example]]
+name = "custom_tools"
+path = "../../examples/custom_tools.rs"
+
+[[example]]
+name = "streaming_events"
+path = "../../examples/streaming_events.rs"
+
+[[example]]
+name = "multi_listener"
+path = "../../examples/multi_listener.rs"
+
+[[example]]
+name = "resumable_session"
+path = "../../examples/resumable_session.rs"
+
+[[example]]
+name = "custom_provider"
+path = "../../examples/custom_provider.rs"
+
+[[example]]
+name = "hooks_middleware"
+path = "../../examples/hooks_middleware.rs"
+
+[[example]]
+name = "benchmark_io"
+path = "../../examples/benchmark_io.rs"
+
+[[example]]
+name = "usage_report"
+path = "../../examples/usage_report.rs"
+
+[[example]]
+name = "coding_agent"
+path = "../../examples/coding_agent.rs"
+
+[[example]]
+name = "oauth_login"
+path = "../../examples/oauth_login.rs"
+
+[[example]]
+name = "stress_core_infrastructure"
+path = "../../examples/stress_core_infrastructure.rs"
+
+[[example]]
+name = "stress_tools"
+path = "../../examples/stress_tools.rs"
+
+[[example]]
+name = "stress_orchestration"
+path = "../../examples/stress_orchestration.rs"
+
+[[example]]
+name = "stress_skills"
+path = "../../examples/stress_skills.rs"
+
+[[example]]
+name = "stress_memory"
+path = "../../examples/stress_memory.rs"

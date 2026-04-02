@@ -1,0 +1,29 @@
+[package]
+name = "cersei-agent"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Agent builder, agentic loop, streaming, and reporters for the Cersei SDK"
+
+[dependencies]
+cersei-types = { workspace = true }
+cersei-provider = { workspace = true }
+cersei-tools = { workspace = true }
+cersei-hooks = { workspace = true }
+cersei-memory = { workspace = true }
+cersei-mcp = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+parking_lot = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+tempfile = { workspace = true }

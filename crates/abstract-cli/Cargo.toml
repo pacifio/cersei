@@ -1,0 +1,70 @@
+[package]
+name = "abstract-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["Cersei Contributors"]
+license = "MIT"
+description = "A high-performance Rust-native CLI coding agent"
+default-run = "abstract"
+
+[[bin]]
+name = "abstract"
+path = "src/main.rs"
+
+[features]
+default = ["graph"]
+graph = ["cersei-memory/graph"]
+
+[dependencies]
+# Cersei SDK
+cersei = { path = "../cersei" }
+cersei-types = { path = "../cersei-types" }
+cersei-provider = { path = "../cersei-provider" }
+cersei-tools = { path = "../cersei-tools" }
+cersei-agent = { path = "../cersei-agent" }
+cersei-memory = { path = "../cersei-memory" }
+cersei-hooks = { path = "../cersei-hooks" }
+cersei-mcp = { path = "../cersei-mcp" }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Terminal
+crossterm = "0.28"
+termimad = "0.30"
+
+# Input
+rustyline = "15"
+
+# Config
+toml = { workspace = true }
+dirs = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+parking_lot = { workspace = true }
+async-trait = { workspace = true }
+ctrlc = "3"
+
+# OAuth / HTTP (for login flow)
+reqwest = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+url = { workspace = true }
+tempfile = { workspace = true }
+
+[[example]]
+name = "memory_bench"
+path = "benchmarks/memory_bench.rs"

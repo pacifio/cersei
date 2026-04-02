@@ -1,0 +1,69 @@
+---
+title: Crate Map
+description: Detailed breakdown of every crate in the Cersei workspace.
+---
+
+# Crate Map
+
+## cersei (facade)
+
+Re-exports everything. Use `cersei::prelude::*` for common types.
+
+```rust
+pub use cersei_types as types;
+pub use cersei_provider as provider;
+pub use cersei_tools as tools;
+pub use cersei_agent::{Agent, AgentBuilder, AgentOutput};
+pub use cersei_agent::events::{AgentEvent, AgentStream};
+pub use cersei_memory as memory;
+pub use cersei_hooks as hooks;
+pub use cersei_mcp as mcp;
+pub use cersei_provider::anthropic::Anthropic;
+pub use cersei_provider::openai::OpenAi;
+```
+
+## cersei-types
+
+Zero-dependency core types: `Message`, `Role`, `ContentBlock`, `Usage`, `StopReason`, `StreamEvent`, `CerseiError`, `ToolDefinition`.
+
+## cersei-provider
+
+`Provider` trait + `Anthropic` and `OpenAi` implementations. SSE streaming, token counting, capability discovery, prompt caching.
+
+## cersei-tools
+
+`Tool` trait, 34 built-in tools organized into sets, `PermissionPolicy` trait, bash command classifier, shell state persistence, `CostTracker`, skill discovery.
+
+**Tool count by category:**
+- Filesystem: 6 (Read, Write, Edit, Glob, Grep, NotebookEdit)
+- Shell: 2 (Bash, PowerShell)
+- Web: 2 (WebFetch, WebSearch)
+- Planning: 3 (EnterPlanMode, ExitPlanMode, TodoWrite)
+- Scheduling: 5 (CronCreate/List/Delete, Sleep, RemoteTrigger)
+- Orchestration: 9 (SendMessage, Tasks x6, Worktree x2)
+- Other: 3 (AskUserQuestion, SyntheticOutput, ConfigTool)
+- Skills: 1 (SkillTool — discovers and runs bundled/custom skills)
+
+## cersei-tools-derive
+
+Proc macro: `#[derive(Tool)]`. Auto-generates `Tool` impl from `ToolExecute` trait + JSON schema from input types.
+
+## cersei-agent
+
+`Agent` builder, agentic loop (runner), 26-variant event system, `AgentStream` (bidirectional), auto-compact, auto-dream, context analysis, session memory extraction, effort levels, coordinator mode, sub-agent tool.
+
+## cersei-memory
+
+`Memory` trait, `JsonlMemory`, `InMemory`, `MemoryManager` (unified), memdir scanner, CLAUDE.md hierarchy loader, JSONL session storage, Grafeo graph backend (feature-gated).
+
+## cersei-hooks
+
+`Hook` trait, `HookEvent`, `HookAction`, `ShellHook`. Middleware for intercepting lifecycle events.
+
+## cersei-mcp
+
+MCP client: JSON-RPC 2.0, stdio transport, tool discovery, resource enumeration, environment variable expansion.
+
+## abstract-cli
+
+Complete CLI coding agent. REPL, streaming renderer, interactive permissions, session management, slash commands, TOML config, graph memory on by default.

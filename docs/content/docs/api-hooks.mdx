@@ -1,0 +1,124 @@
+---
+title: Hooks (cersei-hooks)
+description: Middleware system for intercepting agent lifecycle events.
+---
+
+# cersei-hooks
+
+Hooks intercept agent lifecycle events — pre/post tool use, model turns, and custom events.
+
+## Hook Trait
+
+```rust
+#[async_trait]
+pub trait Hook: Send + Sync {
+    fn name(&self) -> &str;
+    fn events(&self) -> &[HookEvent];
+    async fn on_event(&self, ctx: &HookContext) -> HookAction;
+}
+```
+
+## HookEvent
+
+```rust
+pub enum HookEvent {
+    PreToolUse,
+    PostToolUse,
+    PreModelTurn,
+    PostModelTurn,
+}
+```
+
+## HookAction
+
+```rust
+pub enum HookAction {
+    Continue,
+    Block(String),
+    ModifyInput(Value),
+}
+```
+
+## Examples
+
+### Cost Guard
+
+```rust
+pub struct CostGuard { pub max_usd: f64 }
+
+#[async_trait]
+impl Hook for CostGuard {
+    fn name(&self) -> &str { "cost-guard" }
+    fn events(&self) -> &[HookEvent] { &[HookEvent::PostToolUse] }
+
+    async fn on_event(&self, ctx: &HookContext) -> HookAction {
+        if ctx.cumulative_cost_usd() > self.max_usd {
+            HookAction::Block(format!("Cost limit ${:.2} exceeded", self.max_usd))
+        } else {
+            HookAction::Continue
+        }
+    }
+}
+```
+
+### Audit Logger
+
+```rust
+pub struct AuditLogger;
+
+#[async_trait]
+impl Hook for AuditLogger {
+    fn name(&self) -> &str { "audit" }
+    fn events(&self) -> &[HookEvent] { &[HookEvent::PreToolUse, HookEvent::PostToolUse] }
+
+    async fn on_event(&self, ctx: &HookContext) -> HookAction {
+        eprintln!("[audit] {} tool={}", ctx.event, ctx.tool_name.as_deref().unwrap_or("?"));
+        HookAction::Continue
+    }
+}
+```
+
+### Tool Blocker
+
+```rust
+pub struct BlockDangerous;
+
+#[async_trait]
+impl Hook for BlockDangerous {
+    fn name(&self) -> &str { "block-dangerous" }
+    fn events(&self) -> &[HookEvent] { &[HookEvent::PreToolUse] }
+
+    async fn on_event(&self, ctx: &HookContext) -> HookAction {
+        if ctx.tool_name.as_deref() == Some("Bash") {
+            if let Some(cmd) = ctx.tool_input.get("command").and_then(|v| v.as_str()) {
+                if cmd.contains("rm -rf") {
+                    return HookAction::Block("Destructive command blocked".into());
+                }
+            }
+        }
+        HookAction::Continue
+    }
+}
+```
+
+## Shell Hooks
+
+Execute shell commands at hook points:
+
+```rust
+use cersei_hooks::ShellHook;
+
+let hook = ShellHook::new("notify", HookEvent::PostToolUse, "echo 'Tool used'");
+```
+
+## Registration
+
+```rust
+Agent::builder()
+    .hook(CostGuard { max_usd: 5.0 })
+    .hook(AuditLogger)
+    .hook(BlockDangerous)
+    .build()?;
+```
+
+Hooks fire in registration order. A `Block` action stops the pipeline.

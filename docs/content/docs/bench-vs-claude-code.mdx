@@ -1,0 +1,106 @@
+---
+title: "Benchmarks: vs Claude Code and Codex"
+description: Three-way comparison — Abstract vs Claude Code vs Codex CLI across startup, memory, throughput, and graph recall.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Abstract vs Claude Code vs Codex CLI
+
+Three-way comparison. Claude Code numbers from `run_tool_bench_claude.sh --full`. Codex numbers from `run_tool_bench_codex.sh --full`. All using the respective tool's non-interactive mode (`claude -p`, `codex exec`).
+
+<Callout type="info">
+**Claude Code** v2.0.76 (Bun/JS, Anthropic Max plan). **Codex CLI** v0.118.0 (Node.js/Rust hybrid, OpenAI). **Abstract** v0.1.0 (Rust, OpenAI gpt-4o).
+</Callout>
+
+---
+
+## Infrastructure
+
+| Metric | Abstract | Claude Code | Codex CLI |
+|--------|----------|-------------|-----------|
+| Startup | **22ms** | 266ms | 57ms |
+| Binary / package | **6.0 MB** | 174 MB | ~15 MB |
+| Peak RSS | **4.7 MB** | 333 MB | 44.7 MB |
+| `--help` latency | **20ms** | 263ms | 57ms |
+| Tool dispatch (Read) | **0.09ms** | ~265ms (fork) | — |
+
+Abstract is a single static Rust binary. Claude Code bundles the Bun runtime. Codex uses Node.js with a Rust sandbox component. Codex is significantly lighter than Claude Code but still 9.4x heavier than Abstract.
+
+---
+
+## Memory
+
+The largest gap across all three tools. Both Claude Code and Codex use LLM calls for memory operations. Abstract uses an embedded graph database.
+
+| Operation | Abstract | Claude Code | Codex CLI |
+|-----------|----------|-------------|-----------|
+| Memory recall (agent) | **98us** (graph) | 7545ms (Sonnet) | 5751ms (GPT) |
+| Memory write (agent) | **28us** (graph) | 20687ms | 5882ms |
+| Memory recall (file I/O) | **1.3ms** (text) | 17.5ms (grep) | — |
+| MEMORY.md load | **9.6us** | 17.1ms | — |
+| File scan (100 files) | **1.2ms** | 26.6ms | — |
+| Session parse (20K lines) | **~53ms** | 378.7ms | — |
+
+Claude Code calls Sonnet every turn to rank which 5 memory files are relevant (~7.5 seconds). Codex runs the full agent pipeline for memory operations (~5.8 seconds). Abstract's graph does indexed lookups in 98 microseconds — no LLM call, no API cost.
+
+---
+
+## Agentic Throughput
+
+End-to-end prompt-to-response latency. Abstract and Codex both use OpenAI models. Claude Code uses Anthropic Opus via Max plan.
+
+| Metric | Abstract | Claude Code | Codex CLI |
+|--------|----------|-------------|-----------|
+| Simple prompt ("say OK") | **2122ms** | 8942ms | 3843ms |
+| Sequential (10 prompts) | **1564ms/req** | 12079ms/req | 4152ms/req |
+
+The throughput gap between Abstract and Codex (2.7x) is purely framework overhead — both hit the same OpenAI API. The gap between Codex and Claude Code (2.9x) includes both framework overhead and provider latency differences.
+
+---
+
+## Token Consumption
+
+| Factor | Abstract | Claude Code | Codex CLI |
+|--------|----------|-------------|-----------|
+| System prompt | ~2200 tokens | ~8000+ tokens | ~10000+ tokens |
+| Tool definitions | 34 tools | ~40 tools | ~30 tools |
+| "say OK" total tokens | — | — | 10180 |
+| LLM call for recall | **No** | Yes (Sonnet) | Yes (GPT) |
+| Per-turn memory overhead | **12us** | ~7500ms | ~5800ms |
+
+Codex used 10180 tokens for a 2-word response. The bulk is system prompt, tool definitions, and workspace context that Codex sends every turn.
+
+---
+
+## Summary
+
+| Category | Abstract | Claude Code | Codex CLI |
+|----------|----------|-------------|-----------|
+| Startup | **22ms** | 266ms (12x) | 57ms (2.6x) |
+| RSS | **4.7 MB** | 333 MB (71x) | 44.7 MB (9.5x) |
+| Simple prompt | **2122ms** | 8942ms (4.2x) | 3843ms (1.8x) |
+| Throughput | **1564ms/req** | 12079ms/req (7.7x) | 4152ms/req (2.7x) |
+| Memory recall | **98us** | 7545ms | 5751ms |
+| Memory write | **28us** | 20687ms | 5882ms |
+| Graph memory | Yes | No | No |
+| LLM for recall | **No** | Yes | Yes |
+
+Ratios in parentheses are relative to Abstract.
+
+---
+
+## Reproduce
+
+```bash
+# vs Claude Code
+./run_tool_bench_claude.sh --iterations 20 --full
+
+# vs Codex CLI
+./run_tool_bench_codex.sh --iterations 20 --full
+
+# Memory architecture
+cargo run --release -p abstract-cli --example memory_bench
+```
+
+Full report: [`crates/abstract-cli/benchmarks/REPORT.md`](https://github.com/pacifio/cersei/blob/main/crates/abstract-cli/benchmarks/REPORT.md)

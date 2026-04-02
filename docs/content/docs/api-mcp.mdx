@@ -1,0 +1,57 @@
+---
+title: MCP (cersei-mcp)
+description: Model Context Protocol client — JSON-RPC 2.0 over stdio transport.
+---
+
+# cersei-mcp
+
+MCP (Model Context Protocol) client for connecting to external tool servers.
+
+## McpServerConfig
+
+```rust
+// Stdio transport
+let config = McpServerConfig::stdio("db", "npx", &["-y", "@my/db-mcp"]);
+
+// With environment variables
+let mut config = McpServerConfig::stdio("github", "npx", &["@modelcontextprotocol/server-github"]);
+config.env.insert("GITHUB_TOKEN".into(), "ghp_...".into());
+```
+
+## McpManager
+
+```rust
+let mcp = McpManager::connect(&[
+    McpServerConfig::stdio("db", "npx", &["-y", "@my/db-mcp"]),
+    McpServerConfig::stdio("docs", "npx", &["-y", "@my/docs-mcp"]),
+]).await?;
+
+// Get tool definitions for the agent
+let tools = mcp.tool_definitions().await;
+
+// Use with agent
+Agent::builder()
+    .tools(tools)
+    .mcp_server(McpServerConfig::stdio("db", "npx", &["-y", "@my/db-mcp"]))
+    .build()?;
+```
+
+## Protocol
+
+- JSON-RPC 2.0 over stdio (stdin/stdout)
+- Tool discovery via `tools/list`
+- Tool execution via `tools/call`
+- Resource enumeration via `resources/list`
+- Environment variable expansion in server configs
+
+## Integration with Agent
+
+```rust
+Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .mcp_server(McpServerConfig::stdio("db", "npx", &["-y", "@my/db-mcp"]))
+    .build()?;
+```
+
+MCP tools are merged with built-in tools. The agent can call both seamlessly.

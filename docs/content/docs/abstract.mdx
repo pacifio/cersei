@@ -1,0 +1,132 @@
+---
+title: Abstract CLI
+description: A coding agent CLI built on Cersei — single binary, graph memory, 34 tools.
+---
+
+# Abstract CLI
+
+Abstract is a complete CLI coding agent built on the Cersei SDK. One binary, zero runtime dependencies, graph memory by default.
+
+## Install
+
+```bash
+cargo install --git https://github.com/pacifio/cersei abstract-cli
+```
+
+## Usage
+
+```bash
+abstract                           # Interactive REPL
+abstract "fix the failing tests"   # Single-shot
+abstract --resume                  # Resume last session
+abstract --model opus --max        # Opus with max thinking
+abstract --no-permissions --json   # CI mode with NDJSON output
+abstract --provider openai         # Force OpenAI
+abstract -C /path/to/project       # Working directory
+```
+
+## Configuration
+
+Config is layered (lowest to highest priority):
+
+1. Hardcoded defaults
+2. `~/.abstract/config.toml` (global)
+3. `.abstract/config.toml` (project)
+4. Environment variables (`ABSTRACT_MODEL`, etc.)
+5. CLI flags
+
+```toml
+# ~/.abstract/config.toml
+model = "gpt-4o"
+provider = "openai"
+max_turns = 20
+max_tokens = 16384
+effort = "medium"
+theme = "dark"
+auto_compact = true
+graph_memory = true
+permissions_mode = "interactive"
+```
+
+## Authentication
+
+```bash
+abstract login              # Interactive chooser
+abstract login claude       # Anthropic OAuth
+abstract login openai       # Enter OpenAI key
+abstract login key          # Auto-detect from prefix
+abstract login status       # Show auth status
+abstract logout             # Remove credentials
+```
+
+Or set environment variables:
+
+```bash
+export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## Provider Auto-Detection
+
+- `OPENAI_API_KEY` set → uses OpenAI (auto-switches model to gpt-4o)
+- `ANTHROPIC_API_KEY` set → uses Anthropic
+- Both set → prefers OpenAI (override with `--provider anthropic`)
+
+## Project Initialization
+
+```bash
+abstract init
+```
+
+Creates `.abstract/config.toml` and `.abstract/instructions.md` in the current directory. Instructions are injected into every conversation's system prompt.
+
+## Session Management
+
+```bash
+abstract sessions list       # List all sessions
+abstract sessions show <id>  # Show transcript
+abstract sessions rm <id>    # Delete session
+abstract --resume             # Resume last session
+abstract --resume <id>        # Resume specific session
+```
+
+Sessions are stored as JSONL at `~/.claude/projects/<path>/<id>.jsonl` — compatible with Claude Code format.
+
+## MCP Servers
+
+```bash
+abstract mcp add github npx @modelcontextprotocol/server-github
+abstract mcp list
+abstract mcp remove github
+```
+
+MCP servers are configured in `.abstract/config.toml` and started on demand.
+
+## Graph Memory
+
+Graph memory (Grafeo) is ON by default. Stores relationships between memory entries:
+
+```
+(:Memory) --[:RELATES_TO]--> (:Memory)
+(:Topic)  --[:TAGGED]------> (:Memory)
+```
+
+Graph recall returns results in 98 microseconds — indexed lookups instead of scanning every file.
+
+## Architecture
+
+Abstract is a thin CLI shell around the Cersei SDK:
+
+```
+User Input → InputReader (rustyline)
+    → REPL loop
+    → Agent::run_stream() (Cersei SDK)
+        → Provider (Anthropic/OpenAI)
+        → Tool dispatch (34 tools)
+        → Memory (graph + flat files)
+        → Hooks, permissions, auto-compact
+    → StreamRenderer (termimad)
+    → Terminal output
+```
+
+The SDK does 95% of the work. The CLI handles presentation, config, and user interaction.

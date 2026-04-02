@@ -1,0 +1,68 @@
+---
+title: Installation
+description: Adding Cersei to your Rust project.
+---
+
+## From GitHub
+
+```toml
+[dependencies]
+cersei = { git = "https://github.com/pacifio/cersei" }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+```
+
+Or via the CLI:
+
+```bash
+cargo add cersei --git https://github.com/pacifio/cersei
+cargo add tokio --features full
+cargo add anyhow
+```
+
+## Optional: Graph Memory
+
+Enable the Grafeo graph backend for relationship-aware recall:
+
+```toml
+cersei-memory = { git = "https://github.com/pacifio/cersei", features = ["graph"] }
+```
+
+## Optional: Individual Crates
+
+Use specific crates if you only need parts of the SDK:
+
+```toml
+cersei-types = { git = "https://github.com/pacifio/cersei" }     # Core types only
+cersei-provider = { git = "https://github.com/pacifio/cersei" }   # LLM providers
+cersei-tools = { git = "https://github.com/pacifio/cersei" }      # Tool system
+cersei-agent = { git = "https://github.com/pacifio/cersei" }      # Agent runtime
+cersei-memory = { git = "https://github.com/pacifio/cersei" }     # Memory backends
+cersei-hooks = { git = "https://github.com/pacifio/cersei" }      # Hooks/middleware
+cersei-mcp = { git = "https://github.com/pacifio/cersei" }        # MCP client
+```
+
+## Abstract CLI
+
+Install the reference CLI tool built on Cersei:
+
+```bash
+cargo install --git https://github.com/pacifio/cersei abstract-cli
+```
+
+This installs the `abstract` binary — a complete coding agent CLI.
+
+## Environment Variables
+
+| Variable | Provider | Required |
+|----------|----------|----------|
+| `ANTHROPIC_API_KEY` | Anthropic | For Claude models |
+| `OPENAI_API_KEY` | OpenAI | For GPT models |
+
+At least one provider key is needed. Both can be set simultaneously.
+
+## System Requirements
+
+- Rust 1.75+ (edition 2021)
+- `rg` (ripgrep) — optional, Grep tool falls back to system `grep`
+- macOS, Linux, or Windows
