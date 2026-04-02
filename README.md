@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-**MIT License** | Built by [Adib Mohsin](https://github.com/pacifio) | [github.com/pacifio/cersei](https://github.com/pacifio/cersei)
+**MIT License** | Built by [Adib Mohsin](https://github.com/pacifio) | [Docs](https://cersei.pacifio.dev/docs) | [GitHub](https://github.com/pacifio/cersei)
 
 ---
 
@@ -469,18 +469,16 @@ cargo test -p cersei-mcp
 
 ## Documentation
 
-| Doc | Content |
-|-----|---------|
-| [Getting Started](docs/01-getting-started.md) | Installation, first agent |
-| [Providers](docs/02-providers.md) | Anthropic, OpenAI, custom |
-| [Tools](docs/03-tools.md) | Built-in tools, custom tools, derive macro |
-| [Agent Lifecycle](docs/04-agent-lifecycle.md) | Agentic loop, multi-turn, cancellation |
-| [Events & Streaming](docs/05-events-streaming.md) | Callbacks, broadcast, stream |
-| [Memory](docs/06-memory.md) | Sessions, persistence, custom backends |
-| [Hooks](docs/07-hooks.md) | Middleware, cost control, auditing |
-| [Permissions](docs/08-permissions.md) | Policies, rules, interactive |
-| [Architecture](docs/09-architecture.md) | Crate map, data flow, design principles |
-| [Benchmarks](docs/10-benchmarks.md) | Methodology, results, analysis |
+**[cersei.pacifio.dev/docs](https://cersei.pacifio.dev/docs)** — full docs with API reference, architecture, cookbooks, benchmarks, and llms.txt support.
+
+| Section | Content |
+|---------|---------|
+| [Quick Start](https://cersei.pacifio.dev/docs/quick-start) | First agent in 10 lines |
+| [API Reference](https://cersei.pacifio.dev/docs/api-agent) | Agent, Provider, Tools, Memory, Hooks, MCP |
+| [Architecture](https://cersei.pacifio.dev/docs/architecture) | Crate map, data flow, design principles |
+| [Cookbooks](https://cersei.pacifio.dev/docs/cookbook-custom-tools) | Custom tools, deployment, embedding |
+| [Abstract CLI](https://cersei.pacifio.dev/docs/abstract) | Reference CLI built on Cersei |
+| [Benchmarks](https://cersei.pacifio.dev/docs/bench-vs-claude-code) | vs Claude Code vs Codex |
 
 ---
 
