@@ -1,6 +1,7 @@
 //! WebFetch tool: fetch and parse web page content.
 
 use super::*;
+use crate::tool_primitives::http as phttp;
 use serde::Deserialize;
 
 pub struct WebFetchTool;
@@ -39,57 +40,19 @@ impl Tool for WebFetchTool {
 
         let max_chars = input.max_chars.unwrap_or(50_000);
 
-        let client = match reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .user_agent("Cersei-Agent/0.1")
-            .build()
-        {
-            Ok(c) => c,
-            Err(e) => return ToolResult::error(format!("Failed to create HTTP client: {}", e)),
-        };
-
-        let response = match client.get(&input.url).send().await {
-            Ok(r) => r,
-            Err(e) => return ToolResult::error(format!("Fetch failed: {}", e)),
-        };
-
-        let status = response.status();
-        if !status.is_success() {
-            return ToolResult::error(format!("HTTP {}: {}", status.as_u16(), status.as_str()));
+        match phttp::fetch_html(&input.url, max_chars, phttp::HttpOptions::default()).await {
+            Ok(text) => {
+                if text.len() >= max_chars {
+                    ToolResult::success(format!(
+                        "{}\n\n[Truncated: showing first {} chars]",
+                        text, max_chars
+                    ))
+                } else {
+                    ToolResult::success(text)
+                }
+            }
+            Err(e) => ToolResult::error(format!("Fetch failed: {}", e)),
         }
-
-        let content_type = response
-            .headers()
-            .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("")
-            .to_string();
-
-        let body = match response.text().await {
-            Ok(t) => t,
-            Err(e) => return ToolResult::error(format!("Failed to read body: {}", e)),
-        };
-
-        // Convert HTML to readable text
-        let text = if content_type.contains("html") {
-            html2text::from_read(body.as_bytes(), 80)
-        } else {
-            body
-        };
-
-        // Truncate if needed
-        let text = if text.len() > max_chars {
-            format!(
-                "{}\n\n[Truncated: {} chars total, showing first {}]",
-                &text[..max_chars],
-                text.len(),
-                max_chars
-            )
-        } else {
-            text
-        };
-
-        ToolResult::success(text)
     }
 }
 

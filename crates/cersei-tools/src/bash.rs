@@ -1,8 +1,8 @@
 //! Bash tool: execute shell commands.
 
 use super::*;
+use crate::tool_primitives::process::{self as pproc, ExecOptions, Shell};
 use serde::Deserialize;
-use std::process::Stdio;
 
 pub struct BashTool;
 
@@ -57,27 +57,18 @@ impl Tool for BashTool {
 
         let timeout_ms = input.timeout.unwrap_or(120_000).min(600_000);
 
-        let mut cmd = tokio::process::Command::new("sh");
-        cmd.args(["-c", &input.command])
-            .current_dir(&cwd)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        let opts = ExecOptions {
+            cwd: Some(cwd.clone()),
+            env: env_vars,
+            timeout: Some(std::time::Duration::from_millis(timeout_ms)),
+            shell: Shell::Sh,
+        };
 
-        for (k, v) in &env_vars {
-            cmd.env(k, v);
-        }
-
-        let result = tokio::time::timeout(
-            std::time::Duration::from_millis(timeout_ms),
-            cmd.output(),
-        )
-        .await;
-
-        match result {
-            Ok(Ok(output)) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
+        match pproc::exec(&input.command, opts).await {
+            Ok(output) => {
+                if output.timed_out {
+                    return ToolResult::error(format!("Command timed out after {}ms", timeout_ms));
+                }
 
                 // Update shell state for cd commands
                 if input.command.trim().starts_with("cd ") {
@@ -93,36 +84,27 @@ impl Tool for BashTool {
                 }
 
                 let mut content = String::new();
-                if !stdout.is_empty() {
-                    content.push_str(&stdout);
+                if !output.stdout.is_empty() {
+                    content.push_str(&output.stdout);
                 }
-                if !stderr.is_empty() {
+                if !output.stderr.is_empty() {
                     if !content.is_empty() {
                         content.push('\n');
                     }
-                    content.push_str(&stderr);
+                    content.push_str(&output.stderr);
                 }
 
-                if output.status.success() {
+                if output.exit_code == 0 {
                     if content.is_empty() {
                         ToolResult::success("(Bash completed with no output)")
                     } else {
                         ToolResult::success(content)
                     }
                 } else {
-                    let code = output.status.code().unwrap_or(-1);
-                    ToolResult::error(format!(
-                        "Exit code {}\n{}",
-                        code,
-                        content
-                    ))
+                    ToolResult::error(format!("Exit code {}\n{}", output.exit_code, content))
                 }
             }
-            Ok(Err(e)) => ToolResult::error(format!("Failed to execute: {}", e)),
-            Err(_) => ToolResult::error(format!(
-                "Command timed out after {}ms",
-                timeout_ms
-            )),
+            Err(e) => ToolResult::error(format!("Failed to execute: {}", e)),
         }
     }
 }

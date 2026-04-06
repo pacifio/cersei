@@ -1,5 +1,6 @@
 //! cersei-tools: Tool trait, built-in tool implementations, and permission system.
 
+pub mod tool_primitives;
 pub mod ask_user;
 pub mod bash;
 pub mod bash_classifier;

@@ -1,0 +1,678 @@
+---
+title: Built-in Tools Reference
+description: Complete reference for all 34 built-in tools — input schemas, permission levels, and usage notes.
+---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Built-in Tools Reference
+
+34 tools across 6 categories. Each tool is available via the composition functions in `cersei::tools`.
+
+```rust
+cersei::tools::all()           // all 34
+cersei::tools::coding()        // filesystem + shell + web (10)
+cersei::tools::filesystem()    // 6 tools
+cersei::tools::shell()         // 2 tools
+cersei::tools::web()           // 2 tools
+cersei::tools::planning()      // 3 tools
+cersei::tools::scheduling()    // 5 tools
+cersei::tools::orchestration() // 9 tools
+```
+
+---
+
+## Filesystem
+
+### Read
+
+Read a file with optional line offset and limit. Returns content with line numbers.
+
+**Permission:** ReadOnly
+
+<TypeTable
+  type={{
+    file_path: {
+      type: 'string',
+      description: 'Absolute path to the file.',
+      required: true,
+    },
+    offset: {
+      type: 'integer',
+      description: 'Line number to start reading from (0-based).',
+    },
+    limit: {
+      type: 'integer',
+      description: 'Number of lines to read.',
+      default: '2000',
+    },
+  }}
+/>
+
+### Write
+
+Write content to a file, creating parent directories if they don't exist.
+
+**Permission:** Write
+
+<TypeTable
+  type={{
+    file_path: {
+      type: 'string',
+      description: 'Absolute path to the file.',
+      required: true,
+    },
+    content: {
+      type: 'string',
+      description: 'Content to write.',
+      required: true,
+    },
+  }}
+/>
+
+### Edit
+
+Exact string replacement in a file. Fails if the old string is not unique (unless `replace_all` is true).
+
+**Permission:** Write
+
+<TypeTable
+  type={{
+    file_path: {
+      type: 'string',
+      description: 'Absolute path to the file.',
+      required: true,
+    },
+    old_string: {
+      type: 'string',
+      description: 'The text to find and replace.',
+      required: true,
+    },
+    new_string: {
+      type: 'string',
+      description: 'The replacement text.',
+      required: true,
+    },
+    replace_all: {
+      type: 'boolean',
+      description: 'Replace all occurrences instead of requiring uniqueness.',
+      default: 'false',
+    },
+  }}
+/>
+
+### Glob
+
+Find files matching a glob pattern, sorted by path.
+
+**Permission:** ReadOnly
+
+<TypeTable
+  type={{
+    pattern: {
+      type: 'string',
+      description: 'Glob pattern (e.g., "**/*.rs", "src/**/*.ts").',
+      required: true,
+    },
+    path: {
+      type: 'string',
+      description: 'Directory to search in.',
+      default: 'working directory',
+    },
+  }}
+/>
+
+### Grep
+
+Search file contents using regex. Uses ripgrep if available, falls back to system grep.
+
+**Permission:** ReadOnly
+
+<TypeTable
+  type={{
+    pattern: {
+      type: 'string',
+      description: 'Regex pattern to search for.',
+      required: true,
+    },
+    path: {
+      type: 'string',
+      description: 'File or directory to search in.',
+      default: 'working directory',
+    },
+    glob: {
+      type: 'string',
+      description: 'Glob pattern to filter files (e.g., "*.rs").',
+    },
+  }}
+/>
+
+### NotebookEdit
+
+Edit a Jupyter notebook cell by index.
+
+**Permission:** Write
+
+<TypeTable
+  type={{
+    file_path: {
+      type: 'string',
+      description: 'Path to .ipynb file.',
+      required: true,
+    },
+    cell_index: {
+      type: 'integer',
+      description: '0-based cell index to edit.',
+      required: true,
+    },
+    new_source: {
+      type: 'string',
+      description: 'New cell source content.',
+      required: true,
+    },
+    cell_type: {
+      type: 'string',
+      description: 'Cell type: "code" or "markdown".',
+    },
+  }}
+/>
+
+---
+
+## Shell
+
+### Bash
+
+Execute a shell command. Working directory and environment variables persist across calls within a session.
+
+**Permission:** Execute
+
+<TypeTable
+  type={{
+    command: {
+      type: 'string',
+      description: 'The bash command to execute.',
+      required: true,
+    },
+    timeout: {
+      type: 'integer',
+      description: 'Timeout in milliseconds.',
+      default: '120000 (max 600000)',
+    },
+  }}
+/>
+
+<Callout>
+The bash classifier automatically analyzes commands for risk level. Destructive commands (`rm -rf /`, `dd`, fork bombs) are blocked regardless of permission policy.
+</Callout>
+
+### PowerShell
+
+Execute a PowerShell command. Uses `pwsh` on macOS/Linux.
+
+**Permission:** Execute
+
+<TypeTable
+  type={{
+    command: {
+      type: 'string',
+      description: 'PowerShell command to execute.',
+      required: true,
+    },
+    timeout: {
+      type: 'integer',
+      description: 'Timeout in milliseconds.',
+      default: '120000',
+    },
+  }}
+/>
+
+---
+
+## Web
+
+### WebFetch
+
+Fetch a URL and return readable text. HTML is converted to plain text via `html2text`.
+
+**Permission:** ReadOnly
+
+<TypeTable
+  type={{
+    url: {
+      type: 'string',
+      description: 'The URL to fetch.',
+      required: true,
+    },
+    max_chars: {
+      type: 'integer',
+      description: 'Maximum characters to return.',
+      default: '50000',
+    },
+  }}
+/>
+
+### WebSearch
+
+Search the web via an API (Brave Search by default). Requires `CERSEI_SEARCH_API_KEY`.
+
+**Permission:** ReadOnly
+
+<TypeTable
+  type={{
+    query: {
+      type: 'string',
+      description: 'Search query.',
+      required: true,
+    },
+    num_results: {
+      type: 'integer',
+      description: 'Number of results to return.',
+      default: '8 (max 20)',
+    },
+  }}
+/>
+
+---
+
+## Planning
+
+### EnterPlanMode
+
+Switch to plan mode — restricts the agent to read-only tools for safe exploration.
+
+**Permission:** None. **No input required.**
+
+### ExitPlanMode
+
+Exit plan mode and return to full tool access.
+
+**Permission:** None. **No input required.**
+
+### TodoWrite
+
+Create and manage a structured task list with status tracking.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    todos: {
+      type: 'array',
+      description: 'The complete updated todo list.',
+      required: true,
+    },
+    'todos[].content': {
+      type: 'string',
+      description: 'Task description in imperative form ("Fix the tests").',
+      required: true,
+    },
+    'todos[].status': {
+      type: '"pending" | "in_progress" | "completed"',
+      description: 'Current task state.',
+      required: true,
+    },
+    'todos[].activeForm': {
+      type: 'string',
+      description: 'Present continuous form ("Fixing the tests").',
+      required: true,
+    },
+  }}
+/>
+
+---
+
+## Scheduling
+
+### CronCreate
+
+Schedule a recurring or one-shot prompt.
+
+**Permission:** Execute
+
+<TypeTable
+  type={{
+    schedule: {
+      type: 'string',
+      description: 'Cron expression ("*/5 * * * *") or one-shot ("once:30s").',
+      required: true,
+    },
+    prompt: {
+      type: 'string',
+      description: 'The prompt to execute on each trigger.',
+      required: true,
+    },
+  }}
+/>
+
+### CronList
+
+List all scheduled jobs with run counts.
+
+**Permission:** None. **No input required.**
+
+### CronDelete
+
+Delete a scheduled job by ID.
+
+**Permission:** Execute
+
+<TypeTable
+  type={{
+    id: {
+      type: 'string',
+      description: 'Cron job ID to delete.',
+      required: true,
+    },
+  }}
+/>
+
+### Sleep
+
+Pause execution for a duration.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    duration_ms: {
+      type: 'integer',
+      description: 'Milliseconds to sleep.',
+      required: true,
+      default: 'max 60000',
+    },
+  }}
+/>
+
+### RemoteTrigger
+
+Send an event to another session or agent.
+
+**Permission:** Execute
+
+<TypeTable
+  type={{
+    target_session: {
+      type: 'string',
+      description: 'Target session ID.',
+      required: true,
+    },
+    event_type: {
+      type: 'string',
+      description: 'Event type identifier.',
+      required: true,
+    },
+    payload: {
+      type: 'any',
+      description: 'Event payload (any valid JSON).',
+    },
+  }}
+/>
+
+---
+
+## Orchestration
+
+### SendMessage
+
+Send a message to another agent or session.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    to: {
+      type: 'string',
+      description: 'Target session or agent ID.',
+      required: true,
+    },
+    content: {
+      type: 'string',
+      description: 'Message content.',
+      required: true,
+    },
+  }}
+/>
+
+### TaskCreate
+
+Create a new task for tracking work.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    description: {
+      type: 'string',
+      description: 'What this task does.',
+      required: true,
+    },
+    prompt: {
+      type: 'string',
+      description: 'Optional prompt for a sub-agent.',
+    },
+  }}
+/>
+
+### TaskGet
+
+Get a task's current status, description, and output.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    id: {
+      type: 'string',
+      description: 'Task ID.',
+      required: true,
+    },
+  }}
+/>
+
+### TaskUpdate
+
+Update a task's status and/or output.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    id: {
+      type: 'string',
+      description: 'Task ID.',
+      required: true,
+    },
+    status: {
+      type: '"pending" | "running" | "completed" | "failed" | "stopped"',
+      description: 'New status.',
+    },
+    output: {
+      type: 'string',
+      description: 'Task result text.',
+    },
+  }}
+/>
+
+### TaskList
+
+List all tasks with their status.
+
+**Permission:** None. **No input required.**
+
+### TaskStop
+
+Stop a running task.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    id: {
+      type: 'string',
+      description: 'Task ID to stop.',
+      required: true,
+    },
+  }}
+/>
+
+### TaskOutput
+
+Get the full output of a completed task.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    id: {
+      type: 'string',
+      description: 'Task ID.',
+      required: true,
+    },
+  }}
+/>
+
+### EnterWorktree
+
+Create an isolated git worktree for parallel branch work.
+
+**Permission:** Write
+
+<TypeTable
+  type={{
+    branch: {
+      type: 'string',
+      description: 'Branch name to create and check out.',
+      required: true,
+    },
+    path: {
+      type: 'string',
+      description: 'Directory for the worktree.',
+      default: '/tmp/cersei-wt-{branch}',
+    },
+  }}
+/>
+
+### ExitWorktree
+
+Remove a git worktree and return to the original working directory.
+
+**Permission:** Write
+
+<TypeTable
+  type={{
+    path: {
+      type: 'string',
+      description: 'Worktree directory to remove.',
+      required: true,
+    },
+  }}
+/>
+
+---
+
+## Other
+
+### AskUserQuestion
+
+Ask the user a question and wait for their response.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    question: {
+      type: 'string',
+      description: 'The question to ask.',
+      required: true,
+    },
+  }}
+/>
+
+### SyntheticOutput
+
+Return structured JSON for programmatic consumption. Used by coordinator mode and SDK integrations.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    data: {
+      type: 'any',
+      description: 'Structured data to return (any valid JSON).',
+      required: true,
+    },
+  }}
+/>
+
+### Config
+
+Read or modify session-scoped configuration values.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    action: {
+      type: '"get" | "set" | "list"',
+      description: 'Action to perform.',
+      required: true,
+    },
+    key: {
+      type: 'string',
+      description: 'Config key (for get/set).',
+    },
+    value: {
+      type: 'any',
+      description: 'Value to set.',
+    },
+  }}
+/>
+
+### Skill
+
+Load and execute a skill (prompt template) from `.claude/commands/`, `.claude/skills/`, or bundled skills.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    skill: {
+      type: 'string',
+      description: 'Skill name, or "list" to show available skills.',
+      required: true,
+    },
+    args: {
+      type: 'string',
+      description: 'Arguments passed to the skill (replaces $ARGUMENTS in template).',
+    },
+  }}
+/>
+
+### ToolSearch
+
+Search for available tools by keyword.
+
+**Permission:** None
+
+<TypeTable
+  type={{
+    query: {
+      type: 'string',
+      description: 'Search query (matches tool names and descriptions).',
+      required: true,
+    },
+  }}
+/>
+
+---
+
+## Permission Summary
+
+| Level | Tools |
+|-------|-------|
+| **None** (18) | EnterPlanMode, ExitPlanMode, TodoWrite, CronList, Sleep, SendMessage, TaskCreate, TaskGet, TaskUpdate, TaskList, TaskStop, TaskOutput, AskUserQuestion, SyntheticOutput, Config, Skill, ToolSearch |
+| **ReadOnly** (4) | Read, Glob, Grep, WebFetch, WebSearch |
+| **Write** (4) | Write, Edit, NotebookEdit, EnterWorktree, ExitWorktree |
+| **Execute** (5) | Bash, PowerShell, CronCreate, CronDelete, RemoteTrigger |

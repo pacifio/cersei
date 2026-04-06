@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.4] - 2026-04-06
+
+### Added
+
+- **Tool primitives** (`tool_primitives` module). 6 sub-modules exposing the low-level building blocks that all 34 built-in tools use: `diff` (unified diffs, line diffs, patch application via `similar`), `fs` (async read/write/edit/diff/patch/metadata), `process` (async command execution with shell selection), `http` (GET/POST/fetch_html), `search` (structured grep with ripgrep + glob), `git` (async status/diff/log/branch detection). 26 new tests.
+- **Built-in tools reference** documentation page with complete input schemas for all 34 tools using TypeTable.
+- **Tool primitives documentation** — overview page, full API reference, and cookbook with DiffTool, deploy verifier, research agent, and git-aware code reviewer examples.
+- **Providers documentation** page covering all 13 providers with env vars, models, context windows, and usage examples.
+
+### Changed
+
+- `file_read.rs`, `file_write.rs`, `file_edit.rs` refactored to delegate to `tool_primitives::fs`.
+- `bash.rs` refactored to delegate to `tool_primitives::process::exec` (ShellState preserved).
+- `web_fetch.rs` refactored to delegate to `tool_primitives::http::fetch_html`.
+- `grep_tool.rs` refactored to delegate to `tool_primitives::search::grep` (structured `SearchMatch` results).
+- `glob_tool.rs` refactored to delegate to `tool_primitives::search::glob`.
+
 ## [0.1.3] - 2026-04-05
 
 ### Added

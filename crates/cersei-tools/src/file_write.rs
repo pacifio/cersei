@@ -1,6 +1,7 @@
 //! File write tool.
 
 use super::*;
+use crate::tool_primitives::fs as pfs;
 use serde::Deserialize;
 
 pub struct FileWriteTool;
@@ -36,13 +37,7 @@ impl Tool for FileWriteTool {
         };
 
         let path = std::path::Path::new(&input.file_path);
-        if let Some(parent) = path.parent() {
-            if let Err(e) = tokio::fs::create_dir_all(parent).await {
-                return ToolResult::error(format!("Failed to create directories: {}", e));
-            }
-        }
-
-        match tokio::fs::write(path, &input.content).await {
+        match pfs::write_file(path, &input.content).await {
             Ok(()) => ToolResult::success(format!(
                 "File created successfully at: {}",
                 input.file_path

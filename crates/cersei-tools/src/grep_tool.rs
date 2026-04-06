@@ -1,8 +1,8 @@
 //! Grep tool: search file contents with regex.
 
 use super::*;
+use crate::tool_primitives::search as psearch;
 use serde::Deserialize;
-use std::process::Stdio;
 
 pub struct GrepTool;
 
@@ -42,33 +42,22 @@ impl Tool for GrepTool {
             .path
             .unwrap_or_else(|| ctx.working_dir.display().to_string());
 
-        // Use ripgrep if available, fall back to grep
-        let rg_available = which::which("rg").is_ok();
-
-        let mut cmd = if rg_available {
-            let mut c = tokio::process::Command::new("rg");
-            c.args(["--no-heading", "-n", &input.pattern, &search_path]);
-            if let Some(g) = &input.glob {
-                c.args(["--glob", g]);
-            }
-            c.args(["--max-count", "250"]);
-            c
-        } else {
-            let mut c = tokio::process::Command::new("grep");
-            c.args(["-rn", &input.pattern, &search_path]);
-            c.args(["--max-count=250"]);
-            c
+        let opts = psearch::GrepOptions {
+            glob_filter: input.glob,
+            max_results: Some(250),
+            case_insensitive: false,
         };
 
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-
-        match cmd.output().await {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                if stdout.trim().is_empty() {
+        match psearch::grep(&input.pattern, std::path::Path::new(&search_path), opts).await {
+            Ok(matches) => {
+                if matches.is_empty() {
                     ToolResult::success("No matches found.")
                 } else {
-                    ToolResult::success(stdout.to_string())
+                    let output: Vec<String> = matches
+                        .iter()
+                        .map(|m| format!("{}:{}:{}", m.file.display(), m.line_number, m.line_content))
+                        .collect();
+                    ToolResult::success(output.join("\n"))
                 }
             }
             Err(e) => ToolResult::error(format!("Search failed: {}", e)),

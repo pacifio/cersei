@@ -4,8 +4,6 @@
     "index",
     "quick-start",
     "installation",
-    "---",
-    "changelog",
     "---Providers---",
     "providers",
     "---API Reference---",
@@ -16,6 +14,12 @@
     "api-memory",
     "api-hooks",
     "api-mcp",
+    "---Built-in Tools---",
+    "built-in-tools",
+    "---Tool Primitives---",
+    "primitives",
+    "primitives-api",
+    "primitives-cookbook",
     "---Sessions & Tasks---",
     "sessions",
     "background-tasks",
@@ -36,6 +40,8 @@
     "bench-library",
     "bench-graph",
     "bench-abstract",
-    "bench-vs-claude-code"
+    "bench-vs-claude-code",
+    "---",
+    "changelog"
   ]
 }

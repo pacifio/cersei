@@ -1,6 +1,7 @@
 //! Glob tool: find files by pattern.
 
 use super::*;
+use crate::tool_primitives::search as psearch;
 use serde::Deserialize;
 
 pub struct GlobTool;
@@ -41,23 +42,17 @@ impl Tool for GlobTool {
             .map(PathBuf::from)
             .unwrap_or_else(|| ctx.working_dir.clone());
 
-        let full_pattern = base_dir.join(&input.pattern).display().to_string();
-
-        match glob::glob(&full_pattern) {
-            Ok(entries) => {
-                let mut matches: Vec<String> = entries
-                    .filter_map(|e| e.ok())
-                    .map(|p| p.display().to_string())
-                    .collect();
-                matches.sort();
-
-                if matches.is_empty() {
+        match psearch::glob(&input.pattern, &base_dir).await {
+            Ok(mut paths) => {
+                paths.sort();
+                if paths.is_empty() {
                     ToolResult::success("No files matched the pattern.")
                 } else {
-                    ToolResult::success(matches.join("\n"))
+                    let output: Vec<String> = paths.iter().map(|p| p.display().to_string()).collect();
+                    ToolResult::success(output.join("\n"))
                 }
             }
-            Err(e) => ToolResult::error(format!("Invalid glob pattern: {}", e)),
+            Err(e) => ToolResult::error(format!("Glob failed: {}", e)),
         }
     }
 }

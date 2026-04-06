@@ -1,0 +1,280 @@
+---
+title: "Primitives: Cookbook"
+description: Build custom agent tools using tool primitives — DiffTool, deploy verifier, research agent, code reviewer.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Primitives Cookbook
+
+Practical examples of building agent tools using `tool_primitives` directly instead of inline I/O.
+
+---
+
+## DiffTool — Show Changes Before Writing
+
+An agent tool that shows the unified diff before applying changes, giving the model (or user) a chance to review.
+
+```rust
+use cersei::prelude::*;
+use cersei_tools::tool_primitives::{fs, diff};
+use std::path::Path;
+
+#[derive(Tool)]
+#[tool(name = "diff_preview", description = "Show a diff before editing a file", permission = "read_only")]
+struct DiffPreviewTool;
+
+#[async_trait]
+impl ToolExecute for DiffPreviewTool {
+    type Input = DiffInput;
+
+    async fn run(&self, input: DiffInput, _ctx: &ToolContext) -> ToolResult {
+        let path = Path::new(&input.file_path);
+
+        if !fs::file_exists(path).await {
+            return ToolResult::error(format!("File not found: {}", input.file_path));
+        }
+
+        let diff_output = fs::diff_file(path, &input.new_content, 3).await
+            .map_err(|e| format!("Diff failed: {e}"))?;
+
+        if diff_output.is_empty() {
+            ToolResult::success("No changes — file content is identical.")
+        } else {
+            ToolResult::success(format!(
+                "Proposed changes to {}:\n\n{}",
+                input.file_path, diff_output
+            ))
+        }
+    }
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct DiffInput {
+    file_path: String,
+    new_content: String,
+}
+```
+
+---
+
+## Deploy and Verify
+
+A tool that runs a deploy script, waits, then checks a health endpoint. Combines `process` and `http` primitives.
+
+```rust
+use cersei_tools::tool_primitives::{process, http};
+use std::time::Duration;
+
+async fn deploy_and_verify(
+    deploy_cmd: &str,
+    health_url: &str,
+    retries: u32,
+) -> Result<String, String> {
+    // Run the deploy
+    let output = process::exec(deploy_cmd, process::ExecOptions {
+        timeout: Some(Duration::from_secs(300)),
+        shell: process::Shell::Bash,
+        ..Default::default()
+    }).await.map_err(|e| format!("Deploy failed to start: {e}"))?;
+
+    if output.exit_code != 0 {
+        return Err(format!("Deploy failed (exit {}): {}", output.exit_code, output.stderr));
+    }
+
+    // Poll health endpoint
+    for attempt in 1..=retries {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
+        match http::get(health_url, http::HttpOptions {
+            timeout: Some(Duration::from_secs(5)),
+            ..Default::default()
+        }).await {
+            Ok(resp) if resp.status == 200 => {
+                return Ok(format!("Deploy succeeded. Health check passed on attempt {}.", attempt));
+            }
+            Ok(resp) => {
+                eprintln!("Health check attempt {}: HTTP {}", attempt, resp.status);
+            }
+            Err(e) => {
+                eprintln!("Health check attempt {}: {}", attempt, e);
+            }
+        }
+    }
+
+    Err(format!("Deploy completed but health check failed after {} attempts", retries))
+}
+```
+
+---
+
+## Research Agent — Fetch and Summarize
+
+Combine `http` and `search` to build a tool that fetches documentation and searches local files for related code.
+
+```rust
+use cersei_tools::tool_primitives::{http, search};
+use std::path::Path;
+
+async fn research(topic: &str, project_dir: &Path) -> String {
+    let mut report = String::new();
+
+    // Search local codebase for related code
+    let matches = search::grep(topic, project_dir, search::GrepOptions {
+        glob_filter: Some("*.rs".into()),
+        max_results: Some(10),
+        ..Default::default()
+    }).await.unwrap_or_default();
+
+    if !matches.is_empty() {
+        report.push_str(&format!("## Local references ({} matches)\n\n", matches.len()));
+        for m in &matches {
+            report.push_str(&format!("- `{}:{}` — {}\n", m.file.display(), m.line_number, m.line_content.trim()));
+        }
+        report.push('\n');
+    }
+
+    // Fetch external documentation
+    let urls = vec![
+        format!("https://docs.rs/{topic}/latest"),
+        format!("https://crates.io/crates/{topic}"),
+    ];
+
+    for url in &urls {
+        match http::fetch_html(url, 10_000, Default::default()).await {
+            Ok(text) => {
+                report.push_str(&format!("## {url}\n\n{}\n\n", &text[..text.len().min(2000)]));
+            }
+            Err(_) => {
+                report.push_str(&format!("## {url}\n\n(fetch failed)\n\n"));
+            }
+        }
+    }
+
+    report
+}
+```
+
+---
+
+## Git-Aware Code Reviewer
+
+A tool that reads the current diff, finds the modified files, and checks each one for common issues.
+
+```rust
+use cersei_tools::tool_primitives::{git, fs, search};
+use std::path::Path;
+
+async fn review_changes(repo: &Path) -> Result<String, String> {
+    if !git::is_repo(repo).await {
+        return Err("Not a git repository".into());
+    }
+
+    let status = git::status(repo).await.map_err(|e| e.to_string())?;
+    let branch = status.branch.as_deref().unwrap_or("detached");
+
+    let mut report = format!("## Code Review — branch `{branch}`\n\n");
+    report.push_str(&format!("{} files changed\n\n", status.files.len()));
+
+    for file in &status.files {
+        report.push_str(&format!("### {} ({})\n\n", file.path, file.status));
+
+        // Show the diff for this file
+        match git::diff_file_content(repo, &file.path).await {
+            Ok(diff) if !diff.is_empty() => {
+                let added = diff.lines().filter(|l| l.starts_with('+')).count();
+                let removed = diff.lines().filter(|l| l.starts_with('-')).count();
+                report.push_str(&format!("+{added} -{removed} lines\n\n"));
+            }
+            _ => {}
+        }
+
+        // Check for TODOs in modified files
+        let file_path = repo.join(&file.path);
+        if let Ok(todos) = search::grep("TODO|FIXME|HACK", &file_path, search::GrepOptions {
+            max_results: Some(5),
+            case_insensitive: true,
+            ..Default::default()
+        }).await {
+            if !todos.is_empty() {
+                report.push_str("**Markers found:**\n");
+                for t in &todos {
+                    report.push_str(&format!("  - line {}: {}\n", t.line_number, t.line_content.trim()));
+                }
+                report.push('\n');
+            }
+        }
+    }
+
+    Ok(report)
+}
+```
+
+---
+
+## Structured File Analysis
+
+Combine `fs` and `diff` to build a function that analyzes how a file has changed between two versions.
+
+```rust
+use cersei_tools::tool_primitives::{fs, diff};
+use std::path::Path;
+
+async fn analyze_change(path: &Path, proposed: &str) -> String {
+    let meta = fs::file_metadata(path).await.ok();
+    let size_str = meta.as_ref()
+        .map(|m| format!("{}KB", m.size_bytes / 1024))
+        .unwrap_or_else(|| "new file".into());
+
+    let lines = diff::line_diff(
+        &tokio::fs::read_to_string(path).await.unwrap_or_default(),
+        proposed,
+    );
+
+    let added = lines.iter().filter(|l| l.tag == diff::ChangeTag::Added).count();
+    let removed = lines.iter().filter(|l| l.tag == diff::ChangeTag::Removed).count();
+    let unchanged = lines.iter().filter(|l| l.tag == diff::ChangeTag::Unchanged).count();
+
+    format!(
+        "{} ({}) — +{} -{} ~{} lines",
+        path.display(), size_str, added, removed, unchanged
+    )
+}
+```
+
+---
+
+## Composing Primitives Into a Tool
+
+Wrap any primitive-based function as a model-facing tool:
+
+```rust
+#[derive(Tool)]
+#[tool(name = "code_review", description = "Review uncommitted changes", permission = "read_only")]
+struct CodeReviewTool;
+
+#[async_trait]
+impl ToolExecute for CodeReviewTool {
+    type Input = CodeReviewInput;
+
+    async fn run(&self, input: CodeReviewInput, ctx: &ToolContext) -> ToolResult {
+        match review_changes(&ctx.working_dir).await {
+            Ok(report) => ToolResult::success(report),
+            Err(e) => ToolResult::error(e),
+        }
+    }
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct CodeReviewInput {} // no input needed — uses working_dir from context
+```
+
+Register it alongside built-in tools:
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .tool(CodeReviewTool)
+    .build()?;
+```

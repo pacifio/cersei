@@ -1,6 +1,7 @@
 //! File read tool.
 
 use super::*;
+use crate::tool_primitives::fs as pfs;
 use serde::Deserialize;
 
 pub struct FileReadTool;
@@ -42,22 +43,11 @@ impl Tool for FileReadTool {
             return ToolResult::error(format!("File not found: {}", input.file_path));
         }
 
-        match tokio::fs::read_to_string(path).await {
-            Ok(content) => {
-                let lines: Vec<&str> = content.lines().collect();
-                let offset = input.offset.unwrap_or(0);
-                let limit = input.limit.unwrap_or(2000);
+        let offset = input.offset.unwrap_or(0);
+        let limit = input.limit.unwrap_or(2000);
 
-                let selected: Vec<String> = lines
-                    .iter()
-                    .skip(offset)
-                    .take(limit)
-                    .enumerate()
-                    .map(|(i, line)| format!("{:>6}\t{}", offset + i + 1, line))
-                    .collect();
-
-                ToolResult::success(selected.join("\n"))
-            }
+        match pfs::read_file(path, offset, limit).await {
+            Ok(fc) => ToolResult::success(fc.content),
             Err(e) => ToolResult::error(format!("Failed to read file: {}", e)),
         }
     }

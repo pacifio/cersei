@@ -1,0 +1,164 @@
+---
+title: Tool Primitives
+description: Low-level building blocks for agent tools — file I/O, command execution, HTTP, search, git, and text diffing.
+---
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Tool Primitives
+
+The 34 built-in tools are thin wrappers over a set of async primitives. These primitives are the actual building blocks — file reads, process spawning, HTTP fetching, regex search, git operations, text diffing. They return structured types instead of strings, have no JSON schema overhead, and work outside the Tool trait.
+
+Use them directly when building custom tools, data pipelines, DevOps automation, or anything that needs fine-grained control over I/O.
+
+```rust
+use cersei_tools::tool_primitives::{fs, diff, process, http, search, git};
+```
+
+<Callout>
+Tool primitives are pure async functions and structs. No Tool trait, no JSON serialization, no model-facing API. They're designed for developers, not models.
+</Callout>
+
+---
+
+## At a Glance
+
+<Cards>
+  <Card title="diff" href="/docs/primitives-api#diff">
+    Unified diffs, structured line diffs, and patch application. Pure functions, no I/O. Built on the `similar` crate.
+  </Card>
+  <Card title="fs" href="/docs/primitives-api#fs">
+    Async file read/write/edit with structured returns. Diff a file against proposed changes. Apply patches. Check metadata.
+  </Card>
+  <Card title="process" href="/docs/primitives-api#process">
+    Async command execution with shell selection (Sh, Bash, Zsh, PowerShell, Cmd). Stateless — no persistent cwd. Streaming output via channel.
+  </Card>
+  <Card title="http" href="/docs/primitives-api#http">
+    GET, POST, and HTML-to-text fetching. Configurable timeout, headers, user agent. Built on reqwest.
+  </Card>
+  <Card title="search" href="/docs/primitives-api#search">
+    Structured regex search (ripgrep with grep fallback) and glob pattern matching. Returns file paths, line numbers, and matched content.
+  </Card>
+  <Card title="git" href="/docs/primitives-api#git">
+    Async git CLI operations — status, diff, log, branch detection. Structured types for everything. No libgit2 dependency.
+  </Card>
+</Cards>
+
+---
+
+## Quick Examples
+
+### Read a file with line numbers
+
+```rust
+use cersei_tools::tool_primitives::fs;
+
+let content = fs::read_file(Path::new("src/main.rs"), 0, 50).await?;
+println!("Lines: {}, returned: {}", content.total_lines, content.lines_returned);
+println!("{}", content.content); // 1-based line numbers, cat -n style
+```
+
+### Produce a unified diff
+
+```rust
+use cersei_tools::tool_primitives::diff;
+
+let old = "fn main() {\n    println!(\"hello\");\n}\n";
+let new = "fn main() {\n    println!(\"world\");\n}\n";
+
+let patch = diff::unified_diff(old, new, 3);
+// @@ -1,3 +1,3 @@
+//  fn main() {
+// -    println!("hello");
+// +    println!("world");
+//  }
+```
+
+### Execute a command
+
+```rust
+use cersei_tools::tool_primitives::process::{exec, ExecOptions, Shell};
+
+let output = exec("cargo test", ExecOptions {
+    cwd: Some("/my/project".into()),
+    timeout: Some(Duration::from_secs(60)),
+    shell: Shell::Bash,
+    ..Default::default()
+}).await?;
+
+if output.exit_code == 0 {
+    println!("Tests passed: {}", output.stdout);
+} else {
+    eprintln!("Tests failed (exit {}): {}", output.exit_code, output.stderr);
+}
+```
+
+### Search files with grep
+
+```rust
+use cersei_tools::tool_primitives::search;
+
+let matches = search::grep("TODO", Path::new("src/"), search::GrepOptions {
+    glob_filter: Some("*.rs".into()),
+    max_results: Some(50),
+    ..Default::default()
+}).await?;
+
+for m in &matches {
+    println!("{}:{}: {}", m.file.display(), m.line_number, m.line_content);
+}
+```
+
+### Check git status
+
+```rust
+use cersei_tools::tool_primitives::git;
+
+if git::is_repo(Path::new(".")).await {
+    let status = git::status(Path::new(".")).await?;
+    println!("Branch: {:?}", status.branch);
+    for file in &status.files {
+        println!("  {} {}", file.status, file.path);
+    }
+}
+```
+
+### Fetch a URL
+
+```rust
+use cersei_tools::tool_primitives::http;
+
+let text = http::fetch_html("https://example.com", 50_000, Default::default()).await?;
+println!("{}", text); // HTML converted to readable plain text
+```
+
+---
+
+## Primitives vs Tools
+
+| | Tool (model-facing) | Primitive (developer-facing) |
+|---|---|---|
+| Input | `serde_json::Value` | Typed Rust arguments |
+| Output | `ToolResult` (String) | Structured types (`FileContent`, `SearchMatch`, etc.) |
+| Schema | JSON Schema for the model | No schema |
+| Permissions | Checked by the agent runtime | None — caller's responsibility |
+| Async | Yes | Yes |
+| Use case | Model calls it via tool_use | Developer calls it from Rust |
+
+The built-in tools call primitives internally:
+
+```
+Model → ToolUse("Read", {file_path: "src/main.rs"})
+    → FileReadTool.execute(input, ctx)
+        → tool_primitives::fs::read_file(path, offset, limit)  ← this is the primitive
+            → Returns FileContent { content, total_lines, ... }
+        → ToolResult::success(content.content)                  ← formatted for the model
+```
+
+---
+
+## Next Steps
+
+- [API Reference](/docs/primitives-api) — every function, struct, enum, and field
+- [Cookbook](/docs/primitives-cookbook) — build a DiffTool, a deploy verifier, a research agent

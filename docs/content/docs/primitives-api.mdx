@@ -1,0 +1,488 @@
+---
+title: "Primitives: API Reference"
+description: Complete API reference for all 6 tool primitive modules — diff, fs, process, http, search, git.
+---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Primitives API Reference
+
+Every public function, struct, and enum across the 6 tool primitive modules.
+
+```rust
+use cersei_tools::tool_primitives::{diff, fs, process, http, search, git};
+```
+
+---
+
+## diff
+
+Pure text diffing functions. No I/O, no async. Built on the `similar` crate.
+
+### `unified_diff`
+
+```rust
+pub fn unified_diff(old: &str, new: &str, context_lines: usize) -> String
+```
+
+Produces a standard unified diff with `@@` hunk headers. `context_lines` controls how many unchanged lines surround each hunk.
+
+### `line_diff`
+
+```rust
+pub fn line_diff(old: &str, new: &str) -> Vec<DiffLine>
+```
+
+Returns a structured per-line diff with old/new line numbers and change tags.
+
+<TypeTable
+  type={{
+    tag: {
+      type: 'ChangeTag',
+      description: 'Added, Removed, or Unchanged.',
+      required: true,
+    },
+    line_number_old: {
+      type: 'Option<usize>',
+      description: 'Line number in the old text (None for added lines).',
+    },
+    line_number_new: {
+      type: 'Option<usize>',
+      description: 'Line number in the new text (None for removed lines).',
+    },
+    content: {
+      type: 'String',
+      description: 'The line content.',
+      required: true,
+    },
+  }}
+/>
+
+### `apply_patch`
+
+```rust
+pub fn apply_patch(original: &str, patch: &str) -> Result<String, PatchError>
+```
+
+Applies a unified diff patch to `original`. Returns the patched text or an error if the patch doesn't apply cleanly.
+
+---
+
+## fs
+
+Async file operations. All functions use `tokio::fs`.
+
+### `read_file`
+
+```rust
+pub async fn read_file(path: &Path, offset: usize, limit: usize) -> Result<FileContent, io::Error>
+```
+
+Read a file with optional line offset and limit. Returns content with 1-based line numbers.
+
+<TypeTable
+  type={{
+    path: {
+      type: 'String',
+      description: 'File path.',
+      required: true,
+    },
+    content: {
+      type: 'String',
+      description: 'File content formatted with line numbers (cat -n style).',
+      required: true,
+    },
+    total_lines: {
+      type: 'usize',
+      description: 'Total number of lines in the file.',
+      required: true,
+    },
+    offset: {
+      type: 'usize',
+      description: '0-based offset that was applied.',
+      required: true,
+    },
+    lines_returned: {
+      type: 'usize',
+      description: 'Number of lines actually returned.',
+      required: true,
+    },
+  }}
+/>
+
+### `write_file`
+
+```rust
+pub async fn write_file(path: &Path, content: &str) -> Result<(), io::Error>
+```
+
+Write content to a file. Creates parent directories automatically.
+
+### `edit_file`
+
+```rust
+pub async fn edit_file(
+    path: &Path, old_text: &str, new_text: &str, replace_all: bool
+) -> Result<EditResult, EditError>
+```
+
+String replacement in a file. Returns the number of replacements made.
+
+**Errors:**
+- `EditError::NotFound` — `old_text` not present in the file
+- `EditError::AmbiguousMatch { count }` — `old_text` appears multiple times and `replace_all` is false
+- `EditError::Io(e)` — file I/O failure
+
+### `diff_file`
+
+```rust
+pub async fn diff_file(path: &Path, new_content: &str, context_lines: usize) -> Result<String, io::Error>
+```
+
+Produce a unified diff between the file's current content and proposed new content.
+
+### `patch_file`
+
+```rust
+pub async fn patch_file(path: &Path, patch: &str) -> Result<(), PatchFileError>
+```
+
+Apply a unified diff patch to a file, writing the result back.
+
+### `file_exists` / `file_size` / `file_metadata`
+
+```rust
+pub async fn file_exists(path: &Path) -> bool
+pub async fn file_size(path: &Path) -> Result<u64, io::Error>
+pub async fn file_metadata(path: &Path) -> Result<FileMetadata, io::Error>
+```
+
+<TypeTable
+  type={{
+    size_bytes: {
+      type: 'u64',
+      description: 'File size in bytes.',
+      required: true,
+    },
+    is_file: {
+      type: 'bool',
+      description: 'Whether the path is a regular file.',
+      required: true,
+    },
+    is_dir: {
+      type: 'bool',
+      description: 'Whether the path is a directory.',
+      required: true,
+    },
+    is_symlink: {
+      type: 'bool',
+      description: 'Whether the path is a symbolic link.',
+      required: true,
+    },
+    modified: {
+      type: 'Option<u64>',
+      description: 'Last modified time as Unix epoch seconds.',
+    },
+    readonly: {
+      type: 'bool',
+      description: 'Whether the file is read-only.',
+      required: true,
+    },
+  }}
+/>
+
+---
+
+## process
+
+Async command execution. Stateless — no persistent cwd or env.
+
+### `exec`
+
+```rust
+pub async fn exec(command: &str, opts: ExecOptions) -> Result<ExecOutput, io::Error>
+```
+
+Execute a command through a shell. Returns when the command completes or times out.
+
+<TypeTable
+  type={{
+    stdout: {
+      type: 'String',
+      description: 'Standard output.',
+      required: true,
+    },
+    stderr: {
+      type: 'String',
+      description: 'Standard error.',
+      required: true,
+    },
+    exit_code: {
+      type: 'i32',
+      description: 'Process exit code. -1 on timeout or signal.',
+      required: true,
+    },
+    timed_out: {
+      type: 'bool',
+      description: 'Whether the command was killed due to timeout.',
+      required: true,
+    },
+  }}
+/>
+
+### `ExecOptions`
+
+<TypeTable
+  type={{
+    cwd: {
+      type: 'Option<PathBuf>',
+      description: 'Working directory for the command.',
+    },
+    env: {
+      type: 'HashMap<String, String>',
+      description: 'Environment variables to set.',
+      default: 'empty',
+    },
+    timeout: {
+      type: 'Option<Duration>',
+      description: 'Maximum execution time.',
+      default: '120s',
+    },
+    shell: {
+      type: 'Shell',
+      description: 'Which shell to use: Sh, Bash, Zsh, PowerShell, Cmd, or Custom.',
+      default: 'Shell::Sh',
+    },
+  }}
+/>
+
+### `exec_streaming`
+
+```rust
+pub fn exec_streaming(
+    command: &str, opts: ExecOptions
+) -> Result<(Receiver<OutputLine>, JoinHandle<ExecOutput>), io::Error>
+```
+
+Execute a command and stream output lines through a channel. The `JoinHandle` resolves to `ExecOutput` when the command finishes. `OutputLine` is either `Stdout(String)` or `Stderr(String)`.
+
+---
+
+## http
+
+Async HTTP client built on reqwest.
+
+### `get`
+
+```rust
+pub async fn get(url: &str, opts: HttpOptions) -> Result<HttpResponse, HttpError>
+```
+
+### `post`
+
+```rust
+pub async fn post(url: &str, body: &str, opts: HttpOptions) -> Result<HttpResponse, HttpError>
+```
+
+### `fetch_html`
+
+```rust
+pub async fn fetch_html(url: &str, max_chars: usize, opts: HttpOptions) -> Result<String, HttpError>
+```
+
+Fetch a URL and convert HTML to readable plain text using `html2text`. Non-HTML content returned as-is. Truncated to `max_chars`.
+
+### `HttpResponse`
+
+<TypeTable
+  type={{
+    status: {
+      type: 'u16',
+      description: 'HTTP status code.',
+      required: true,
+    },
+    headers: {
+      type: 'HashMap<String, String>',
+      description: 'Response headers.',
+      required: true,
+    },
+    body: {
+      type: 'String',
+      description: 'Response body as text.',
+      required: true,
+    },
+    content_type: {
+      type: 'Option<String>',
+      description: 'Content-Type header value.',
+    },
+  }}
+/>
+
+### `HttpOptions`
+
+<TypeTable
+  type={{
+    headers: {
+      type: 'HashMap<String, String>',
+      description: 'Custom request headers.',
+      default: 'empty',
+    },
+    timeout: {
+      type: 'Option<Duration>',
+      description: 'Request timeout.',
+      default: '30s',
+    },
+    user_agent: {
+      type: 'Option<String>',
+      description: 'User-Agent header.',
+      default: '"Cersei-Agent/0.1"',
+    },
+  }}
+/>
+
+### `HttpError`
+
+- `RequestFailed(String)` — network or protocol error
+- `Timeout` — request timed out
+- `ClientBuild(String)` — failed to construct the HTTP client
+
+---
+
+## search
+
+Structured file search — grep and glob.
+
+### `grep`
+
+```rust
+pub async fn grep(
+    pattern: &str, path: &Path, opts: GrepOptions
+) -> Result<Vec<SearchMatch>, SearchError>
+```
+
+Search file contents using a regex pattern. Uses ripgrep if available, falls back to system grep. Returns structured matches.
+
+<TypeTable
+  type={{
+    file: {
+      type: 'PathBuf',
+      description: 'Path to the file containing the match.',
+      required: true,
+    },
+    line_number: {
+      type: 'usize',
+      description: '1-based line number of the match.',
+      required: true,
+    },
+    line_content: {
+      type: 'String',
+      description: 'Content of the matching line.',
+      required: true,
+    },
+  }}
+/>
+
+### `GrepOptions`
+
+<TypeTable
+  type={{
+    glob_filter: {
+      type: 'Option<String>',
+      description: 'Glob pattern to filter files (e.g., "*.rs").',
+    },
+    max_results: {
+      type: 'Option<usize>',
+      description: 'Maximum number of matches to return.',
+    },
+    case_insensitive: {
+      type: 'bool',
+      description: 'Case-insensitive matching.',
+      default: 'false',
+    },
+  }}
+/>
+
+### `glob`
+
+```rust
+pub async fn glob(pattern: &str, base_dir: &Path) -> Result<Vec<PathBuf>, SearchError>
+```
+
+Find files matching a glob pattern. Returns sorted paths.
+
+---
+
+## git
+
+Async git CLI operations. All functions use `tokio::process::Command`.
+
+### Repository detection
+
+```rust
+pub async fn is_repo(path: &Path) -> bool
+pub async fn repo_root(path: &Path) -> Option<PathBuf>
+pub async fn current_branch(path: &Path) -> Option<String>
+```
+
+### `status`
+
+```rust
+pub async fn status(path: &Path) -> Result<GitStatus, GitError>
+```
+
+<TypeTable
+  type={{
+    branch: {
+      type: 'Option<String>',
+      description: 'Current branch name (None if detached HEAD).',
+    },
+    files: {
+      type: 'Vec<GitFileStatus>',
+      description: 'Changed files with their status codes ("M", "A", "D", "??", etc.).',
+      required: true,
+    },
+  }}
+/>
+
+### `diff`
+
+```rust
+pub async fn diff(path: &Path, staged: bool) -> Result<String, GitError>
+```
+
+Get unified diff output. `staged = true` shows staged changes (`--cached`), `false` shows unstaged.
+
+### `log`
+
+```rust
+pub async fn log(path: &Path, n: usize) -> Result<Vec<GitLogEntry>, GitError>
+```
+
+<TypeTable
+  type={{
+    hash: {
+      type: 'String',
+      description: 'Abbreviated commit hash.',
+      required: true,
+    },
+    message: {
+      type: 'String',
+      description: 'First line of the commit message.',
+      required: true,
+    },
+  }}
+/>
+
+### `diff_file_content` / `list_modified_files`
+
+```rust
+pub async fn diff_file_content(path: &Path, file: &str) -> Result<String, GitError>
+pub async fn list_modified_files(path: &Path) -> Result<Vec<String>, GitError>
+```
+
+### `GitError`
+
+- `NotARepo` — path is not inside a git repository
+- `CommandFailed(String)` — git command returned an error
+- `IoError(io::Error)` — process spawn failure
