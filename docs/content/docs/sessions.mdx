@@ -1,0 +1,418 @@
+---
+title: Sessions
+description: Session persistence, auto-compact, memory extraction, auto-dream consolidation, and the full session lifecycle.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+
+# Sessions
+
+Every conversation in Cersei is a session. Messages are persisted as append-only JSONL, compacted when the context window fills up, and consolidated into long-term memory overnight. Sessions survive agent restarts, provider switches, and schema migrations.
+
+---
+
+## Storage Format
+
+Sessions are stored as `.jsonl` files — one JSON object per line, append-only. Each entry is a `TranscriptEntry`:
+
+```
+{"type":"user","uuid":"a1b2...","timestamp":"2026-04-03T10:00:00Z","session_id":"abc","cwd":"/project","message":{"role":"user","content":"fix the tests"}}
+{"type":"assistant","uuid":"c3d4...","parent_uuid":"a1b2...","timestamp":"2026-04-03T10:00:05Z","session_id":"abc","cwd":"/project","message":{"role":"assistant","content":"..."}}
+{"type":"tombstone","deleted_uuid":"a1b2...","timestamp":"2026-04-03T10:01:00Z"}
+{"type":"summary","uuid":"e5f6...","timestamp":"2026-04-03T10:02:00Z","session_id":"abc","summary":"User asked to fix tests...","messages_compacted":8}
+```
+
+<TypeTable
+  type={{
+    User: {
+      type: 'TranscriptMessage',
+      description: 'A user message. Contains uuid, timestamp, session_id, cwd, message, and optional parent_uuid.',
+    },
+    Assistant: {
+      type: 'TranscriptMessage',
+      description: 'An assistant response. Links to parent via parent_uuid for multi-turn tracking.',
+    },
+    System: {
+      type: 'TranscriptMessage',
+      description: 'A system message injected by the framework.',
+    },
+    Summary: {
+      type: 'SummaryEntry',
+      description: 'A compaction summary replacing multiple older messages. Contains the summary text and messages_compacted count.',
+    },
+    Tombstone: {
+      type: 'TombstoneEntry',
+      description: 'Soft-delete marker. On load, any message with this uuid is skipped.',
+    },
+  }}
+/>
+
+### Message Fields
+
+<TypeTable
+  type={{
+    uuid: {
+      type: 'String',
+      description: 'Unique message identifier (UUID v4).',
+      required: true,
+    },
+    parent_uuid: {
+      type: 'Option<String>',
+      description: 'Links assistant responses to the user message they reply to.',
+    },
+    timestamp: {
+      type: 'String',
+      description: 'RFC3339 timestamp of when the message was created.',
+      required: true,
+    },
+    session_id: {
+      type: 'String',
+      description: 'Session this message belongs to.',
+      required: true,
+    },
+    cwd: {
+      type: 'String',
+      description: 'Working directory at the time of the message.',
+      required: true,
+    },
+    message: {
+      type: 'Message',
+      description: 'The actual message content (role + content blocks).',
+      required: true,
+    },
+    is_sidechain: {
+      type: 'bool',
+      description: 'Whether this message is from a sidechain (sub-agent or background task).',
+      default: 'false',
+    },
+  }}
+/>
+
+**Location:** `~/.claude/projects/{sanitized-project-root}/{session-id}.jsonl`
+
+**Size limit:** 50MB per part file. When a session exceeds this, writes automatically fork to `{session-id}_part2.jsonl`, `_part3.jsonl`, etc. Loading stitches all parts together. Total limit across all parts: 200MB. Compatible with Claude Code's session format.
+
+---
+
+## Session APIs
+
+### Writing
+
+```rust
+use cersei::memory::manager::MemoryManager;
+
+let mm = MemoryManager::new(project_root);
+
+// Write a user message — returns the UUID
+let user_uuid = mm.write_user_message("session-1", Message::user("fix the tests"))?;
+
+// Write an assistant response linked to the user message
+let asst_uuid = mm.write_assistant_message(
+    "session-1",
+    Message::assistant("I'll fix those tests."),
+    Some(&user_uuid),
+)?;
+```
+
+### Loading
+
+```rust
+// Load all messages (tombstones applied, summaries included)
+let messages = mm.load_session_messages("session-1")?;
+for msg in &messages {
+    println!("[{}] {}", msg.role, msg.get_text().unwrap_or(""));
+}
+```
+
+Loading is a two-pass process: first collect all tombstone UUIDs, then load messages while skipping tombstoned ones. This means soft-deleted messages never appear in the loaded history.
+
+### Listing
+
+```rust
+let sessions = mm.list_sessions();
+for session in &sessions {
+    println!("{} — {} messages, created {}", session.id, session.message_count, session.created_at);
+}
+```
+
+---
+
+## Resume and Recovery
+
+### Resuming a Session
+
+Pass the same `session_id` to the agent builder. The runner loads history from the session file on startup.
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .memory(JsonlMemory::new("./sessions"))
+    .session_id("my-session")
+    .build()?;
+
+// First run — starts fresh
+agent.run("What files are in src/?").await?;
+
+// Later — same session_id, resumes with full history
+agent.run("Now fix the bug you found").await?;
+```
+
+When `with_messages()` is used (e.g., during provider switching), the runner skips loading from memory to prevent duplicates.
+
+### Abstract CLI
+
+```bash
+abstract --resume                # resume the most recent session
+abstract --resume abc12345       # resume a specific session by ID
+abstract sessions list           # list all sessions with size and date
+abstract sessions show abc12345  # view transcript
+abstract sessions rm abc12345    # delete a session
+```
+
+### Soft Delete (Tombstones)
+
+Individual messages can be soft-deleted without removing the session file:
+
+```rust
+use cersei_memory::session_storage;
+
+session_storage::tombstone_entry(&session_path, "message-uuid-to-delete")?;
+```
+
+The message stays in the file but is skipped on load. This preserves the audit trail while removing unwanted content. Tombstones work across part files — a tombstone in `_part3` can delete a message from the base file.
+
+---
+
+## Auto-Fork (Multi-Part Sessions)
+
+When a session file grows past 50MB, writes automatically fork to a new part file. This is transparent — you don't need to change any code. The MemoryManager, agent runner, and CLI all handle multi-part sessions automatically.
+
+### How It Works
+
+1. Before each write, the storage layer checks the current file's size
+2. If `file_size + entry_size > 50MB`, the write goes to the next part file instead
+3. Part naming: `session.jsonl` → `session_part2.jsonl` → `session_part3.jsonl` → ...
+4. Loading reads all parts in order and stitches them into a single transcript
+5. Tombstones apply across all parts — a tombstone in any part can delete a message in any other part
+
+### File Layout
+
+```
+~/.claude/projects/-my-project/
+├── abc12345.jsonl          # base file (up to 50MB)
+├── abc12345_part2.jsonl    # auto-forked when base exceeded 50MB
+├── abc12345_part3.jsonl    # auto-forked when part2 exceeded 50MB
+└── def67890.jsonl          # a different session (single file)
+```
+
+### Inspecting Parts
+
+```rust
+use cersei_memory::session_storage::{all_part_paths, total_session_size};
+
+let base = Path::new("~/.claude/projects/-my-project/abc12345.jsonl");
+
+// List all parts
+let parts = all_part_paths(base);
+println!("{} part(s)", parts.len());
+
+// Total size across all parts
+let bytes = total_session_size(base);
+println!("Total: {} MB", bytes / 1_000_000);
+```
+
+### Limits
+
+| Limit | Value |
+|-------|-------|
+| Per-part file | 50MB |
+| Total across all parts | 200MB |
+| Part count | Unlimited (practical limit ~4 parts at 50MB each) |
+
+With auto-compact enabled (default), most sessions never reach a single fork. A typical 100-turn coding session produces ~500KB. You'd need thousands of resumed turns with compaction disabled to hit 50MB.
+
+### CLI
+
+`abstract sessions rm` removes all parts automatically:
+
+```bash
+abstract sessions rm abc12345
+# Deleted session: abc12345 (3 parts)
+```
+
+`abstract sessions list` shows the combined size across parts.
+
+---
+
+## Auto-Compact
+
+When a conversation approaches the model's context window limit, the agent automatically summarizes older messages to free space.
+
+### Configuration
+
+```rust
+Agent::builder()
+    .auto_compact(true)          // enable (default: true)
+    .compact_threshold(0.9)      // trigger at 90% of context window
+    .tool_result_budget(50_000)  // truncate oldest tool results above 50K chars
+```
+
+### How It Works
+
+1. Before each turn, the agent counts tokens in the conversation
+2. If usage exceeds the threshold (default 90%), compaction triggers
+3. Old messages are grouped at API-round boundaries (user→assistant→tool cycles)
+4. The model summarizes each group into a `<context_summary>` block
+5. Originals are replaced with the summary
+6. The 10 most recent messages are always preserved
+7. Events emitted: `CompactStart` and `CompactEnd` (with `tokens_freed`)
+
+### Circuit Breaker
+
+If compaction fails 3 times in a row (e.g., the summary call itself fails), auto-compact disables for the rest of the session. This prevents an infinite failure loop.
+
+### Context Windows
+
+| Model | Window |
+|-------|--------|
+| Claude (all variants) | 200K tokens |
+| GPT-4o, GPT-4 Turbo | 128K tokens |
+| Gemini 2.0 Flash | 1M tokens |
+| Default | 200K tokens |
+
+---
+
+## Memory Extraction
+
+After enough conversation, the agent extracts durable facts and persists them to memory files. These facts survive across sessions — they become part of the system prompt context for future conversations.
+
+### Gates
+
+All three conditions must be true for extraction to trigger:
+
+<TypeTable
+  type={{
+    'Message count': {
+      type: 'usize',
+      description: 'At least 20 messages in the conversation.',
+      default: '20',
+    },
+    'Tool calls since last': {
+      type: 'usize',
+      description: 'At least 3 tool calls since the last extraction (skipped on first extraction).',
+      default: '3',
+    },
+    'No pending tools': {
+      type: 'bool',
+      description: 'The last assistant message must not have unresolved tool_use blocks.',
+    },
+  }}
+/>
+
+### Categories
+
+| Category | Label | What it captures |
+|----------|-------|------------------|
+| `UserPreference` | `preference` | User's role, coding style, tool preferences |
+| `ProjectFact` | `project` | Architecture decisions, deadlines, dependencies |
+| `CodePattern` | `pattern` | Recurring code patterns, conventions |
+| `Decision` | `decision` | Why a particular approach was chosen |
+| `Constraint` | `constraint` | Hard requirements ("must support Python 3.8+") |
+
+Each extracted fact has a confidence score (0.0–1.0). Facts are appended to a `## Auto-extracted memories` section in the target memory file.
+
+---
+
+## Auto-Dream (Background Consolidation)
+
+Auto-dream is a background process that periodically reviews session transcripts and consolidates insights into long-term memory files. It runs after the agent finishes its work — not during active conversation.
+
+### Three-Gate System
+
+| Gate | Condition | Default | Purpose |
+|------|-----------|---------|---------|
+| Time | Hours since last consolidation | 24h | Prevent running too frequently |
+| Sessions | New sessions since last run | 5 | Ensure enough new material |
+| Lock | No active consolidation process | Stale after 1h | Prevent concurrent runs |
+
+All three gates must pass. They're evaluated in order (cheapest first): time check is a timestamp comparison, session count scans the directory, lock check reads a file.
+
+### Consolidation Phases
+
+The consolidation agent follows four phases:
+
+1. **Orient** — read MEMORY.md, list existing memory files, understand what's already stored
+2. **Gather** — scan recent session transcripts for new insights, search for patterns
+3. **Consolidate** — write or update memory files with new facts, convert relative dates to absolute
+4. **Prune** — update the MEMORY.md index, remove stale pointers, keep under 200 lines
+
+### State Persistence
+
+Consolidation state is stored in `.consolidation_state.json`:
+
+```json
+{
+  "last_consolidated_at": 1712150400,
+  "lock_etag": null
+}
+```
+
+The lock file (`.consolidation_lock`) contains a Unix timestamp. It's considered stale after 1 hour — if a consolidation process crashes, the next one can proceed after the stale period.
+
+```rust
+use cersei_agent::auto_dream::AutoDream;
+
+let dreamer = AutoDream::new(memory_dir, conversations_dir);
+
+if dreamer.should_consolidate() {
+    dreamer.acquire_lock()?;
+    // Run consolidation agent...
+    dreamer.update_state()?;
+    dreamer.release_lock()?;
+}
+```
+
+---
+
+## Production Guidance
+
+### Session File Size
+
+Sessions are capped at 50MB. For long-running agents, enable auto-compact to keep sessions within bounds. A typical coding session (100 turns with tool calls) produces ~500KB of JSONL.
+
+### Debugging Sessions
+
+Inspect a session file directly:
+
+```bash
+# Count messages
+wc -l ~/.claude/projects/-my-project/session-id.jsonl
+
+# View user messages only
+grep '"type":"user"' session.jsonl | python3 -c "import sys,json; [print(json.loads(l)['message']['content'][:80]) for l in sys.stdin]"
+
+# Check for tombstones
+grep '"type":"tombstone"' session.jsonl
+```
+
+Or via the CLI:
+
+```bash
+abstract sessions show abc12345
+```
+
+### Concurrent Access
+
+Session files use append-only writes — multiple processes can safely append to the same file. However, loading is not atomic: if process A appends while process B is reading, B may see a partial last line. For multi-agent setups sharing a session, use file-level locking or separate session IDs per agent.
+
+### Cleanup
+
+```bash
+# Delete old sessions (older than 30 days)
+find ~/.claude/projects -name "*.jsonl" -mtime +30 -delete
+
+# Clear memory
+abstract memory clear
+```

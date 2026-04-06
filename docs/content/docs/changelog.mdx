@@ -1,0 +1,113 @@
+---
+title: Changelog
+description: Release history for Cersei SDK and Abstract CLI.
+---
+
+# Changelog
+
+export function Version({ version, date, children }) {
+  return (
+    <div className="relative pl-8 pb-10 border-l border-fd-border last:pb-0">
+      <div className="absolute -left-[7px] top-1 h-3.5 w-3.5 rounded-full border-2 border-fd-primary bg-fd-background" />
+      <div className="flex items-baseline gap-3 mb-3">
+        <span className="text-lg font-semibold text-fd-foreground">{version}</span>
+        <span className="text-sm text-fd-muted-foreground">{date}</span>
+      </div>
+      <div className="space-y-2 text-sm text-fd-foreground/80">{children}</div>
+    </div>
+  );
+}
+
+export function Tag({ type }) {
+  const styles = {
+    added: 'bg-fd-accent text-fd-accent-foreground border-fd-border',
+    changed: 'bg-fd-secondary text-fd-secondary-foreground border-fd-border',
+    fixed: 'bg-fd-muted text-fd-muted-foreground border-fd-border',
+    removed: 'bg-fd-muted text-fd-muted-foreground/60 border-fd-border',
+  };
+  return (
+    <span className={`inline-flex items-center text-[10px] uppercase px-1.5 py-0.5 rounded border align-middle mr-1 ${styles[type] || styles.added}`}>
+      {type}
+    </span>
+  );
+}
+
+<Version version="0.1.3" date="2026-04-05">
+
+<Tag type="added" /> **Session auto-fork.** When a session file exceeds 50MB, writes automatically fork to a new part file (`_part2.jsonl`, `_part3.jsonl`, etc.). Loading stitches all parts together. Tombstones apply across parts. Total limit: 200MB.
+
+<Tag type="added" /> **Multi-part session helpers** — `all_part_paths()` and `total_session_size()` for inspecting session files.
+
+<Tag type="added" /> **Sessions and Tasks documentation** — two new doc pages covering the full session lifecycle, auto-compact, memory extraction, auto-dream consolidation, task orchestration, cron scheduling, and git worktree isolation.
+
+<Tag type="changed" /> `load_transcript()` now loads from all part files and applies tombstones across the combined set.
+
+<Tag type="changed" /> `abstract sessions rm` removes all part files, not just the base.
+
+<Tag type="fixed" /> Sessions that exceeded 50MB became unloadable. Now they auto-fork before hitting the limit.
+
+</Version>
+
+<Version version="0.1.2" date="2026-04-04">
+
+<Tag type="added" /> **Multi-provider model router.** 13 providers via `provider/model` string format. Anthropic, OpenAI, Google, Mistral, Groq, DeepSeek, xAI, Together, Fireworks, Perplexity, Cerebras, Ollama, OpenRouter.
+
+<Tag type="added" /> **`from_model_string()`** — parse `"groq/llama-3.1-70b-versatile"` into a configured provider. Auto-detection from bare model names.
+
+<Tag type="added" /> **Provider continuity** — interactive model switching on rate limits. Retry, switch to fallback, wait, or skip. History transfers across provider switches.
+
+<Tag type="added" /> **`--fallback` CLI flag** and `fallback_models` config for provider switching.
+
+<Tag type="added" /> **OpenAI tool calling** — full streaming support. Accumulates `delta.tool_calls` chunks across SSE events. Previously tool calls were silently dropped.
+
+<Tag type="added" /> **`AgentBuilder::with_messages()`** — pre-populate conversation history for provider switching mid-session.
+
+<Tag type="changed" /> Provider resolution replaced with the model router. Model string is the source of truth.
+
+<Tag type="changed" /> REPL owns the Agent (not borrows), enabling mid-session provider swaps.
+
+<Tag type="fixed" /> Grafeo dependency uses crates.io instead of local filesystem paths. `cargo install` works on any machine.
+
+<Tag type="fixed" /> OpenAI tool calling loop — tool results now serialize correctly as `role: "tool"` with `tool_call_id`.
+
+<Tag type="removed" /> Hardcoded local filesystem paths from all `Cargo.toml` files.
+
+</Version>
+
+<Version version="0.1.1" date="2026-04-03">
+
+<Tag type="added" /> **Schema versioning and migration engine.** Graph databases store a `(:SchemaVersion)` node. Auto-detects version on open, runs sequential idempotent migrations.
+
+<Tag type="added" /> **Confidence decay.** Memory nodes track `last_validated_at` and `decay_rate`. Old memories lose weight over time without manual cleanup.
+
+<Tag type="added" /> **Embedding readiness.** Memory nodes include `embedding_model_version` preparing for future vector-based semantic recall.
+
+<Tag type="added" /> **Centralized GQL queries.** All 15+ scattered query strings in `graph.rs` extracted into a single `mod gql` block.
+
+<Tag type="added" /> **Abstract CLI.** Complete coding agent — REPL, streaming renderer, interactive permissions, session management, slash commands, TOML config, graph memory on by default.
+
+<Tag type="added" /> **Benchmark suite.** `run_tool_bench_claude.sh` and `run_tool_bench_codex.sh` for three-way comparison. `memory_bench.rs` for graph performance.
+
+<Tag type="added" /> **Documentation site.** 23 pages on fumadocs with API reference, architecture, cookbooks, benchmarks, and interactive charts.
+
+<Tag type="changed" /> `GraphMemory::open()` auto-migrates on startup. `store_memory()` writes v2 fields. No API change.
+
+<Tag type="fixed" /> Empty `ANTHROPIC_API_KEY` environment variable no longer treated as valid auth.
+
+</Version>
+
+<Version version="0.1.0" date="2026-04-02">
+
+<Tag type="added" /> **Initial release.** Complete Rust SDK for building coding agents.
+
+<Tag type="added" /> **9 crates** — `cersei` (facade), `cersei-types`, `cersei-provider` (Anthropic + OpenAI), `cersei-tools` (34 tools), `cersei-tools-derive` (proc macro), `cersei-agent` (builder + agentic loop), `cersei-memory` (graph + flat files + CLAUDE.md), `cersei-hooks` (middleware), `cersei-mcp` (JSON-RPC 2.0).
+
+<Tag type="added" /> **Graph memory.** Grafeo embedded graph DB. 3 node types, 2 edge types. Recall in 98 microseconds. Graph ON adds zero scan overhead, 92.5% faster recall.
+
+<Tag type="added" /> **Agent builder** with 20+ options. 26-variant event system. Bidirectional stream control. Auto-compact, effort levels, sub-agents, coordinator mode.
+
+<Tag type="added" /> **Session persistence** via append-only JSONL with tombstone soft-delete. Compatible with Claude Code format.
+
+<Tag type="added" /> **11 examples** and 5 stress test suites. 160 unit tests, 262 stress checks.
+
+</Version>

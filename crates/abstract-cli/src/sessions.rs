@@ -143,17 +143,25 @@ pub fn show(config: &AppConfig, id: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Delete a session.
+/// Delete a session and all its part files.
 pub fn delete(config: &AppConfig, id: &str) -> anyhow::Result<()> {
     let dir = sessions_dir(config);
-    let path = dir.join(format!("{id}.jsonl"));
+    let base = dir.join(format!("{id}.jsonl"));
 
-    if !path.exists() {
+    let parts = cersei_memory::session_storage::all_part_paths(&base);
+    if parts.is_empty() {
         anyhow::bail!("Session '{}' not found", id);
     }
 
-    std::fs::remove_file(&path)?;
-    println!("Deleted session: {id}");
+    for part in &parts {
+        std::fs::remove_file(part)?;
+    }
+
+    if parts.len() > 1 {
+        println!("Deleted session: {id} ({} parts)", parts.len());
+    } else {
+        println!("Deleted session: {id}");
+    }
     Ok(())
 }
 

@@ -1,0 +1,482 @@
+---
+title: Background Tasks
+description: Task orchestration, cron scheduling, and git worktree isolation for parallel agent work.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+
+# Background Tasks
+
+Cersei includes built-in tools for task orchestration, scheduled jobs, and isolated workspaces. These let the model manage long-running work, schedule recurring prompts, and work in parallel git branches — all through the standard tool system.
+
+---
+
+## Task System
+
+Tasks track units of work across turns. The model creates a task, updates its status as work progresses, and stores the output when done. Tasks live in an in-memory registry (concurrent-safe `DashMap`) scoped to the session.
+
+### Task Lifecycle
+
+```
+TaskCreate → Pending → Running → Completed
+                    ↘           ↗
+                      Failed
+                    ↘
+                      Stopped
+```
+
+### TaskEntry
+
+<TypeTable
+  type={{
+    id: {
+      type: 'String',
+      description: 'Short identifier (8-char UUID prefix).',
+      required: true,
+    },
+    description: {
+      type: 'String',
+      description: 'What this task is doing.',
+      required: true,
+    },
+    status: {
+      type: 'TaskStatus',
+      description: 'Current state: Pending, Running, Completed, Failed, or Stopped.',
+      required: true,
+    },
+    output: {
+      type: 'Option<String>',
+      description: 'Task result text. Set on completion or failure.',
+    },
+    created_at: {
+      type: 'String',
+      description: 'RFC3339 timestamp of creation.',
+      required: true,
+    },
+    updated_at: {
+      type: 'String',
+      description: 'RFC3339 timestamp of last status change.',
+      required: true,
+    },
+    session_id: {
+      type: 'String',
+      description: 'Session that owns this task.',
+      required: true,
+    },
+  }}
+/>
+
+### Tools
+
+#### TaskCreate
+
+Creates a new task in Pending state.
+
+<TypeTable
+  type={{
+    description: {
+      type: 'String',
+      description: 'What the task will do.',
+      required: true,
+    },
+    prompt: {
+      type: 'Option<String>',
+      description: 'Optional prompt to associate with the task.',
+    },
+  }}
+/>
+
+**Returns:** `"Task 'abc12345' created: Fix the authentication bug"`
+
+**Permission:** Execute
+
+#### TaskGet
+
+Retrieve a task's current state.
+
+<TypeTable
+  type={{
+    id: {
+      type: 'String',
+      description: 'Task ID to look up.',
+      required: true,
+    },
+  }}
+/>
+
+**Returns:** Status, description, output (if completed), timestamps.
+
+**Permission:** ReadOnly
+
+#### TaskUpdate
+
+Update a task's status and/or output.
+
+<TypeTable
+  type={{
+    id: {
+      type: 'String',
+      description: 'Task ID to update.',
+      required: true,
+    },
+    status: {
+      type: 'Option<String>',
+      description: 'New status: "running", "completed", "failed".',
+    },
+    output: {
+      type: 'Option<String>',
+      description: 'Result text to store.',
+    },
+  }}
+/>
+
+**Permission:** Execute
+
+#### TaskList
+
+List all tasks with their current status.
+
+**No input required.**
+
+**Returns:** Table of all tasks with ID, status, description, and timestamps.
+
+**Permission:** ReadOnly
+
+#### TaskStop
+
+Stop a running task.
+
+<TypeTable
+  type={{
+    id: {
+      type: 'String',
+      description: 'Task ID to stop.',
+      required: true,
+    },
+  }}
+/>
+
+**Permission:** Execute
+
+#### TaskOutput
+
+Retrieve the full output of a completed task.
+
+<TypeTable
+  type={{
+    id: {
+      type: 'String',
+      description: 'Task ID to read output from.',
+      required: true,
+    },
+  }}
+/>
+
+**Permission:** ReadOnly
+
+### Usage Pattern
+
+The model uses these tools to track multi-step work:
+
+```
+Agent receives: "Refactor the auth module and update the tests"
+
+1. TaskCreate { description: "Refactor auth module" }          → abc12345
+2. TaskCreate { description: "Update auth tests" }             → def67890
+3. TaskUpdate { id: "abc12345", status: "running" }
+4. ... (reads files, makes edits) ...
+5. TaskUpdate { id: "abc12345", status: "completed", output: "Refactored 3 files" }
+6. TaskUpdate { id: "def67890", status: "running" }
+7. ... (updates tests) ...
+8. TaskUpdate { id: "def67890", status: "completed", output: "Updated 5 test files" }
+```
+
+<Callout>
+Tasks are in-memory only — they don't persist across agent restarts. For durable work tracking, use the session transcript and memory system.
+</Callout>
+
+### Programmatic Access
+
+The task registry is accessible directly from Rust — you don't have to go through the tool system:
+
+```rust
+use cersei_tools::tasks::{get_task, list_tasks, clear_tasks, TaskStatus};
+
+// Check a specific task
+if let Some(task) = get_task("abc12345") {
+    println!("Task '{}': {:?}", task.description, task.status);
+    if task.status == TaskStatus::Completed {
+        println!("Output: {}", task.output.unwrap_or_default());
+    }
+}
+
+// List all tasks
+for task in list_tasks() {
+    println!("[{}] {:?} — {}", task.id, task.status, task.description);
+}
+
+// Clear all tasks (e.g., on session reset)
+clear_tasks();
+```
+
+This is useful for building custom orchestration on top of the task system — monitoring dashboards, polling loops, or integration with external job runners.
+
+---
+
+## Cron Scheduling
+
+Schedule recurring prompts that execute on a timer. Useful for periodic checks, monitoring, and automated maintenance.
+
+### CronEntry
+
+<TypeTable
+  type={{
+    id: {
+      type: 'String',
+      description: 'Short identifier (8-char UUID prefix).',
+      required: true,
+    },
+    schedule: {
+      type: 'String',
+      description: 'Cron expression ("*/5 * * * *") or one-shot ("once:30s").',
+      required: true,
+    },
+    prompt: {
+      type: 'String',
+      description: 'The prompt to execute on each trigger.',
+      required: true,
+    },
+    last_run: {
+      type: 'Option<String>',
+      description: 'Timestamp of last execution.',
+    },
+    run_count: {
+      type: 'u32',
+      description: 'Number of times this job has run.',
+    },
+  }}
+/>
+
+### Tools
+
+#### CronCreate
+
+<TypeTable
+  type={{
+    schedule: {
+      type: 'String',
+      description: 'Cron expression or one-shot timer.',
+      required: true,
+    },
+    prompt: {
+      type: 'String',
+      description: 'What to do on each trigger.',
+      required: true,
+    },
+  }}
+/>
+
+**Returns:** `"Cron job 'abc12345' created: */5 * * * * → Check for new issues"`
+
+**Permission:** Execute
+
+#### CronList
+
+List all scheduled jobs with run counts and last execution times.
+
+**No input required.** **Permission:** ReadOnly
+
+#### CronDelete
+
+<TypeTable
+  type={{
+    id: {
+      type: 'String',
+      description: 'Cron job ID to delete.',
+      required: true,
+    },
+  }}
+/>
+
+**Permission:** Execute
+
+### Schedule Format
+
+| Format | Meaning |
+|--------|---------|
+| `*/5 * * * *` | Every 5 minutes |
+| `0 * * * *` | Every hour |
+| `0 0 * * *` | Daily at midnight |
+| `once:30s` | One-shot, 30 seconds from now |
+| `once:5m` | One-shot, 5 minutes from now |
+
+<Callout>
+Cron jobs are in-memory. They run within the current agent session and stop when the agent exits. For persistent scheduling, use external cron or the RemoteTrigger tool.
+</Callout>
+
+### Programmatic Access
+
+```rust
+use cersei_tools::cron::{list_crons, clear_crons};
+
+// List all scheduled jobs
+for job in list_crons() {
+    println!(
+        "[{}] {} → '{}' (ran {} times, last: {:?})",
+        job.id, job.schedule, job.prompt, job.run_count, job.last_run
+    );
+}
+
+// Clear all cron jobs (e.g., on session end)
+clear_crons();
+```
+
+---
+
+## Git Worktree Isolation
+
+Create isolated git worktrees for parallel branch work. The agent can work in a separate branch without affecting the main working directory.
+
+### EnterWorktree
+
+<TypeTable
+  type={{
+    branch: {
+      type: 'String',
+      description: 'Branch name to create and check out.',
+      required: true,
+    },
+    path: {
+      type: 'Option<String>',
+      description: 'Directory for the worktree.',
+      default: '/tmp/cersei-wt-{branch}',
+    },
+  }}
+/>
+
+Creates a new git worktree with `git worktree add -b {branch} {path}`. The agent's working directory switches to the worktree.
+
+**Permission:** Write
+
+### ExitWorktree
+
+<TypeTable
+  type={{
+    path: {
+      type: 'String',
+      description: 'Worktree directory to remove.',
+      required: true,
+    },
+  }}
+/>
+
+Removes the worktree with `git worktree remove --force {path}`. Working directory returns to the original.
+
+**Permission:** Write
+
+### Pattern
+
+```
+Agent receives: "Try two approaches to fixing the bug"
+
+1. EnterWorktree { branch: "fix-approach-a" }
+2. ... (implements approach A) ...
+3. Bash { command: "cargo test" }
+4. ExitWorktree { path: "/tmp/cersei-wt-fix-approach-a" }
+5. EnterWorktree { branch: "fix-approach-b" }
+6. ... (implements approach B) ...
+7. Bash { command: "cargo test" }
+8. ExitWorktree { path: "/tmp/cersei-wt-fix-approach-b" }
+9. Report which approach passed tests
+```
+
+---
+
+## Integration Patterns
+
+### Tasks + Sessions
+
+Tasks are scoped to the current session's memory. When you resume a session, the in-memory registry is empty — but the task creation and completion events are preserved in the session JSONL transcript. The model can read its own history to understand what was done previously.
+
+```rust
+use cersei_tools::tasks::{get_task, list_tasks, TaskStatus};
+
+// After agent completes, inspect what it did
+let tasks = list_tasks();
+let completed = tasks.iter().filter(|t| t.status == TaskStatus::Completed).count();
+let failed = tasks.iter().filter(|t| t.status == TaskStatus::Failed).count();
+
+println!("{} tasks completed, {} failed", completed, failed);
+
+for task in &tasks {
+    if task.status == TaskStatus::Failed {
+        println!("FAILED: {} — {}", task.description, task.output.as_deref().unwrap_or("no output"));
+    }
+}
+```
+
+### Monitoring Agent Work
+
+Use the event system to observe task activity in real time:
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::all())
+    .on_event(|e| match e {
+        AgentEvent::ToolStart { name, input, .. } if name == "TaskCreate" => {
+            let desc = input["description"].as_str().unwrap_or("?");
+            eprintln!("[task] creating: {desc}");
+        }
+        AgentEvent::ToolStart { name, input, .. } if name == "TaskUpdate" => {
+            let id = input["id"].as_str().unwrap_or("?");
+            let status = input["status"].as_str().unwrap_or("?");
+            eprintln!("[task] {id} → {status}");
+        }
+        _ => {}
+    })
+    .build()?;
+```
+
+### Cron + Memory
+
+A scheduled agent that periodically scans the project and updates memory:
+
+```rust
+use cersei::prelude::*;
+use std::time::Duration;
+
+// Run an agent every hour to scan for changes
+loop {
+    let output = Agent::builder()
+        .provider(Anthropic::from_env()?)
+        .tools(cersei::tools::coding())
+        .system_prompt("You maintain project memory. Scan for new files and patterns.")
+        .max_turns(5)
+        .permission_policy(AllowReadOnly)
+        .run_with("Check src/ for new files since last scan. Update memory if needed.")
+        .await?;
+
+    println!("Scan done: {} turns, {} tool calls", output.turns, output.tool_calls.len());
+    tokio::time::sleep(Duration::from_secs(3600)).await;
+}
+```
+
+### Sleep + Polling
+
+Use the event stream to implement a deploy-and-poll pattern:
+
+```rust
+let agent = Agent::builder()
+    .provider(OpenAi::from_env()?)
+    .tools(cersei::tools::coding())
+    .permission_policy(AllowAll)
+    .run_with(
+        "Run ./deploy.sh, then wait 10 seconds and check the health endpoint at \
+         http://localhost:8080/health. Retry up to 3 times if it's not ready."
+    )
+    .await?;
+```
+
+The model uses `BashTool` for the deploy, `SleepTool` for the wait (up to 60s per call), and `BashTool` again for the curl check — all within the standard agentic loop.

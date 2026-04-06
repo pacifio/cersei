@@ -83,14 +83,14 @@ Creates `.abstract/config.toml` and `.abstract/instructions.md` in the current d
 ## Session Management
 
 ```bash
-abstract sessions list       # List all sessions
-abstract sessions show <id>  # Show transcript
-abstract sessions rm <id>    # Delete session
+abstract sessions list       # List all sessions (with combined size for multi-part)
+abstract sessions show <id>  # Show transcript (loads all parts)
+abstract sessions rm <id>    # Delete session (removes all parts)
 abstract --resume             # Resume last session
 abstract --resume <id>        # Resume specific session
 ```
 
-Sessions are stored as JSONL at `~/.claude/projects/<path>/<id>.jsonl` — compatible with Claude Code format.
+Sessions are stored as append-only JSONL at `~/.claude/projects/<path>/<id>.jsonl`. When a session exceeds 50MB, writes automatically fork to `<id>_part2.jsonl`, `_part3.jsonl`, etc. Loading stitches all parts together transparently. See [Sessions](/docs/sessions) for the full lifecycle.
 
 ## MCP Servers
 

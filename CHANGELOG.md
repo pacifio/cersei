@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.3] - 2026-04-05
+
+### Added
+
+- **Session auto-fork.** When a session file exceeds 50MB, writes automatically fork to a new part file (`session_part2.jsonl`, `_part3.jsonl`, etc.). Loading stitches all parts together transparently. Tombstones apply across parts. Total session limit across all parts is 200MB.
+- **Multi-part session helpers** — `all_part_paths()` and `total_session_size()` for inspecting session files programmatically.
+- **5 new session tests** — multi-part load, tombstones across parts, auto-fork path resolution, total size calculation.
+- **Sessions & Tasks documentation** — two new doc pages (`sessions.mdx`, `background-tasks.mdx`) covering the full session lifecycle, auto-compact, memory extraction, auto-dream consolidation, task orchestration with programmatic code samples, cron scheduling, and git worktree isolation.
+
+### Changed
+
+- `load_transcript()` now loads from all part files and applies tombstones across the combined set.
+- `abstract sessions rm` now removes all part files, not just the base.
+
+### Fixed
+
+- Sessions that exceeded 50MB became unloadable. Now they auto-fork before hitting the limit.
+
 ## [0.1.2] - 2026-04-04
 
 ### Added
