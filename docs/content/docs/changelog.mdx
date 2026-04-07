@@ -32,6 +32,26 @@ export function Tag({ type }) {
   );
 }
 
+<Version version="0.1.4" date="2026-04-06">
+
+<Tag type="added" /> **Tool primitives** (`tool_primitives` module). 6 sub-modules: `diff`, `fs`, `process`, `http`, `search`, `git`. Low-level async building blocks for custom tools. 26 new tests.
+
+<Tag type="added" /> **Built-in tools reference** — documentation page with complete input schemas for all 34 tools using TypeTable.
+
+<Tag type="added" /> **Tool primitives documentation** — overview, full API reference, and cookbook with DiffTool, deploy verifier, research agent, and git-aware code reviewer examples.
+
+<Tag type="added" /> **Providers documentation** — dedicated page covering all 13 providers with env vars, models, context windows, and usage examples.
+
+<Tag type="changed" /> `file_read.rs`, `file_write.rs`, `file_edit.rs` refactored to delegate to `tool_primitives::fs`.
+
+<Tag type="changed" /> `bash.rs` refactored to delegate to `tool_primitives::process::exec`. ShellState preserved.
+
+<Tag type="changed" /> `web_fetch.rs` refactored to delegate to `tool_primitives::http::fetch_html`.
+
+<Tag type="changed" /> `grep_tool.rs` and `glob_tool.rs` refactored to delegate to `tool_primitives::search`. Grep now returns structured `SearchMatch` results internally.
+
+</Version>
+
 <Version version="0.1.3" date="2026-04-05">
 
 <Tag type="added" /> **Session auto-fork.** When a session file exceeds 50MB, writes automatically fork to a new part file (`_part2.jsonl`, `_part3.jsonl`, etc.). Loading stitches all parts together. Tombstones apply across parts. Total limit: 200MB.
