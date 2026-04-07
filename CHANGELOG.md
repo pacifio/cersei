@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.5] - 2026-04-07
+
+### Added
+
+- **`/sessions` and `/ls` slash commands** — list all sessions directly from the REPL. Addresses [#9](https://github.com/pacifio/cersei/issues/9).
+- **Expanded `/help` output** — now shows CLI subcommands (`abstract sessions list`, `abstract --resume`, `abstract login status`) alongside REPL slash commands. Model aliases updated to include `4o`, `gemini`, `llama`.
+- **Conditional system prompt components.** System prompt refactored from 6 static sections to 23 components (8 conditional). New sections: output efficiency, tool result summarization, sub-agent guidance (when Agent tool available), skills guidance (when Skill tool available), memory guidance (when memory configured), context management warning (when auto-compact on), git status snapshot (structured: branch, user, status lines, recent commits), MCP server instructions, language preference.
+- **`GitSnapshot` struct** for structured git context in the system prompt (branch, user, status lines, recent commits).
+- **New `SystemPromptOptions` fields** — `tools_available`, `has_memory`, `has_auto_compact`, `git_status`, `mcp_instructions`, `language`.
+- 11 new system prompt tests covering all conditional components.
+
+### Changed
+
+- Abstract CLI `prompt.rs` now populates `tools_available`, `has_memory`, `has_auto_compact`, and `git_status` from config and the working directory. Git info is a structured `GitSnapshot` instead of a one-line string.
+- System prompt includes output efficiency and tool result summarization by default (previously missing).
+
 ## [0.1.4] - 2026-04-06
 
 ### Added

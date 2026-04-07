@@ -23,6 +23,8 @@
     "---Sessions & Tasks---",
     "sessions",
     "background-tasks",
+    "---System Prompts---",
+    "system-prompts",
     "---Architecture---",
     "architecture",
     "crate-map",

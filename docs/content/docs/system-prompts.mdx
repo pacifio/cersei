@@ -1,0 +1,339 @@
+---
+title: System Prompts
+description: How Cersei assembles the system prompt from conditional components — and how each one shapes agent behavior.
+---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# System Prompts
+
+The system prompt is the instruction set that defines how your agent thinks, acts, and communicates. Cersei builds it from 23 named components — some always present, some conditional based on your agent's configuration. Understanding these components is the difference between an agent that works and one that works well.
+
+<Callout>
+The system prompt is split at a cache boundary. Everything before the boundary is static and eligible for provider-level prompt caching (saves tokens on multi-turn conversations). Everything after is recomputed each turn.
+</Callout>
+
+---
+
+## How It's Built
+
+```rust
+use cersei_agent::system_prompt::{build_system_prompt, SystemPromptOptions};
+
+let opts = SystemPromptOptions {
+    working_directory: Some("/my/project".into()),
+    has_memory: true,
+    has_auto_compact: true,
+    tools_available: vec!["Agent".into(), "Skill".into(), "Read".into()],
+    git_status: Some(GitSnapshot { branch: "main".into(), ..Default::default() }),
+    ..Default::default()
+};
+
+let prompt = build_system_prompt(&opts);
+```
+
+The builder evaluates each component's inclusion rule against the options you provide. Components that don't apply are skipped entirely — no wasted tokens.
+
+---
+
+## Component Map
+
+### Always Included
+
+These components are present in every agent's system prompt regardless of configuration.
+
+#### Attribution
+
+Sets the agent's identity. Varies by context:
+
+| Context | Text |
+|---------|------|
+| Interactive | "You are a coding agent built with the Cersei SDK." |
+| SDK | "You are an agent built on the Cersei SDK." |
+| SDK with custom prompt | "You are a coding agent built with the Cersei SDK, running with custom instructions." |
+| Sub-agent | "You are a specialized sub-agent." |
+
+**Why it matters:** Models behave differently based on their stated identity. An "agent" is more likely to take action than a "helpful assistant."
+
+#### Core Capabilities
+
+Lists what the agent can do: file I/O, shell execution, search, web access, sub-agents, memory, MCP, notebooks.
+
+Also sets the approach:
+1. Understand before acting — read files first
+2. Minimal changes — don't refactor what wasn't asked
+3. Verify — check work with tests
+4. Communicate blockers — ask instead of guessing
+
+**Why it matters:** Without this, the model doesn't know what tools exist or how to approach multi-step tasks. It would try to do everything in a single response.
+
+#### Tool Use Guidelines
+
+Tells the model to prefer dedicated tools over shell equivalents:
+- Use `Read` instead of `cat`
+- Use `Grep` instead of `grep`
+- Use `Glob` instead of `find`
+- Parallelize independent tool calls
+
+**Why it matters:** Dedicated tools have structured output, permission checks, and are faster than spawning shell processes. Without this guidance, models default to bash for everything.
+
+#### Actions with Care
+
+Instructs the model to consider reversibility and blast radius before acting. Hard-to-reverse operations (deleting files, force-pushing, posting to external services) require user confirmation.
+
+**Why it matters:** Prevents the model from running `rm -rf` or `git push --force` without asking. This is a safety net — the permission system enforces it mechanically, but this instruction makes the model self-regulate.
+
+#### Safety Guidelines
+
+Specific rules:
+- No file deletion without confirmation
+- No modifying protected files (`.gitconfig`, `.bashrc`)
+- No committing secrets or credentials
+- Ask before ambiguous destructive actions
+
+**Why it matters:** Even with `AllowAll` permissions, these instructions make the model cautious about irreversible operations.
+
+#### Security
+
+Defines what's authorized (CTF challenges, pentesting with consent, defensive security) and what's not (malware, unauthorized access, DoS).
+
+#### Output Efficiency
+
+```
+Go straight to the point. Try the simplest approach first. Do not overdo it.
+Lead with the answer or action, not the reasoning.
+If you can say it in one sentence, don't use three.
+```
+
+**Why it matters:** Without this, models produce verbose explanations before every action. With it, they act first and explain only when asked. This directly affects how fast the agent feels.
+
+#### Tool Result Summarization
+
+Warns the model that old tool results may be cleared from context:
+
+```
+Write down any important information you might need later in your response,
+as the original tool result may be cleared from context later.
+```
+
+**Why it matters:** When auto-compact runs, it removes old tool results to free context space. If the model didn't write down the key findings, it loses access to them. This instruction prevents information loss during compaction.
+
+---
+
+### Conditional Components
+
+These only appear when specific features are configured.
+
+#### Sub-Agent Guidance
+
+**Included when:** `Agent` or `TaskCreate` is in the tool list.
+
+Tells the model how to use sub-agents effectively:
+- Launch multiple agents in parallel for independent tasks
+- Each agent gets a complete, self-contained prompt
+- Sub-agent output isn't visible to the user — summarize it yourself
+- Use TaskCreate/TaskUpdate to track background work
+
+**Why it matters:** Without this, models either never use sub-agents or use them for trivial tasks. This guidance teaches them to delegate effectively.
+
+#### Skills Guidance
+
+**Included when:** `Skill` is in the tool list.
+
+Explains that `/<skill-name>` invokes skills from `.claude/commands/`, `.claude/skills/`, or bundled templates.
+
+**Why it matters:** Skills are a user-facing feature. The model needs to know they exist and that it should use the Skill tool to execute them.
+
+#### Memory Guidance
+
+**Included when:** `has_memory` is true (a memory backend is configured).
+
+```
+You have access to persistent memory across sessions. Memory files survive
+across conversations and are injected into your context automatically.
+- Store facts about preferences, project decisions, and recurring patterns
+- Before recommending from memory, verify files and functions still exist
+- If memory conflicts with current code, trust what you observe now
+```
+
+**Why it matters:** Memory is powerful but stale-prone. Without the verification instruction, the model recommends functions that were renamed or deleted. The staleness warning prevents false confidence from old memory entries.
+
+#### Context Management Warning
+
+**Included when:** `has_auto_compact` is true.
+
+Warns that old tool results get automatically summarized to free context space. The most recent results are always kept.
+
+**Why it matters:** Tells the model to be proactive about capturing important data in its response text, since the raw tool output won't survive forever.
+
+#### Output Style
+
+**Included when:** A custom output style is configured.
+
+Available styles: `Concise`, `Explanatory`, `Learning`, `Formal`, `Casual`, or a custom string.
+
+```rust
+Agent::builder()
+    .system_prompt_options(SystemPromptOptions {
+        output_style: OutputStyle::Learning,
+        ..Default::default()
+    })
+```
+
+**Why it matters:** The same agent behaves very differently with `Concise` ("fix applied") vs `Learning` ("I fixed the bug by changing X to Y because of Z. This pattern is called...").
+
+#### Coordinator Mode
+
+**Included when:** `coordinator_mode` is true.
+
+Tells the model it's an orchestrator that should spawn parallel workers, synthesize findings, and track tasks.
+
+#### Language Preference
+
+**Included when:** `language` is set (e.g., `"Japanese"`).
+
+```
+Always respond in Japanese. Use Japanese for all explanations, comments,
+and communications. Technical terms and code identifiers should remain
+in their original form.
+```
+
+---
+
+### Dynamic Sections (After Cache Boundary)
+
+These change every turn and are never cached.
+
+#### Working Directory
+
+```xml
+<working_directory>/Users/dev/my-project</working_directory>
+```
+
+The agent needs this to resolve relative paths and understand the project context.
+
+#### Git Status Snapshot
+
+**Included when:** `git_status` is provided (the working directory is a git repo).
+
+```xml
+<git_status>
+Branch: main
+User: Jane Developer
+Status:
+  M src/auth.ts
+  ?? src/auth.test.ts
+Recent commits:
+  abc1234 Fix login redirect
+  def5678 Add session middleware
+</git_status>
+```
+
+**Why it matters:** The model uses this to understand the project's current state — what branch it's on, what files are modified, and what recent work looks like. Without it, the model has to run `git status` as a tool call, wasting a turn.
+
+#### Memory Content
+
+The MEMORY.md index and CLAUDE.md hierarchy, injected from the memory manager.
+
+#### MCP Server Instructions
+
+**Included when:** MCP servers are connected with per-server instructions.
+
+```xml
+<mcp_instructions>
+## db-server
+Use the query tool for read operations. Always include a LIMIT clause.
+## docs-server
+Search before creating new documents.
+</mcp_instructions>
+```
+
+---
+
+## Controlling the Prompt from Code
+
+### Replace entirely
+
+```rust
+Agent::builder()
+    .system_prompt("You are a data analyst. Only use SQL tools.")
+```
+
+This replaces all default components with your custom text.
+
+### Append to the default
+
+```rust
+Agent::builder()
+    .append_system_prompt("Additional rule: never modify files outside src/")
+```
+
+This keeps all default components and adds your text at the end.
+
+### Fine-grained control
+
+```rust
+let opts = SystemPromptOptions {
+    output_style: OutputStyle::Concise,
+    coordinator_mode: true,
+    language: Some("Spanish".into()),
+    has_memory: true,
+    has_auto_compact: true,
+    tools_available: cersei_tools::all().iter().map(|t| t.name().into()).collect(),
+    git_status: Some(git_snapshot),
+    extra_cached_sections: vec![
+        ("project_rules".into(), "Always use async/await. No unwrap().".into()),
+    ],
+    ..Default::default()
+};
+```
+
+### What Abstract CLI does
+
+The CLI populates these automatically:
+
+```rust
+SystemPromptOptions {
+    prefix: Interactive,
+    output_style: from config,
+    working_directory: from --directory or cwd,
+    memory_content: from MemoryManager::build_context(),
+    has_auto_compact: from config.auto_compact,
+    has_memory: from config.graph_memory,
+    tools_available: all 34 tool names,
+    git_status: detected from working directory,
+    extra_cached_sections: .abstract/instructions.md if present,
+    extra_dynamic_sections: date, OS, shell info,
+}
+```
+
+---
+
+## Impact on Agent Behavior
+
+| Component | Without it | With it |
+|-----------|-----------|---------|
+| Output efficiency | Verbose explanations before every action | Acts first, explains when asked |
+| Tool use guidelines | Uses bash for everything | Uses dedicated tools (faster, structured) |
+| Safety guidelines | May delete files or commit secrets | Self-regulates, asks before destructive ops |
+| Memory guidance | Recommends stale/deleted code from memory | Verifies before recommending |
+| Context management | Loses important data during compaction | Captures key info in response text |
+| Agent guidance | Never uses sub-agents | Delegates parallel work effectively |
+| Git snapshot | Wastes a turn running `git status` | Already knows branch, status, recent commits |
+
+The system prompt is not decoration — every component directly shapes how the agent behaves. Removing "output efficiency" makes responses 3-4x longer. Removing "tool use guidelines" makes every file read go through bash. Removing "memory guidance" causes hallucinated function references from stale memory.
+
+---
+
+## Token Budget
+
+| Section | Approximate Tokens |
+|---------|-------------------|
+| Always-included components | ~1500 |
+| All conditional components (max) | ~700 |
+| Git snapshot (typical) | ~100 |
+| Memory content (varies) | 0–2000 |
+| **Total (typical interactive session)** | **~2200** |
+
+For comparison, Claude Code's system prompt uses ~8000+ tokens. The leaner prompt means faster first-token time and lower per-session cost.

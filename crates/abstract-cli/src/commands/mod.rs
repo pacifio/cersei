@@ -24,6 +24,7 @@ impl CommandRegistry {
     pub async fn execute(&mut self, cmd: &str, args: &str, config: &AppConfig, session_id: &str) {
         let result = match cmd {
             "help" | "h" | "?" => help::run(),
+            "sessions" | "ls" => crate::sessions::list(config),
             "clear" => clear::run(),
             "compact" => compact::run(config),
             "cost" => cost::run(session_id),

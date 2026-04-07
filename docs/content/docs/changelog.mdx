@@ -32,6 +32,22 @@ export function Tag({ type }) {
   );
 }
 
+<Version version="0.1.5" date="2026-04-07">
+
+<Tag type="added" /> **`/sessions` and `/ls` slash commands** — list sessions directly from the REPL. Closes [#9](https://github.com/pacifio/cersei/issues/9).
+
+<Tag type="added" /> **Expanded `/help`** — now shows CLI subcommands alongside REPL commands. Updated model aliases.
+
+<Tag type="added" /> **Conditional system prompt components.** 23 sections (8 conditional) replacing 6 static constants. New: output efficiency, tool result summarization, sub-agent guidance, skills guidance, memory guidance, context management warning, structured git snapshot, MCP instructions, language preference.
+
+<Tag type="added" /> **`GitSnapshot`** struct and new `SystemPromptOptions` fields (`tools_available`, `has_memory`, `has_auto_compact`, `git_status`, `mcp_instructions`, `language`). 11 new tests.
+
+<Tag type="changed" /> System prompt now includes output efficiency and tool result summarization by default.
+
+<Tag type="changed" /> Git info in prompt upgraded from one-line string to structured snapshot (branch, user, status, recent commits).
+
+</Version>
+
 <Version version="0.1.4" date="2026-04-06">
 
 <Tag type="added" /> **Tool primitives** (`tool_primitives` module). 6 sub-modules: `diff`, `fs`, `process`, `http`, `search`, `git`. Low-level async building blocks for custom tools. 26 new tests.
