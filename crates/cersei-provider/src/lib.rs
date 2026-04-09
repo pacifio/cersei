@@ -4,6 +4,7 @@
 //! Each provider implements streaming completion, token counting, and capability discovery.
 
 pub mod anthropic;
+pub mod gemini;
 pub mod openai;
 pub mod registry;
 pub mod router;
@@ -17,6 +18,7 @@ use tokio::sync::mpsc;
 
 // Re-exports
 pub use anthropic::Anthropic;
+pub use gemini::Gemini;
 pub use openai::OpenAi;
 pub use stream::StreamAccumulator;
 pub use router::from_model_string;

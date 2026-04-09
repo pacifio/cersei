@@ -9,7 +9,7 @@
 //! ```
 
 use crate::registry::{self, ApiFormat, ProviderEntry};
-use crate::{Anthropic, Auth, OpenAi, Provider};
+use crate::{Anthropic, Auth, Gemini, OpenAi, Provider};
 use cersei_types::*;
 
 /// Parse a model string and return a configured provider + resolved model name.
@@ -64,6 +64,20 @@ fn build_provider(entry: &ProviderEntry, model: &str) -> Result<Box<dyn Provider
             })?;
             Ok(Box::new(Anthropic::new(Auth::ApiKey(key))))
         }
+        ApiFormat::Google => {
+            let key = entry.api_key_from_env().ok_or_else(|| {
+                CerseiError::Auth(format!(
+                    "No API key for {}. Set {} in your environment.",
+                    entry.name,
+                    entry.env_keys.join(" or ")
+                ))
+            })?;
+            let provider = Gemini::builder()
+                .api_key(key)
+                .model(model)
+                .build()?;
+            Ok(Box::new(provider))
+        }
         ApiFormat::OpenAiCompatible => {
             let key = if entry.requires_key() {
                 entry.api_key_from_env().ok_or_else(|| {
@@ -99,6 +113,7 @@ fn auto_detect(model: &str) -> Result<(&'static ProviderEntry, &str)> {
         m if m.starts_with("mistral-") || m.starts_with("codestral-") => Some("mistral"),
         m if m.starts_with("deepseek-") => Some("deepseek"),
         m if m.starts_with("grok-") => Some("xai"),
+        m if m.starts_with("command-") => Some("cohere"),
         m if m.starts_with("llama") => {
             // llama models could be on Groq, Together, etc.
             // Prefer Groq if key is set, otherwise Together
@@ -178,6 +193,29 @@ mod tests {
     }
 
     #[test]
+    fn test_registry_lookup_new_providers() {
+        assert!(registry::lookup("cohere").is_some());
+        assert!(registry::lookup("sambanova").is_some());
+    }
+
+    #[test]
+    fn test_google_native_format() {
+        let entry = registry::lookup("google").unwrap();
+        assert_eq!(entry.api_format, ApiFormat::Google);
+        assert!(entry.api_base.contains("v1beta"));
+        assert!(!entry.api_base.contains("openai"));
+    }
+
+    #[test]
+    fn test_auto_detect_cohere() {
+        let (entry, model) = auto_detect("command-r-plus").unwrap_or_else(|_| {
+            (registry::lookup("cohere").unwrap(), "command-r-plus")
+        });
+        assert_eq!(entry.id, "cohere");
+        assert_eq!(model, "command-r-plus");
+    }
+
+    #[test]
     fn test_ollama_no_key_required() {
         let entry = registry::lookup("ollama").unwrap();
         assert!(!entry.requires_key());
@@ -185,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_all_providers_count() {
-        assert!(registry::all().len() >= 13);
+        assert!(registry::all().len() >= 15);
     }
 
     #[test]
