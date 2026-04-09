@@ -13,6 +13,8 @@ pub enum ApiFormat {
     Anthropic,
     /// OpenAI-compatible `/v1/chat/completions` format (used by most providers).
     OpenAiCompatible,
+    /// Google Gemini native `generateContent` API format.
+    Google,
 }
 
 /// A known LLM provider.
@@ -125,14 +127,15 @@ pub static REGISTRY: &[ProviderEntry] = &[
     ProviderEntry {
         id: "google",
         name: "Google",
-        api_base: "https://generativelanguage.googleapis.com/v1beta/openai",
+        api_base: "https://generativelanguage.googleapis.com/v1beta",
         env_keys: &["GOOGLE_API_KEY", "GEMINI_API_KEY"],
-        api_format: ApiFormat::OpenAiCompatible,
+        api_format: ApiFormat::Google,
         default_model: "gemini-2.0-flash",
         models: &[
             ModelEntry { id: "gemini-2.0-flash", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gemini-2.0-pro", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gemini-1.5-pro", context_window: 2_000_000, capabilities: FULL },
+            ModelEntry { id: "gemini-1.5-flash", context_window: 1_000_000, capabilities: FULL },
         ],
     },
     ProviderEntry {
@@ -244,6 +247,31 @@ pub static REGISTRY: &[ProviderEntry] = &[
         api_format: ApiFormat::OpenAiCompatible,
         default_model: "anthropic/claude-3.5-sonnet",
         models: &[],
+    },
+    ProviderEntry {
+        id: "cohere",
+        name: "Cohere",
+        api_base: "https://api.cohere.com/compatibility/v1",
+        env_keys: &["COHERE_API_KEY", "CO_API_KEY"],
+        api_format: ApiFormat::OpenAiCompatible,
+        default_model: "command-r-plus",
+        models: &[
+            ModelEntry { id: "command-r-plus", context_window: 128_000, capabilities: FULL },
+            ModelEntry { id: "command-r", context_window: 128_000, capabilities: FULL },
+            ModelEntry { id: "command-a", context_window: 256_000, capabilities: FULL },
+        ],
+    },
+    ProviderEntry {
+        id: "sambanova",
+        name: "SambaNova",
+        api_base: "https://api.sambanova.ai/v1",
+        env_keys: &["SAMBANOVA_API_KEY"],
+        api_format: ApiFormat::OpenAiCompatible,
+        default_model: "Meta-Llama-3.1-70B-Instruct",
+        models: &[
+            ModelEntry { id: "Meta-Llama-3.1-70B-Instruct", context_window: 128_000, capabilities: BASIC },
+            ModelEntry { id: "Meta-Llama-3.1-405B-Instruct", context_window: 128_000, capabilities: BASIC },
+        ],
     },
 ];
 
