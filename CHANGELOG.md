@@ -1,5 +1,71 @@
 # Changelog
 
+## [0.1.6] - 2026-04-12
+
+### Added
+
+#### New Crate: `cersei-lsp`
+- **Language Server Protocol client** (`cersei-lsp`). On-demand LSP server management with JSON-RPC 2.0 over stdio. 5 operations: hover, definition, references, document symbols, diagnostics. Built-in configs for 13 language servers (rust-analyzer, pyright, typescript-language-server, gopls, clangd, ruby-lsp, phpactor, lua-language-server, bash-language-server, sourcekit-lsp, omnisharp, jdtls, zls). Auto-detection by file extension, lazy server startup.
+- **LSP tool** in `cersei-tools` — agents can query language servers via `LSP` tool with action/file/line/column.
+
+#### Tree-sitter Code Intelligence
+- **Multi-language tree-sitter parsing** (Rust, TypeScript/JavaScript, Python, Go). Extracts imports and symbols (functions, structs, classes, interfaces, enums, modules, types).
+- **Bash command safety analysis** (`bash_safety`) — tree-sitter AST-based risk classification (Safe/Moderate/High/Forbidden). Detects command substitution, process substitution, redirections, pipelines, privilege escalation. 8 tests.
+- **Dependency-ranked project intelligence** (`code_intel`) — `scan_project()` discovers source files, parses with tree-sitter, scores by importance (entry points, import frequency, symbol count). Injected into system prompt as `project_intel`.
+
+#### Production TUI
+- **ratatui TUI** with alternate screen, `tokio::select!` event loop at 62 FPS.
+- **Side panel** (Ctrl+B) — 38% right width, tabbed: Git Diff (status + colored diff) and File Tree (compact with file counts).
+- **Permission modes** (Shift+Tab) — Auto, Plan, Editor, Bypass, Bypass+Alert.
+- **Enterprise theme** — AMOLED black (`#000`), monochromatic, `#ffff00` accent, derived from Zed Enterprise theme. Default theme.
+- **3 themes** — Enterprise, Light, Solarized.
+- **Markdown rendering** with pulldown-cmark + syntect. Text wrapping at terminal width.
+- **Graph visualization** (`/graph`) — memory node graph overlay.
+- **16 slash commands** — `/help`, `/clear`, `/cost`, `/model`, `/memory`, `/sessions`, `/diff`, `/files`, `/panel`, `/graph`, `/undo`, `/rewind`, `/compact`, `/exit`.
+- **Scrolling** — PageUp/Down, Home/End, Ctrl+Up/Down for side panel.
+- **Bracketed paste** support. Native text selection (mouse capture disabled).
+
+#### Agent Loop
+- **Parallel tool execution** via `futures::future::join_all()`.
+- **Automatic retry with exponential backoff** — 5 retries on 429/529, 1s→16s delays + jitter.
+- **LLM-based context compaction** — provider-based summarization at 90% context, snip-compact fallback.
+- **Todo nudge injection** — reminds model about incomplete tasks on turns > 2.
+- **Depth nudge** — forces deeper exploration on early EndTurn after tool calls.
+- **MaxTokens recovery** — 3 retries on output token limit.
+
+#### File Operations
+- **File snapshot/undo** (`file_snapshot`) — before/after content per tool call, `/undo` command.
+- **ApplyPatch tool** — unified diff format patching.
+- **Shell state persistence** — sentinel-based cwd capture across bash calls.
+
+#### Provider Updates
+- **GPT-5.x models** — `gpt-5.3-chat-latest` (default), `gpt-5.3-chat`, `gpt-5-chat`, `o3-pro`. 1M context windows.
+- **`max_completion_tokens`** for GPT-5.x/o-series. **`stream_options: include_usage`** for token tracking.
+- **Per-message cost estimation** — `estimate_cost()` with pricing for 15 models.
+
+#### Memory & Config
+- **AGENTS.md / CLAUDE.md hierarchy** — walks up directory tree collecting instruction files.
+- **File watching** (`file_watcher`) — `notify` crate for project file change detection.
+- **max_turns** increased from 20 to 50.
+
+### Changed
+
+- Default OpenAI model: `gpt-4o` → `gpt-5.3-chat-latest`.
+- Default theme: generic dark → Enterprise (AMOLED black).
+- `Agent::run_stream()` takes `Arc<Self>` instead of unsafe pointer cast.
+- System prompt rewritten for deep exploration enforcement.
+- Gemini tool results use actual function name instead of `tool_use_id`.
+- Glob capped at 200 results. Per-result cap at 30KB.
+
+### Fixed
+
+- TUI streaming via `tokio::select!` (no longer blocks event loop).
+- Mid-stream cancellation via `cancel_token`.
+- OpenAI `max_tokens` → `max_completion_tokens` for GPT-5.x.
+- Token stats and cost display.
+- Git diff panel shows untracked files with readable labels.
+- Markdown text wrapping. Paste handling. `cap_tool_result` bounds.
+
 ## [0.1.5] - 2026-04-07
 
 ### Added

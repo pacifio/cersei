@@ -1,0 +1,183 @@
+---
+title: "Cookbook: Research Agent"
+description: Build an autonomous research agent that aggregates information from web, papers, and codebases.
+---
+
+# Cookbook: Research Agent
+
+Build an agent that autonomously researches topics by searching the web, reading papers, analyzing codebases, and synthesizing findings — with persistent memory across sessions.
+
+## Architecture
+
+```
+User Query → Research Agent
+  ├── WebSearch (Brave API) → top results
+  ├── WebFetch → read full pages
+  ├── Grep/Glob → search local codebases
+  ├── LSP → understand code semantics
+  └── Graph Memory → store + recall findings
+```
+
+## The Agent
+
+```rust
+use cersei::prelude::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let provider = cersei_provider::from_model_string("auto")?.0;
+
+    // Research agent: web + filesystem + memory tools
+    let mut tools: Vec<Box<dyn Tool>> = Vec::new();
+    tools.extend(cersei_tools::filesystem()); // Read, Glob, Grep
+    tools.extend(cersei_tools::web());        // WebFetch, WebSearch
+    tools.push(Box::new(cersei_tools::lsp_tool::LspTool::new(
+        std::path::Path::new("."),
+    )));
+
+    // Memory manager for persistent findings
+    let memory = cersei_memory::manager::MemoryManager::new(".");
+
+    let agent = Agent::builder()
+        .provider(provider)
+        .tools(tools)
+        .system_prompt(RESEARCH_PROMPT)
+        .max_turns(40) // Research needs many rounds
+        .auto_compact(true)
+        .session_id("research-session-1")
+        .memory(memory)
+        .build()?;
+
+    let output = agent.run(
+        "Research the current state of Rust async runtimes. \
+         Compare tokio, async-std, smol, and glommio. \
+         Focus on performance benchmarks, API ergonomics, and ecosystem maturity. \
+         Write a comprehensive report to research-output.md"
+    ).await?;
+
+    println!("Research complete in {} turns, {} tool calls",
+        output.turns, output.tool_calls.len());
+
+    Ok(())
+}
+
+const RESEARCH_PROMPT: &str = "You are a research agent. Your job is to:
+1. Break research questions into sub-topics
+2. Search the web for each sub-topic using WebSearch
+3. Read promising URLs with WebFetch
+4. Cross-reference findings with local codebases using Grep/Glob
+5. Use LSP for semantic code understanding when analyzing libraries
+6. Synthesize findings into structured reports with citations
+7. Store key findings in memory for future reference
+
+Always cite your sources with URLs. Use tables for comparisons.
+Search for multiple perspectives before drawing conclusions.";
+```
+
+## Multi-Source Research Pattern
+
+The key to quality research is combining multiple sources:
+
+```rust
+// Step 1: Web search for overview
+let search_results = agent.run(
+    "WebSearch for 'Rust async runtime benchmarks 2025'"
+).await?;
+
+// Step 2: Fetch top results
+let fetched = agent.run(
+    "WebFetch the top 3 URLs from the search results"
+).await?;
+
+// Step 3: Cross-reference with actual code
+let code_analysis = agent.run(
+    "Grep the tokio source code for benchmark results and performance notes"
+).await?;
+
+// Step 4: Synthesize
+let report = agent.run(
+    "Synthesize all findings into a comparison table"
+).await?;
+```
+
+## Persistent Research with Graph Memory
+
+Store research findings across sessions:
+
+```rust
+use cersei_memory::graph::GraphMemory;
+use cersei_memory::memdir::MemoryType;
+
+let graph = GraphMemory::open(std::path::Path::new("~/.abstract/graph.db"))?;
+
+// Store a finding
+let id = graph.store_memory(
+    "tokio 1.x: 2.3M req/s on HTTP benchmarks (source: tokio blog 2025)",
+    MemoryType::Reference,
+    0.9,
+)?;
+graph.tag_memory(&id, "rust-async")?;
+graph.tag_memory(&id, "benchmarks")?;
+
+// Link related findings
+let id2 = graph.store_memory(
+    "async-std deprecated in favor of smol ecosystem (source: GitHub announcement)",
+    MemoryType::Reference,
+    0.85,
+)?;
+graph.link_memories(&id, &id2, "COMPARES_TO")?;
+
+// Later: recall all findings about async runtimes
+let findings = graph.by_topic("rust-async");
+for finding in findings {
+    println!("{finding}");
+}
+```
+
+## Sub-Agent Pattern for Parallel Research
+
+Use sub-agents to research multiple topics concurrently:
+
+```rust
+let agent = Agent::builder()
+    .provider(provider)
+    .tools(tools)
+    .system_prompt(
+        "You are a research coordinator. Use the Agent tool to spawn \
+         parallel research sub-agents for each sub-topic. Each sub-agent \
+         should search, read, and summarize independently. Synthesize \
+         all sub-agent results into a final report."
+    )
+    .build()?;
+
+// The agent will spawn sub-agents like:
+// Agent("Research tokio performance benchmarks")
+// Agent("Research async-std current status")
+// Agent("Research smol ecosystem maturity")
+// Then synthesize all results
+```
+
+## Output Format
+
+The agent produces structured markdown reports:
+
+```markdown
+# Rust Async Runtimes: Comparative Analysis
+
+## Executive Summary
+...
+
+## Detailed Comparison
+
+| Runtime | Throughput | API Ergonomics | Ecosystem | Status |
+|---------|-----------|----------------|-----------|--------|
+| tokio | 2.3M req/s | Good | Extensive | Active |
+| smol | 1.8M req/s | Excellent | Growing | Active |
+| glommio | 3.1M req/s | Complex | Niche | Active |
+| async-std | N/A | Good | Declining | Deprecated |
+
+## Sources
+1. [tokio blog](https://tokio.rs/blog/...) — performance benchmarks
+2. [GitHub announcement](https://github.com/...) — async-std deprecation
+...
+```

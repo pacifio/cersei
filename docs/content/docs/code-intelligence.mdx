@@ -1,0 +1,420 @@
+---
+title: Code & AST Intelligence
+description: LSP client and tree-sitter parsing for semantic code understanding.
+---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+
+# Code & AST Intelligence
+
+Cersei provides two layers of code intelligence available as both SDK library APIs and agent tools:
+
+- **`cersei-lsp`** — Language Server Protocol client for semantic operations (hover, definitions, references, symbols, diagnostics)
+- **Tree-sitter modules** in `cersei-tools` — AST-based import extraction, symbol discovery, dependency ranking, and bash command safety analysis
+
+Both are used by Abstract CLI to give the agent deep understanding of codebases without reading every file.
+
+---
+
+## `cersei-lsp` Crate
+
+A standalone LSP client crate with on-demand server management. Spawns language servers lazily on first file access, communicates via JSON-RPC 2.0 over stdio.
+
+### Installation
+
+```toml
+[dependencies]
+cersei-lsp = "0.1.6"
+```
+
+### Architecture
+
+```
+LspManager (multi-server registry)
+├── LspClient (rust-analyzer) ── JSON-RPC ── rust-analyzer process
+├── LspClient (pyright) ── JSON-RPC ── pyright-langserver process
+└── LspClient (gopls) ── JSON-RPC ── gopls process
+```
+
+- **`LspManager`** routes files to the correct server by extension
+- **`LspClient`** manages a single server process with async I/O
+- Servers start on first file access and persist for the session
+- 13 built-in server configs, extensible with custom configs
+
+### Quick Start
+
+```rust
+use cersei_lsp::{LspManager, LspServerConfig};
+use std::path::Path;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut mgr = LspManager::new("/path/to/project");
+    mgr.register_builtins(); // Register 13 built-in servers
+
+    // Hover: get type info at a position
+    let hover = mgr.hover(Path::new("src/main.rs"), 10, 5).await?;
+    println!("Hover: {:?}", hover);
+
+    // Go-to-definition
+    let defs = mgr.definition(Path::new("src/lib.rs"), 25, 12).await?;
+    for loc in &defs {
+        println!("Defined at: {loc}");
+    }
+
+    // Find all references
+    let refs = mgr.references(Path::new("src/lib.rs"), 25, 12).await?;
+    println!("Found {} references", refs.len());
+
+    // Document symbols (file outline)
+    let symbols = mgr.document_symbols(Path::new("src/lib.rs")).await?;
+    for sym in &symbols {
+        print!("{}", sym.format(0)); // Indented tree output
+    }
+
+    // Diagnostics (compiler errors/warnings)
+    let diags = mgr.diagnostics(Path::new("src/main.rs")).await?;
+    println!("{}", LspManager::format_diagnostics(&diags));
+
+    mgr.shutdown_all().await;
+    Ok(())
+}
+```
+
+### API Reference
+
+#### `LspServerConfig`
+
+<TypeTable type={{
+  name: { description: 'Display name (e.g. "rust-analyzer")', type: 'String' },
+  command: { description: 'Binary to spawn', type: 'String' },
+  args: { description: 'CLI arguments', type: 'Vec<String>', default: '[]' },
+  file_patterns: { description: 'Glob patterns this server handles', type: 'Vec<String>' },
+  extension_to_language: { description: 'Map file ext to LSP language ID', type: 'HashMap<String, String>' },
+  env: { description: 'Extra environment variables', type: 'HashMap<String, String>', default: '{}' },
+  initialization_options: { description: 'Options sent during LSP initialize', type: 'Option<Value>', default: 'None' },
+}} />
+
+#### `LspManager`
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `new` | `fn new(working_dir: impl Into<PathBuf>) -> Self` | Create manager for a project |
+| `register_builtins` | `fn register_builtins(&mut self)` | Register 13 built-in servers |
+| `register_server` | `fn register_server(&mut self, config: LspServerConfig)` | Add a custom server |
+| `has_server_for` | `fn has_server_for(&self, path: &Path) -> bool` | Check if a server handles this file type |
+| `hover` | `async fn hover(&mut self, path, line, col) -> LspResult<Option<String>>` | Get hover info (0-based) |
+| `definition` | `async fn definition(&mut self, path, line, col) -> LspResult<Vec<String>>` | Go-to-definition locations |
+| `references` | `async fn references(&mut self, path, line, col) -> LspResult<Vec<String>>` | Find all references |
+| `document_symbols` | `async fn document_symbols(&mut self, path) -> LspResult<Vec<SymbolInfo>>` | File outline |
+| `diagnostics` | `async fn diagnostics(&mut self, path) -> LspResult<Vec<LspDiagnostic>>` | Compiler errors/warnings |
+| `shutdown_all` | `async fn shutdown_all(&self)` | Gracefully stop all servers |
+
+#### `LspClient`
+
+Low-level client for a single server. Usually accessed through `LspManager`, but available for direct use:
+
+```rust
+use cersei_lsp::{LspClient, LspServerConfig};
+
+let config = LspServerConfig::new(
+    "rust-analyzer", "rust-analyzer",
+    &["*.rs"], &[(".rs", "rust")]
+);
+let client = LspClient::new(config);
+client.start(Path::new("/project")).await?;
+client.initialize().await?;
+client.open_document(Path::new("/project/src/main.rs")).await?;
+
+let hover = client.hover(Path::new("/project/src/main.rs"), 10, 5).await?;
+client.shutdown().await?;
+```
+
+#### Types
+
+```rust
+// Symbol from document_symbols()
+pub struct SymbolInfo {
+    pub name: String,      // e.g. "Config"
+    pub kind: String,      // e.g. "struct", "function", "class"
+    pub range: Range,      // Start/end position
+    pub children: Vec<SymbolInfo>, // Nested symbols (methods, fields)
+}
+
+// Diagnostic from diagnostics()
+pub struct LspDiagnostic {
+    pub file: String,
+    pub line: u32,          // 0-based
+    pub col: u32,           // 0-based
+    pub severity: DiagnosticSeverity, // Error, Warning, Information, Hint
+    pub message: String,
+    pub source: Option<String>,  // e.g. "rustc", "clippy"
+    pub code: Option<String>,    // e.g. "E0308"
+}
+```
+
+### Built-in Server Configs
+
+| Server | Command | Extensions | Language ID |
+|--------|---------|-----------|-------------|
+| rust-analyzer | `rust-analyzer` | `.rs` | rust |
+| pyright | `pyright-langserver` | `.py`, `.pyi` | python |
+| typescript-language-server | `typescript-language-server --stdio` | `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs` | typescript, javascript |
+| gopls | `gopls` | `.go` | go |
+| clangd | `clangd` | `.c`, `.h`, `.cpp`, `.hpp`, `.cc`, `.cxx` | c, cpp |
+| ruby-lsp | `ruby-lsp --stdio` | `.rb` | ruby |
+| phpactor | `phpactor language-server` | `.php` | php |
+| lua-language-server | `lua-language-server --stdio` | `.lua` | lua |
+| bash-language-server | `bash-language-server start` | `.sh`, `.bash` | shellscript |
+| sourcekit-lsp | `sourcekit-lsp` | `.swift` | swift |
+| omnisharp | `OmniSharp -lsp` | `.cs` | csharp |
+| jdtls | `jdtls` | `.java` | java |
+| zls | `zls` | `.zig` | zig |
+
+### Custom Server Example
+
+```rust
+use cersei_lsp::{LspManager, LspServerConfig};
+
+let mut mgr = LspManager::new("/project");
+
+// Add Elixir support
+let mut elixir = LspServerConfig::new(
+    "elixir-ls", "elixir-ls",
+    &["*.ex", "*.exs"],
+    &[(".ex", "elixir"), (".exs", "elixir")],
+);
+elixir.args = vec!["--stdio".to_string()];
+mgr.register_server(elixir);
+
+mgr.register_builtins(); // Also load defaults
+```
+
+### Global Singleton
+
+For long-running applications (like Abstract CLI), use the global manager:
+
+```rust
+use cersei_lsp::global_lsp_manager;
+
+let mgr = global_lsp_manager(Path::new("/project"));
+let mut guard = mgr.lock().await;
+guard.register_builtins();
+let symbols = guard.document_symbols(Path::new("src/lib.rs")).await?;
+```
+
+---
+
+## Tree-sitter Code Intelligence
+
+Located in `cersei_tools::tool_primitives::code_intel`. Parses source files using native tree-sitter grammars to extract imports and symbols without running a language server.
+
+### Supported Languages
+
+| Language | Grammar Crate | Import Nodes | Symbol Nodes |
+|----------|---------------|-------------|--------------|
+| Rust | `tree-sitter-rust` | `use_declaration` | `function_item`, `struct_item`, `enum_item`, `mod_item`, `trait_item`, `type_item` |
+| TypeScript/JS | `tree-sitter-typescript` | `import_statement` (source field) | `function_declaration`, `class_declaration`, `interface_declaration`, `type_alias_declaration`, `enum_declaration` |
+| Python | `tree-sitter-python` | `import_statement`, `import_from_statement` | `function_definition`, `class_definition` |
+| Go | `tree-sitter-go` | `import_declaration` | `function_declaration`, `method_declaration`, `type_spec` (struct/interface) |
+
+### Analyzing a Single File
+
+```rust
+use cersei_tools::tool_primitives::code_intel::{analyze_file, Language};
+use std::path::Path;
+
+let source = r#"
+use std::collections::HashMap;
+use serde::Serialize;
+
+pub struct Config {
+    pub name: String,
+}
+
+pub fn load_config() -> Config {
+    Config { name: "test".into() }
+}
+"#;
+
+let intel = analyze_file(Path::new("config.rs"), source).unwrap();
+assert_eq!(intel.language, Language::Rust);
+assert_eq!(intel.imports.len(), 2);       // HashMap, Serialize
+assert!(intel.symbols.iter().any(|s| s.name == "Config"));
+assert!(intel.symbols.iter().any(|s| s.name == "load_config"));
+
+for sym in &intel.symbols {
+    println!("  {} {} (line {})", sym.kind.label(), sym.name, sym.line);
+}
+// Output:
+//   struct Config (line 5)
+//   fn load_config (line 9)
+```
+
+### Scanning a Project
+
+`scan_project()` discovers all source files, parses them, and returns the most important ones ranked by a dependency score:
+
+```rust
+use cersei_tools::tool_primitives::code_intel::{scan_project, format_project_intel};
+use std::path::Path;
+
+let intels = scan_project(Path::new("/path/to/project"), 20);
+
+// Print ranked file summaries
+println!("{}", format_project_intel(&intels));
+// Output:
+// - src/main.rs — fn main | imports: use crate::config, use std::sync::Arc
+// - src/config.rs — struct Config, fn load_config | imports: use serde::Serialize
+// - src/lib.rs — mod config, mod server, mod routes
+```
+
+### Scoring Algorithm
+
+Files are ranked by importance score:
+
+| Factor | Points | Description |
+|--------|--------|-------------|
+| Entry point filename | +100 | `main.rs`, `lib.rs`, `App.tsx`, `index.ts`, `main.py`, etc. |
+| Config filename | +80 | `package.json`, `Cargo.toml`, `tsconfig.json`, etc. |
+| Store/state path | +60 | Path contains "store", "state", "context", "reducer" |
+| Type definition path | +40 | Path contains "types", "interfaces", or `.d.ts` extension |
+| Import frequency | +5 per import | Files imported by many others score higher |
+| Symbol count | +3 per symbol | Files with more definitions are more architecturally important |
+
+### API Reference
+
+<TypeTable type={{
+  'analyze_file(path, source)': { description: 'Parse a single file, extract imports + symbols', type: 'Option<FileIntel>' },
+  'scan_project(root, max_files)': { description: 'Scan project, return top N files by importance', type: 'Vec<FileIntel>' },
+  'format_project_intel(intels)': { description: 'Format file intel as compact text summary', type: 'String' },
+}} />
+
+#### `FileIntel`
+
+<TypeTable type={{
+  path: { description: 'Absolute file path', type: 'PathBuf' },
+  language: { description: 'Detected language', type: 'Language' },
+  imports: { description: 'Import/use statements found', type: 'Vec<String>' },
+  symbols: { description: 'Symbols defined in the file', type: 'Vec<Symbol>' },
+}} />
+
+#### `Symbol`
+
+<TypeTable type={{
+  name: { description: 'Symbol name (e.g. "Config")', type: 'String' },
+  kind: { description: 'Symbol type', type: 'SymbolKind' },
+  line: { description: '1-based line number', type: 'usize' },
+}} />
+
+`SymbolKind`: `Function`, `Struct`, `Class`, `Interface`, `Enum`, `Module`, `Type`, `Constant`
+
+---
+
+## Bash Command Safety Analysis
+
+Located in `cersei_tools::tool_primitives::bash_safety`. Uses tree-sitter to parse bash commands into ASTs and classify them by risk level.
+
+### Usage
+
+```rust
+use cersei_tools::tool_primitives::bash_safety::{analyze_command, is_safe, is_forbidden};
+
+// Safe commands
+assert!(is_safe("ls -la"));
+assert!(is_safe("grep -r 'TODO' src/"));
+assert!(is_safe("git status"));
+
+// Dangerous commands
+assert!(is_forbidden("sudo rm -rf /"));
+assert!(is_forbidden("dd if=/dev/zero of=/dev/sda"));
+
+// Detailed analysis
+let analysis = analyze_command("git push origin main && rm temp.txt");
+println!("Risk: {:?}", analysis.risk);        // High
+println!("Reasons: {:?}", analysis.reasons);   // ["git push", "file deletion (rm)"]
+println!("Commands: {:?}", analysis.commands);  // ["git", "rm"]
+println!("Write paths: {:?}", analysis.write_paths); // ["temp.txt"]
+```
+
+### Risk Levels
+
+| Level | Description | Example Commands |
+|-------|-------------|-----------------|
+| **Safe** | Read-only, navigation, inspection | `ls`, `cat`, `grep`, `pwd`, `git status`, `echo` |
+| **Moderate** | Writes files, runs builds | `mkdir`, `cp`, `cargo build`, `npm install`, `git add` |
+| **High** | Destructive, network, permissions | `rm`, `chmod`, `curl`, `ssh`, `git push` |
+| **Forbidden** | Never auto-approve | `sudo`, `rm -rf /`, `dd`, `mkfs` |
+
+### Detected Constructs
+
+The analyzer detects these AST patterns:
+
+| Construct | Detection | Risk Impact |
+|-----------|-----------|-------------|
+| Command substitution `$(...)` | `command_substitution` node | Moderate |
+| Process substitution `<(...)` | `process_substitution` node | Moderate |
+| File redirection `> file` | `file_redirect` node | Moderate (extracts target path) |
+| Pipeline `cmd1 \| cmd2` | `pipeline` node | Moderate |
+| Privilege escalation `sudo` | command name check | Forbidden |
+| Destructive flags `-rf /` | argument inspection | Forbidden |
+
+### API Reference
+
+<TypeTable type={{
+  'analyze_command(source)': { description: 'Full safety analysis', type: 'BashAnalysis' },
+  'parse_bash(source)': { description: 'Parse bash into tree-sitter AST', type: 'Option<Tree>' },
+  'is_safe(source)': { description: 'Quick check: risk <= Safe', type: 'bool' },
+  'is_forbidden(source)': { description: 'Quick check: risk >= Forbidden', type: 'bool' },
+}} />
+
+#### `BashAnalysis`
+
+<TypeTable type={{
+  risk: { description: 'Overall risk level', type: 'BashRiskLevel' },
+  reasons: { description: 'Human-readable explanations', type: 'Vec<String>' },
+  read_paths: { description: 'File paths the command reads', type: 'Vec<String>' },
+  write_paths: { description: 'File paths the command writes', type: 'Vec<String>' },
+  commands: { description: 'Command names detected', type: 'Vec<String>' },
+}} />
+
+---
+
+## LSP Tool (Agent-Facing)
+
+The `LSP` tool is automatically registered in Abstract CLI and available to any agent built with `cersei-tools`. It exposes all 5 LSP operations to the model.
+
+### Tool Schema
+
+```json
+{
+  "action": "hover | definition | references | symbols | diagnostics",
+  "file": "/path/to/file.rs",
+  "line": 10,
+  "column": 5
+}
+```
+
+- `line` and `column` are **1-based** (converted to 0-based internally)
+- `file` can be absolute or relative to working directory
+- `line`/`column` are required for hover, definition, references; optional for symbols and diagnostics
+
+### Example Agent Interaction
+
+```
+User: What type is the `config` variable on line 15 of src/main.rs?
+
+Agent: [calls LSP tool with action=hover, file=src/main.rs, line=15, column=10]
+       The `config` variable is of type `AppConfig` (defined in src/config.rs:17).
+```
+
+---
+
+## Integration in Abstract CLI
+
+Abstract automatically leverages both systems:
+
+1. **At startup**: `scan_project()` runs tree-sitter analysis on top 20 files, injects dependency-ranked summaries into the system prompt as `project_intel`
+2. **During exploration**: The agent calls the `LSP` tool for semantic queries (hover, definitions, references)
+3. **Before bash execution**: `analyze_command()` classifies risk level for the permission system
+4. **In the TUI**: `/graph` overlay can visualize which LSP servers are available for the project

@@ -94,6 +94,9 @@ pub fn estimate_messages_tokens(messages: &[Message]) -> u64 {
 /// Get context window size for a model.
 pub fn context_window_for_model(model: &str) -> u64 {
     match model {
+        m if m.contains("gpt-5") => 1_000_000,
+        m if m.contains("gemini") => 1_000_000,
+        m if m.starts_with("o1") || m.starts_with("o3") => 200_000,
         m if m.contains("opus") => 200_000,
         m if m.contains("sonnet") => 200_000,
         m if m.contains("haiku") => 200_000,
@@ -363,7 +366,14 @@ pub async fn compact_conversation(
         options: cersei_provider::ProviderOptions::default(),
     };
 
-    let response = provider.complete_blocking(request).await?;
+    // Collect streaming response into a complete message
+    let stream = provider.complete(request).await?;
+    let mut rx = stream.into_receiver();
+    let mut accumulator = cersei_provider::StreamAccumulator::new();
+    while let Some(event) = rx.recv().await {
+        accumulator.process_event(event);
+    }
+    let response = accumulator.into_response()?;
     let summary_text = response.message.get_all_text();
     let formatted_summary = format_compact_summary(&summary_text);
 

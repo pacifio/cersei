@@ -11,11 +11,12 @@ members = [
     "crates/cersei-memory",
     "crates/cersei-hooks",
     "crates/cersei-mcp",
+    "crates/cersei-lsp",
     "crates/abstract-cli",
 ]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["Adib Mohsin"]
 license = "MIT"

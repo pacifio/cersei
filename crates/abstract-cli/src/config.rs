@@ -37,9 +37,9 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            model: "claude-sonnet-4-6".into(),
+            model: "auto".into(),
             provider: "auto".into(),
-            max_turns: 20,
+            max_turns: 50,
             max_tokens: 16384,
             effort: "medium".into(),
             output_style: "default".into(),

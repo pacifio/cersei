@@ -1,4 +1,4 @@
-//! Memory Architecture Benchmark — Abstract (Cersei) vs Claude Code
+//! Memory Architecture Benchmark — Abstract (Cersei)
 //!
 //! Measures every memory operation with precise timing, both graph-ON and graph-OFF.
 //! Run: cargo run --release --manifest-path crates/abstract-cli/Cargo.toml --example memory_bench

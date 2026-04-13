@@ -1,8 +1,25 @@
-//! Bash tool: execute shell commands.
+//! Bash tool: execute shell commands with persistent shell state.
+//!
+//! Uses sentinel markers to capture pwd after each command execution,
+//! persisting the working directory across calls.
 
 use super::*;
 use crate::tool_primitives::process::{self as pproc, ExecOptions, Shell};
 use serde::Deserialize;
+
+/// Parse stdout to separate user output from sentinel-captured state.
+/// Returns (user_visible_output, Option<new_cwd>).
+fn parse_sentinel_output(stdout: &str, sentinel: &str) -> (String, Option<String>) {
+    if let Some(pos) = stdout.rfind(sentinel) {
+        let user_output = stdout[..pos].trim_end_matches('\n').to_string();
+        let state_section = &stdout[pos + sentinel.len()..];
+        let new_cwd = state_section.trim().lines().next().map(|s| s.trim().to_string());
+        (user_output, new_cwd)
+    } else {
+        // Sentinel not found (command may have failed before reaching it)
+        (stdout.to_string(), None)
+    }
+}
 
 pub struct BashTool;
 
@@ -57,36 +74,41 @@ impl Tool for BashTool {
 
         let timeout_ms = input.timeout.unwrap_or(120_000).min(600_000);
 
+        // Wrap command with sentinel-based state capture
+        // After the user's command runs, we capture pwd to persist cwd
+        const SENTINEL: &str = "__ABSTRACT_STATE_7f2a9b__";
+        let wrapped_command = format!(
+            "cd '{}' 2>/dev/null; {} ; __abstract_exit=$?; echo '{}'; pwd; exit $__abstract_exit",
+            cwd.display(),
+            input.command,
+            SENTINEL,
+        );
+
         let opts = ExecOptions {
-            cwd: Some(cwd.clone()),
+            cwd: Some(ctx.working_dir.clone()), // base cwd, actual cd is in the script
             env: env_vars,
             timeout: Some(std::time::Duration::from_millis(timeout_ms)),
             shell: Shell::Sh,
         };
 
-        match pproc::exec(&input.command, opts).await {
+        match pproc::exec(&wrapped_command, opts).await {
             Ok(output) => {
                 if output.timed_out {
                     return ToolResult::error(format!("Command timed out after {}ms", timeout_ms));
                 }
 
-                // Update shell state for cd commands
-                if input.command.trim().starts_with("cd ") {
-                    let dir = input.command.trim().strip_prefix("cd ").unwrap().trim();
-                    let new_cwd = if dir.starts_with('/') {
-                        PathBuf::from(dir)
-                    } else {
-                        cwd.join(dir)
-                    };
-                    if new_cwd.exists() {
-                        shell_state.lock().cwd = Some(new_cwd);
+                // Parse sentinel-based output to extract new cwd
+                let (user_output, new_cwd) = parse_sentinel_output(&output.stdout, SENTINEL);
+
+                // Persist new cwd
+                if let Some(new_dir) = new_cwd {
+                    let path = PathBuf::from(&new_dir);
+                    if path.exists() {
+                        shell_state.lock().cwd = Some(path);
                     }
                 }
 
-                let mut content = String::new();
-                if !output.stdout.is_empty() {
-                    content.push_str(&output.stdout);
-                }
+                let mut content = user_output;
                 if !output.stderr.is_empty() {
                     if !content.is_empty() {
                         content.push('\n');

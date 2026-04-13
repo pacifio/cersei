@@ -4,7 +4,7 @@
 //! conversations and long-term knowledge storage.
 //!
 //! ## Modules
-//! - `memdir` — Flat file memory scanning (Claude Code compatible)
+//! - `memdir` — Flat file memory scanning
 //! - `claudemd` — Hierarchical CLAUDE.md loading
 //! - `session_storage` — JSONL transcript persistence
 

@@ -1,5 +1,4 @@
 //! Bundled skills: compile-time skill definitions shipped with Cersei.
-//! Mirrors Claude Code's bundled_skills.rs.
 
 use super::{LoadedSkill, SkillFormat, SkillMeta};
 

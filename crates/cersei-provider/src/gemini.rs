@@ -76,6 +76,25 @@ impl Provider for Gemini {
             request.model.clone()
         };
 
+        // Build a map of tool_use_id → tool_name from conversation history
+        let tool_name_map: std::collections::HashMap<String, String> = request
+            .messages
+            .iter()
+            .flat_map(|m| match &m.content {
+                MessageContent::Blocks(blocks) => blocks
+                    .iter()
+                    .filter_map(|b| {
+                        if let ContentBlock::ToolUse { id, name, .. } = b {
+                            Some((id.clone(), name.clone()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+                _ => vec![],
+            })
+            .collect();
+
         // Build Gemini-native contents array
         let mut contents: Vec<serde_json::Value> = Vec::new();
 
@@ -91,14 +110,29 @@ impl Provider for Gemini {
                                     parts.push(serde_json::json!({ "text": text }));
                                 }
                                 ContentBlock::ToolResult { tool_use_id, content, .. } => {
-                                    // Gemini represents tool results as functionResponse parts
-                                    let response_data = serde_json::json!({
-                                        "content": content,
-                                    });
+                                    // Gemini requires the function NAME, not the call ID
+                                    let func_name = tool_name_map
+                                        .get(tool_use_id)
+                                        .cloned()
+                                        .unwrap_or_else(|| tool_use_id.clone());
+                                    let content_str = match content {
+                                        ToolResultContent::Text(s) => s.clone(),
+                                        ToolResultContent::Blocks(blocks) => blocks
+                                            .iter()
+                                            .filter_map(|b| {
+                                                if let ContentBlock::Text { text } = b {
+                                                    Some(text.as_str())
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .collect::<Vec<_>>()
+                                            .join("\n"),
+                                    };
                                     parts.push(serde_json::json!({
                                         "functionResponse": {
-                                            "name": tool_use_id,
-                                            "response": response_data,
+                                            "name": func_name,
+                                            "response": { "content": content_str },
                                         }
                                     }));
                                 }

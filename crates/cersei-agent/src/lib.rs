@@ -103,19 +103,16 @@ impl Agent {
     }
 
     /// Run with streaming — returns a stream of AgentEvents.
-    pub fn run_stream(&self, prompt: &str) -> AgentStream {
+    /// Takes `Arc<Self>` so the agent can safely outlive the caller in the spawned task.
+    pub fn run_stream(self: &Arc<Self>, prompt: &str) -> AgentStream {
         let (event_tx, event_rx) = mpsc::channel(512);
         let (control_tx, control_rx) = mpsc::channel(64);
 
         let prompt = prompt.to_string();
-        let agent_ptr = unsafe {
-            // SAFETY: Agent is borrowed for the duration of the spawned task.
-            // In a real implementation, Agent would be Arc-wrapped.
-            &*(self as *const Agent)
-        };
+        let agent = Arc::clone(self);
 
         tokio::spawn(async move {
-            let result = runner::run_agent_streaming(agent_ptr, &prompt, event_tx.clone(), control_rx).await;
+            let result = runner::run_agent_streaming(&agent, &prompt, event_tx.clone(), control_rx).await;
             match result {
                 Ok(output) => {
                     let _ = event_tx.send(AgentEvent::Complete(output)).await;

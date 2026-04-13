@@ -1,0 +1,187 @@
+---
+title: "Cookbook: Graph Memory"
+description: Complete control over agent memory using Cersei's graph-based knowledge store.
+---
+
+# Cookbook: Graph Memory
+
+Cersei's graph memory (powered by Grafeo) gives you structured, queryable memory that survives across sessions. Unlike flat-file memory, you can traverse relationships, tag by topic, decay old memories, and recall in 98 microseconds.
+
+## Setup
+
+```rust
+use cersei_memory::graph::GraphMemory;
+use cersei_memory::memdir::MemoryType;
+use std::path::Path;
+
+// Open or create the graph database
+let graph = GraphMemory::open(Path::new("./memory.db"))?;
+
+// Or use in-memory for testing
+let graph = GraphMemory::open_in_memory()?;
+```
+
+## Storing Memories
+
+```rust
+// Store a user preference
+let id = graph.store_memory(
+    "User prefers concise responses without emojis",
+    MemoryType::User,
+    0.95, // confidence
+)?;
+
+// Store a project decision
+let id2 = graph.store_memory(
+    "Authentication uses JWT with RS256, stored in HttpOnly cookies",
+    MemoryType::Project,
+    0.9,
+)?;
+
+// Store feedback
+let id3 = graph.store_memory(
+    "Don't add docstrings to code the user didn't change",
+    MemoryType::Feedback,
+    1.0,
+)?;
+```
+
+## Tagging and Relationships
+
+```rust
+// Tag memories by topic
+graph.tag_memory(&id2, "authentication")?;
+graph.tag_memory(&id2, "security")?;
+
+// Link related memories
+graph.link_memories(&id2, &id3, "RELATES_TO")?;
+
+// Create a topic hierarchy
+let id4 = graph.store_memory(
+    "API rate limiting: 100 req/min per user, 1000 req/min per org",
+    MemoryType::Project,
+    0.85,
+)?;
+graph.tag_memory(&id4, "security")?;
+graph.link_memories(&id2, &id4, "RELATES_TO")?;
+```
+
+## Querying
+
+```rust
+// Full-text recall (fuzzy matching)
+let results = graph.recall("authentication", 5);
+// Returns top 5 memories matching "authentication"
+
+// By type
+let user_prefs = graph.by_type(MemoryType::User);
+let project_docs = graph.by_type(MemoryType::Project);
+let feedback = graph.by_type(MemoryType::Feedback);
+
+// By topic
+let security_memories = graph.by_topic("security");
+// Returns all memories tagged with "security"
+```
+
+## Confidence Decay
+
+Memories automatically lose confidence over time unless revalidated:
+
+```rust
+// Memory stored with confidence 0.95
+let id = graph.store_memory("API uses v2 endpoints", MemoryType::Project, 0.95)?;
+
+// After 30 days, effective_confidence decays based on decay_rate
+// Default decay_rate = 0.01 per day
+
+// Revalidate to reset the clock
+graph.revalidate_memory(&id)?;
+// Now effective_confidence resets to the stored value
+```
+
+This prevents stale memories from dominating context. Old, unverified information naturally fades.
+
+## Session Recording
+
+```rust
+// Track sessions in the graph
+graph.record_session(
+    "session-abc123",
+    Some("gpt-5.3-chat-latest"),
+    15, // turns
+)?;
+```
+
+## Graph Statistics
+
+```rust
+let stats = graph.stats();
+println!("Memories: {}", stats.memory_count);
+println!("Sessions: {}", stats.session_count);
+println!("Topics: {}", stats.topic_count);
+println!("Relationships: {}", stats.relationship_count);
+```
+
+## Schema Versioning
+
+The graph auto-migrates on open:
+
+```rust
+use cersei_memory::graph_migrate::VersionCheck;
+
+let version = graph.schema_version();
+match version {
+    VersionCheck::Current(v) => println!("Schema v{v} — up to date"),
+    VersionCheck::NeedsMigration { from, to } => println!("Migrating v{from} → v{to}"),
+    VersionCheck::Unknown => println!("New database"),
+}
+```
+
+Migrations are sequential and idempotent. v0→v1 adds session tracking. v1→v2 adds confidence decay fields.
+
+## Integration with MemoryManager
+
+In production, use `MemoryManager` to compose graph + flat files + CLAUDE.md:
+
+```rust
+use cersei_memory::manager::MemoryManager;
+
+let mut mm = MemoryManager::new("./project");
+mm = mm.with_graph(Path::new("./memory.db"))?;
+
+// Build context for system prompt (composes all layers)
+let context = mm.build_context();
+// Returns: combined string from graph recall + memdir files + CLAUDE.md hierarchy
+
+// Use in agent
+let agent = Agent::builder()
+    .memory(mm)
+    // ...
+    .build()?;
+```
+
+## Graph Node Types
+
+| Node | Properties | Description |
+|------|-----------|-------------|
+| `Memory` | content, type, confidence, created_at, last_validated_at, decay_rate | A stored memory entry |
+| `Session` | session_id, created_at, model, turns | A recorded agent session |
+| `Topic` | name | A tag/category for grouping memories |
+
+## Edge Types
+
+| Edge | From → To | Description |
+|------|-----------|-------------|
+| `RELATES_TO` | Memory → Memory | Semantic relationship between memories |
+| `TAGGED` | Memory → Topic | Memory belongs to a topic/category |
+
+## Performance
+
+| Operation | Time | Notes |
+|-----------|------|-------|
+| Store memory | ~120us | Write + index |
+| Recall (text search) | ~98us | Indexed lookup |
+| By topic | ~50us | Edge traversal |
+| By type | ~60us | Indexed filter |
+| Stats | ~30us | Aggregate counts |
+| Context build | ~45us | Compose all layers |

@@ -1,7 +1,7 @@
 //! # Phase 4 Stress Test — Skills System
 //!
 //! Tests skill discovery, loading, expansion, bundled skills, disk skills
-//! in both Claude Code and OpenCode formats, and real user skill compatibility.
+//! in both commands and skills formats, and real user skill compatibility.
 //!
 //! ```bash
 //! cargo run --example phase4_stress_test --release
@@ -139,15 +139,15 @@ It should still be discoverable.
         println!();
     }
 
-    // ── 3. Disk Skills (OpenCode Format) ─────────────────────────────────
-    println!("  3. OpenCode Format (.claude/skills/<name>/SKILL.md)");
+    // ── 3. Disk Skills (Skills Format) ─────────────────────────────────
+    println!("  3. Skills Format (.claude/skills/<name>/SKILL.md)");
     println!("  ───────────────────────────────────────────────────");
     {
         use cersei_tools::skills::discovery::*;
 
         let tmp = tempfile::tempdir().unwrap();
 
-        // Create OpenCode format skill
+        // Create skills format skill
         let skill_dir = tmp.path().join(".claude/skills/cloudflare");
         std::fs::create_dir_all(&skill_dir).unwrap();
         std::fs::write(skill_dir.join("SKILL.md"), "\
@@ -184,7 +184,7 @@ Build durable AI agents that survive restarts.
         let skills = discover_all(Some(tmp.path()), &[]);
         let cf = skills.iter().find(|s| s.name == "cloudflare");
         check!("discover cloudflare SKILL.md", cf.is_some());
-        check!("cloudflare format is OpenCode", cf.unwrap().format == cersei_tools::skills::SkillFormat::OpenCode);
+        check!("cloudflare format is Skills", cf.unwrap().format == cersei_tools::skills::SkillFormat::Skills);
 
         let agents = skills.iter().find(|s| s.name == "agents-sdk");
         check!("discover agents-sdk SKILL.md", agents.is_some());

@@ -42,11 +42,31 @@ impl Tool for FileEditTool {
         };
 
         let path = std::path::Path::new(&input.file_path);
+
+        // Capture content before edit for diff
+        let before_content = tokio::fs::read_to_string(path).await.unwrap_or_default();
+
         match pfs::edit_file(path, &input.old_string, &input.new_string, input.replace_all).await {
-            Ok(result) => ToolResult::success(format!(
-                "The file {} has been updated successfully. {} replacement(s) made.",
-                input.file_path, result.replacements_made
-            )),
+            Ok(result) => {
+                // Generate a compact inline diff
+                let after_content = tokio::fs::read_to_string(path).await.unwrap_or_default();
+                let diff = crate::tool_primitives::diff::unified_diff(
+                    &before_content, &after_content, 2,
+                );
+
+                // Include diff in result (truncated for large changes)
+                let diff_preview = if diff.lines().count() > 30 {
+                    let truncated: String = diff.lines().take(25).collect::<Vec<_>>().join("\n");
+                    format!("{}\n... ({} more lines)", truncated, diff.lines().count() - 25)
+                } else {
+                    diff
+                };
+
+                ToolResult::success(format!(
+                    "The file {} has been updated. {} replacement(s) made.\n{}",
+                    input.file_path, result.replacements_made, diff_preview
+                ))
+            }
             Err(pfs::EditError::NotFound) => ToolResult::error(format!(
                 "old_string not found in {}", input.file_path
             )),

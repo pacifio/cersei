@@ -1,6 +1,4 @@
 //! Skill tool: load and execute skill prompt templates.
-//!
-//! Compatible with Claude Code's /skill command and OpenCode's skill system.
 //! Supports:
 //! - `skill="list"` — list all available skills
 //! - `skill="<name>" args="<arguments>"` — load and expand a skill
@@ -220,11 +218,11 @@ mod tests {
         let r = tool.execute(serde_json::json!({"skill": "my-deploy", "args": "v2.0"}), &ctx).await;
         assert!(!r.is_error);
         assert!(r.content.contains("Deploy v2.0 to production"));
-        assert_eq!(r.metadata.as_ref().unwrap()["format"], "ClaudeCode");
+        assert_eq!(r.metadata.as_ref().unwrap()["format"], "Commands");
     }
 
     #[tokio::test]
-    async fn test_skill_opencode_format() {
+    async fn test_skill_skills_format() {
         let tmp = tempfile::tempdir().unwrap();
         let skill_dir = tmp.path().join(".claude/skills/aws-deploy");
         std::fs::create_dir_all(&skill_dir).unwrap();
@@ -243,7 +241,7 @@ mod tests {
         let r = tool.execute(serde_json::json!({"skill": "aws-deploy"}), &ctx).await;
         assert!(!r.is_error);
         assert!(r.content.contains("CDK"));
-        assert_eq!(r.metadata.as_ref().unwrap()["format"], "OpenCode");
+        assert_eq!(r.metadata.as_ref().unwrap()["format"], "Skills");
     }
 
     #[tokio::test]

@@ -43,6 +43,8 @@ impl Provider for OpenAi {
 
     fn context_window(&self, model: &str) -> u64 {
         match model {
+            m if m.contains("gpt-5") => 1_000_000,
+            m if m.starts_with("o1") || m.starts_with("o3") => 200_000,
             m if m.contains("gpt-4o") => 128_000,
             m if m.contains("gpt-4-turbo") => 128_000,
             m if m.contains("gpt-4") => 8_192,
@@ -164,12 +166,28 @@ impl Provider for OpenAi {
             }
         }
 
-        let mut body = serde_json::json!({
-            "model": model,
-            "messages": api_messages,
-            "max_tokens": request.max_tokens,
-            "stream": true,
-        });
+        // GPT-5+ and o-series use max_completion_tokens; older models use max_tokens
+        let use_new_param = model.starts_with("gpt-5")
+            || model.starts_with("o1")
+            || model.starts_with("o3");
+
+        let mut body = if use_new_param {
+            serde_json::json!({
+                "model": model,
+                "messages": api_messages,
+                "max_completion_tokens": request.max_tokens,
+                "stream": true,
+                "stream_options": { "include_usage": true },
+            })
+        } else {
+            serde_json::json!({
+                "model": model,
+                "messages": api_messages,
+                "max_tokens": request.max_tokens,
+                "stream": true,
+                "stream_options": { "include_usage": true },
+            })
+        };
 
         if let Some(temp) = request.temperature {
             body["temperature"] = serde_json::json!(temp);

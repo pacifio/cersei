@@ -22,6 +22,8 @@ cersei = { path = "../cersei" }
 cersei-types = { path = "../cersei-types" }
 cersei-provider = { path = "../cersei-provider" }
 cersei-tools = { path = "../cersei-tools" }
+cersei-lsp = { path = "../cersei-lsp" }
+which = { workspace = true }
 cersei-agent = { path = "../cersei-agent" }
 cersei-memory = { path = "../cersei-memory" }
 cersei-hooks = { path = "../cersei-hooks" }
@@ -30,11 +32,16 @@ cersei-mcp = { path = "../cersei-mcp" }
 # CLI
 clap = { version = "4", features = ["derive"] }
 
-# Terminal
+# Terminal / TUI
 crossterm = "0.28"
+ratatui = "0.29"
 termimad = "0.30"
 
-# Input
+# Markdown + Syntax Highlighting
+pulldown-cmark = "0.12"
+syntect = { version = "5", features = ["default-syntaxes", "default-themes"] }
+
+# Input (legacy — kept for non-TUI fallback)
 rustyline = "15"
 
 # Config

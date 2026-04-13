@@ -1,6 +1,6 @@
 //! abstract — A high-performance Rust-native CLI coding agent.
 //!
-//! Built on the Cersei SDK. Rivals Claude Code with sub-millisecond tool dispatch,
+//! Built on the Cersei SDK with sub-millisecond tool dispatch,
 //! graph-backed memory, and a single static binary.
 
 mod app;
@@ -17,6 +17,7 @@ mod sessions;
 mod signals;
 mod status;
 mod theme;
+mod tui;
 
 use clap::{Parser, Subcommand};
 

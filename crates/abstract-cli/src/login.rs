@@ -12,7 +12,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::time::Duration;
 
-// ─── OAuth constants (same as Claude Code) ─────────────────────────────────
+// ─── OAuth constants ────────────────────────────────────────────────────────
 
 const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const CONSOLE_AUTHORIZE_URL: &str = "https://platform.claude.com/oauth/authorize";
@@ -140,7 +140,7 @@ impl Credentials {
                 return Some(oauth.access_token.clone());
             }
         }
-        if let Some(oauth) = load_claude_code_oauth() {
+        if let Some(oauth) = load_external_oauth() {
             if !oauth.is_expired() && oauth.uses_bearer() {
                 return Some(oauth.access_token.clone());
             }
@@ -186,8 +186,8 @@ impl Credentials {
                 return Some(cersei_provider::Auth::Bearer(oauth.access_token.clone()));
             }
         }
-        // Also check Claude Code's OAuth tokens
-        if let Some(oauth) = load_claude_code_oauth() {
+        // Also check external OAuth tokens
+        if let Some(oauth) = load_external_oauth() {
             if !oauth.is_expired() && oauth.uses_bearer() {
                 return Some(cersei_provider::Auth::Bearer(oauth.access_token.clone()));
             }
@@ -224,15 +224,15 @@ impl Credentials {
         if let Some(oauth) = &self.anthropic_oauth {
             return oauth.account_uuid.clone();
         }
-        if let Some(oauth) = load_claude_code_oauth() {
+        if let Some(oauth) = load_external_oauth() {
             return oauth.account_uuid.clone();
         }
         None
     }
 }
 
-/// Try to load Claude Code's OAuth tokens from ~/.claude/oauth_tokens.json
-fn load_claude_code_oauth() -> Option<OAuthTokenData> {
+/// Try to load external OAuth tokens from ~/.claude/oauth_tokens.json
+fn load_external_oauth() -> Option<OAuthTokenData> {
     let path = oauth_tokens_path();
     let content = std::fs::read_to_string(&path).ok()?;
     let v: serde_json::Value = serde_json::from_str(&content).ok()?;
@@ -503,7 +503,7 @@ pub fn run_logout() -> anyhow::Result<()> {
 
     let claude_path = oauth_tokens_path();
     if claude_path.exists() {
-        eprintln!("\x1b[90mNote: Claude Code tokens at {} were not removed.\x1b[0m", claude_path.display());
+        eprintln!("\x1b[90mNote: External OAuth tokens at {} were not removed.\x1b[0m", claude_path.display());
     }
     Ok(())
 }
@@ -530,7 +530,7 @@ fn show_status() -> anyhow::Result<()> {
 
     eprintln!("\n  Credentials: {}", credentials_path().display());
     if oauth_tokens_path().exists() {
-        eprintln!("  Claude Code: {}", oauth_tokens_path().display());
+        eprintln!("  OAuth tokens: {}", oauth_tokens_path().display());
     }
     Ok(())
 }
@@ -595,11 +595,11 @@ async fn login_anthropic_oauth() -> anyhow::Result<()> {
         }
     }
 
-    // Also try importing from Claude Code
-    if let Some(cc_oauth) = load_claude_code_oauth() {
+    // Also try importing from external OAuth store
+    if let Some(cc_oauth) = load_external_oauth() {
         if !cc_oauth.is_expired() && cc_oauth.usable_key().is_some() {
             let email = cc_oauth.email.as_deref().unwrap_or("unknown");
-            eprintln!("\x1b[32mImported Claude Code OAuth credentials ({email}).\x1b[0m");
+            eprintln!("\x1b[32mImported external OAuth credentials ({email}).\x1b[0m");
             creds.anthropic_oauth = Some(cc_oauth);
             creds.default_provider = Some("anthropic".into());
             creds.save()?;
@@ -716,7 +716,7 @@ async fn login_anthropic_oauth() -> anyhow::Result<()> {
         organization_uuid: org_uuid,
     };
 
-    // Also save to ~/.claude/oauth_tokens.json for Claude Code compatibility
+    // Also save to ~/.claude/oauth_tokens.json for cross-tool compatibility
     if let Ok(json) = serde_json::to_string_pretty(&oauth_data) {
         let cc_path = oauth_tokens_path();
         if let Some(parent) = cc_path.parent() {

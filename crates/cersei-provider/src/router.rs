@@ -20,6 +20,24 @@ use cersei_types::*;
 ///
 /// Returns `(provider, model_name)` where `model_name` has the provider prefix stripped.
 pub fn from_model_string(model: &str) -> Result<(Box<dyn Provider>, String)> {
+    // "auto" — pick the first available provider's default model
+    if model == "auto" {
+        let available = registry::available();
+        let entry = available.first().ok_or_else(|| {
+            let all_keys: Vec<String> = registry::all()
+                .iter()
+                .flat_map(|e| e.env_keys.iter().map(|k| k.to_string()))
+                .collect();
+            CerseiError::Auth(format!(
+                "No API keys found. Set one of: {}",
+                all_keys.join(", ")
+            ))
+        })?;
+        let model_name = entry.default_model;
+        let provider = build_provider(entry, model_name)?;
+        return Ok((provider, model_name.to_string()));
+    }
+
     if let Some((provider_id, model_name)) = model.split_once('/') {
         // Explicit: "anthropic/claude-sonnet-4-6"
         let entry = registry::lookup(provider_id).ok_or_else(|| {
@@ -108,7 +126,7 @@ fn auto_detect(model: &str) -> Result<(&'static ProviderEntry, &str)> {
     // 1. Check known model prefixes
     let prefix_match = match model {
         m if m.starts_with("claude-") => Some("anthropic"),
-        m if m.starts_with("gpt-") || m.starts_with("o1") || m.starts_with("o3") => Some("openai"),
+        m if m.starts_with("gpt-") || m.starts_with("o1") || m.starts_with("o3") || m.starts_with("gpt5") => Some("openai"),
         m if m.starts_with("gemini-") => Some("google"),
         m if m.starts_with("mistral-") || m.starts_with("codestral-") => Some("mistral"),
         m if m.starts_with("deepseek-") => Some("deepseek"),

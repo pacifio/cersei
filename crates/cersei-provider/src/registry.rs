@@ -116,12 +116,17 @@ pub static REGISTRY: &[ProviderEntry] = &[
         api_base: "https://api.openai.com/v1",
         env_keys: &["OPENAI_API_KEY"],
         api_format: ApiFormat::OpenAiCompatible,
-        default_model: "gpt-4o",
+        default_model: "gpt-5.3-chat-latest",
         models: &[
+            ModelEntry { id: "gpt-5.3-chat-latest", context_window: 1_000_000, capabilities: FULL },
+            ModelEntry { id: "gpt-5.3-chat", context_window: 1_000_000, capabilities: FULL },
+            ModelEntry { id: "gpt-5.3-codex", context_window: 1_000_000, capabilities: FULL },
+            ModelEntry { id: "gpt-5-chat", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gpt-4o", context_window: 128_000, capabilities: FULL },
             ModelEntry { id: "gpt-4-turbo", context_window: 128_000, capabilities: FULL },
             ModelEntry { id: "o1", context_window: 200_000, capabilities: FULL },
             ModelEntry { id: "o3", context_window: 200_000, capabilities: FULL },
+            ModelEntry { id: "o3-pro", context_window: 200_000, capabilities: FULL },
         ],
     },
     ProviderEntry {

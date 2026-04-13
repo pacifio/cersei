@@ -1,15 +1,15 @@
 //! Skill discovery: scan directories for .md skill files.
 //!
-//! Supports both Claude Code format (.claude/commands/*.md)
-//! and OpenCode format (.claude/skills/**/SKILL.md).
+//! Supports commands format (.claude/commands/*.md)
+//! and skills format (.claude/skills/**/SKILL.md).
 
 use super::*;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// Default discovery directories relative to a project root.
-const CLAUDE_CODE_DIRS: &[&str] = &[".claude/commands"];
-const OPENCODE_DIRS: &[&str] = &[".claude/skills", ".agents/skills"];
+const COMMANDS_DIRS: &[&str] = &[".claude/commands"];
+const SKILLS_DIRS: &[&str] = &[".claude/skills", ".agents/skills"];
 
 /// Scan all standard directories for skills.
 ///
@@ -42,34 +42,34 @@ pub fn discover_all(
 
     // 2. Project-level directories
     if let Some(root) = project_root {
-        for dir in CLAUDE_CODE_DIRS {
+        for dir in COMMANDS_DIRS {
             scan_claude_code_dir(&root.join(dir), &mut skills, &mut seen_names);
         }
-        for dir in OPENCODE_DIRS {
-            scan_opencode_dir(&root.join(dir), &mut skills, &mut seen_names);
+        for dir in SKILLS_DIRS {
+            scan_skills_dir(&root.join(dir), &mut skills, &mut seen_names);
         }
     }
 
     // 3. Home-level directories
     if let Some(home) = dirs::home_dir() {
-        for dir in CLAUDE_CODE_DIRS {
+        for dir in COMMANDS_DIRS {
             scan_claude_code_dir(&home.join(dir), &mut skills, &mut seen_names);
         }
-        for dir in OPENCODE_DIRS {
-            scan_opencode_dir(&home.join(dir), &mut skills, &mut seen_names);
+        for dir in SKILLS_DIRS {
+            scan_skills_dir(&home.join(dir), &mut skills, &mut seen_names);
         }
     }
 
     // 4. Extra paths
     for path in extra_paths {
         scan_claude_code_dir(path, &mut skills, &mut seen_names);
-        scan_opencode_dir(path, &mut skills, &mut seen_names);
+        scan_skills_dir(path, &mut skills, &mut seen_names);
     }
 
     skills
 }
 
-/// Scan a Claude Code format directory: `dir/*.md`
+/// Scan a commands format directory: `dir/*.md`
 fn scan_claude_code_dir(
     dir: &Path,
     skills: &mut Vec<SkillMeta>,
@@ -116,13 +116,13 @@ fn scan_claude_code_dir(
             aliases: vec![],
             allowed_tools,
             argument_hint: fm.get("argument-hint").cloned(),
-            format: SkillFormat::ClaudeCode,
+            format: SkillFormat::Commands,
         });
     }
 }
 
-/// Scan an OpenCode format directory: `dir/<name>/SKILL.md`
-fn scan_opencode_dir(
+/// Scan a skills format directory: `dir/<name>/SKILL.md`
+fn scan_skills_dir(
     dir: &Path,
     skills: &mut Vec<SkillMeta>,
     seen: &mut HashSet<String>,
@@ -147,7 +147,7 @@ fn scan_opencode_dir(
 
         let (fm, body) = parse_frontmatter(&content);
 
-        // OpenCode requires name in frontmatter
+        // Skills format requires name in frontmatter
         let name = fm
             .get("name")
             .cloned()
@@ -176,7 +176,7 @@ fn scan_opencode_dir(
             aliases: vec![],
             allowed_tools: None,
             argument_hint: None,
-            format: SkillFormat::OpenCode,
+            format: SkillFormat::Skills,
         });
     }
 }
@@ -199,7 +199,7 @@ pub fn load_skill(
     let search_dirs = build_search_dirs(project_root, extra_paths);
 
     for dir in &search_dirs {
-        // Claude Code format: dir/<name>.md
+        // Commands format: dir/<name>.md
         let cc_path = dir.join(format!("{}.md", name));
         if cc_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&cc_path) {
@@ -216,14 +216,14 @@ pub fn load_skill(
                             v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
                         }),
                         argument_hint: fm.get("argument-hint").cloned(),
-                        format: SkillFormat::ClaudeCode,
+                        format: SkillFormat::Commands,
                     },
                     content: body,
                 });
             }
         }
 
-        // OpenCode format: dir/<name>/SKILL.md
+        // Skills format: dir/<name>/SKILL.md
         let oc_path = dir.join(name).join("SKILL.md");
         if oc_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&oc_path) {
@@ -238,7 +238,7 @@ pub fn load_skill(
                         aliases: vec![],
                         allowed_tools: None,
                         argument_hint: None,
-                        format: SkillFormat::OpenCode,
+                        format: SkillFormat::Skills,
                     },
                     content: body,
                 });
@@ -254,13 +254,13 @@ fn build_search_dirs(project_root: Option<&Path>, extra_paths: &[PathBuf]) -> Ve
     let mut dirs = Vec::new();
 
     if let Some(root) = project_root {
-        for d in CLAUDE_CODE_DIRS.iter().chain(OPENCODE_DIRS.iter()) {
+        for d in COMMANDS_DIRS.iter().chain(SKILLS_DIRS.iter()) {
             dirs.push(root.join(d));
         }
     }
 
     if let Some(home) = dirs::home_dir() {
-        for d in CLAUDE_CODE_DIRS.iter().chain(OPENCODE_DIRS.iter()) {
+        for d in COMMANDS_DIRS.iter().chain(SKILLS_DIRS.iter()) {
             dirs.push(home.join(d));
         }
     }
@@ -269,7 +269,7 @@ fn build_search_dirs(project_root: Option<&Path>, extra_paths: &[PathBuf]) -> Ve
     dirs
 }
 
-/// Format skill list for display (compatible with Claude Code's skill list output).
+/// Format skill list for display.
 pub fn format_skill_list(skills: &[SkillMeta]) -> String {
     if skills.is_empty() {
         return "No skills available.".to_string();
@@ -320,22 +320,22 @@ mod tests {
 
         let skills = discover_all(Some(tmp.path()), &[]);
         let custom = skills.iter().find(|s| s.name == "my-skill");
-        assert!(custom.is_some(), "Should discover Claude Code format skill");
+        assert!(custom.is_some(), "Should discover commands format skill");
         assert_eq!(custom.unwrap().description, "My custom skill");
-        assert_eq!(custom.unwrap().format, SkillFormat::ClaudeCode);
+        assert_eq!(custom.unwrap().format, SkillFormat::Commands);
     }
 
     #[test]
-    fn test_discover_opencode_format() {
+    fn test_discover_skills_format() {
         let tmp = tempfile::tempdir().unwrap();
         let skill_dir = tmp.path().join(".claude/skills/my-oc-skill");
         fs::create_dir_all(&skill_dir).unwrap();
-        fs::write(skill_dir.join("SKILL.md"), "---\nname: my-oc-skill\ndescription: OpenCode style skill\n---\n\n# Skill content").unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "---\nname: my-oc-skill\ndescription: Skills format skill\n---\n\n# Skill content").unwrap();
 
         let skills = discover_all(Some(tmp.path()), &[]);
         let custom = skills.iter().find(|s| s.name == "my-oc-skill");
-        assert!(custom.is_some(), "Should discover OpenCode format skill");
-        assert_eq!(custom.unwrap().format, SkillFormat::OpenCode);
+        assert!(custom.is_some(), "Should discover skills format skill");
+        assert_eq!(custom.unwrap().format, SkillFormat::Skills);
     }
 
     #[test]

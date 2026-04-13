@@ -32,6 +32,28 @@ export function Tag({ type }) {
   );
 }
 
+<Version version="0.1.6" date="2026-04-12">
+
+<Tag type="added" /> **New crate: `cersei-lsp`.** On-demand LSP server management with JSON-RPC 2.0 over stdio. 5 operations (hover, definition, references, symbols, diagnostics). 13 built-in server configs. Auto-detection by file extension, lazy startup.
+
+<Tag type="added" /> **Tree-sitter code intelligence.** Multi-language parsing (Rust, TypeScript/JS, Python, Go) for imports and symbols. Bash command safety analysis with risk classification. Dependency-ranked project intelligence injected into system prompt.
+
+<Tag type="added" /> **Production TUI.** ratatui alternate screen with `tokio::select!` at 62 FPS. Side panel (Ctrl+B) with Git Diff + File Tree tabs. 5 permission modes (Shift+Tab). Enterprise theme (AMOLED black). 16 slash commands. Markdown rendering with syntax highlighting. Graph visualization (`/graph`). Scrolling, paste support, native text selection.
+
+<Tag type="added" /> **Parallel tool execution** via `futures::future::join_all()`. Automatic retry with exponential backoff (5 retries, 1s→16s). LLM-based context compaction at 90% usage. Todo nudge injection. Depth nudge for deeper exploration.
+
+<Tag type="added" /> **File snapshot/undo** — before/after content per tool call with `/undo` command. **ApplyPatch tool** for unified diff patching. **Shell state persistence** via sentinel-based cwd capture.
+
+<Tag type="added" /> **GPT-5.x support** — `gpt-5.3-chat-latest` default, `gpt-5.3-chat`, `gpt-5-chat`, `o3-pro`. 1M context. `max_completion_tokens` for GPT-5/o-series. Per-message cost estimation for 15 models.
+
+<Tag type="added" /> **AGENTS.md/CLAUDE.md hierarchy** — walks up directory tree for instruction files. **File watching** via `notify` crate. **3 themes** — Enterprise (default), Light, Solarized.
+
+<Tag type="changed" /> Default OpenAI model: `gpt-4o` → `gpt-5.3-chat-latest`. Default theme: Enterprise (AMOLED black). `Agent::run_stream()` uses `Arc<Self>` (safe). System prompt rewritten for deep exploration. Glob capped at 200 results. Per-result cap at 30KB. max_turns: 20 → 50.
+
+<Tag type="fixed" /> TUI streaming (no longer blocks). Mid-stream cancellation. OpenAI `max_completion_tokens`. Token stats/cost display. Git diff with untracked files. Markdown wrapping. Paste handling. Gemini tool result names.
+
+</Version>
+
 <Version version="0.1.5" date="2026-04-07">
 
 <Tag type="added" /> **`/sessions` and `/ls` slash commands** — list sessions directly from the REPL. Closes [#9](https://github.com/pacifio/cersei/issues/9).

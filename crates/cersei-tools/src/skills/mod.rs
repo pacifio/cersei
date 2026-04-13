@@ -1,9 +1,9 @@
 //! Skills system: discover, load, and execute skill prompt templates.
 //!
-//! Compatible with:
-//! - **Claude Code**: `.claude/commands/*.md` with `$ARGUMENTS` expansion
-//! - **OpenCode**: `.claude/skills/**/SKILL.md` with YAML frontmatter
-//! - **Custom directories**: any path passed to the scanner
+//! Supported formats:
+//! - `.claude/commands/*.md` with `$ARGUMENTS` expansion
+//! - `.claude/skills/**/SKILL.md` with YAML frontmatter
+//! - Custom directories: any path passed to the scanner
 
 pub mod bundled;
 pub mod discovery;
@@ -34,10 +34,10 @@ pub struct SkillMeta {
 /// Which format the skill file uses.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SkillFormat {
-    /// Claude Code format: .claude/commands/<name>.md
-    ClaudeCode,
-    /// OpenCode format: .claude/skills/<name>/SKILL.md with required frontmatter
-    OpenCode,
+    /// Commands format: .claude/commands/<name>.md
+    Commands,
+    /// Skills format: .claude/skills/<name>/SKILL.md with required frontmatter
+    Skills,
     /// Bundled (compiled into binary)
     Bundled,
 }
@@ -68,7 +68,7 @@ impl LoadedSkill {
     }
 }
 
-/// Strip YAML frontmatter from content (Claude Code compatible).
+/// Strip YAML frontmatter from content.
 /// Handles `---\n...\n---\n` format.
 pub fn strip_frontmatter(content: &str) -> String {
     if content.starts_with("---") {

@@ -1,6 +1,5 @@
 //! Memory directory: persistent file-based memory system.
 //!
-//! Compatible with Claude Code's `~/.claude/projects/<root>/memory/` format.
 //! Scans .md files with YAML frontmatter, sorts by recency, caps at 200 files.
 
 use std::path::{Path, PathBuf};
@@ -10,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-/// Memory types (matches Claude Code's categories).
+/// Memory types for categorized memory entries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MemoryType {

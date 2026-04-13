@@ -22,6 +22,7 @@ async fn main() -> anyhow::Result<()> {
         .working_dir(".")
         .build()?;
 
+    let agent = std::sync::Arc::new(agent);
     let start = Instant::now();
     let mut stream = agent.run_stream("What files are in the current directory? List them.");
 

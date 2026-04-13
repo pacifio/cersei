@@ -3,10 +3,14 @@
 pub mod tool_primitives;
 pub mod ask_user;
 pub mod bash;
+pub mod lsp_tool;
 pub mod bash_classifier;
 pub mod config_tool;
 pub mod cron;
+pub mod apply_patch;
 pub mod file_history;
+pub mod file_snapshot;
+pub mod file_watcher;
 pub mod git_utils;
 pub mod file_edit;
 pub mod file_read;
@@ -186,6 +190,15 @@ impl CostTracker {
         self.usage.lock().merge(usage);
     }
 
+    /// Add usage with cost estimation based on model pricing.
+    pub fn add_with_model(&self, usage: &Usage, model: &str) {
+        let mut u = usage.clone();
+        if u.cost_usd.is_none() || u.cost_usd == Some(0.0) {
+            u.cost_usd = Some(estimate_cost(model, u.input_tokens, u.output_tokens));
+        }
+        self.usage.lock().merge(&u);
+    }
+
     pub fn current(&self) -> Usage {
         self.usage.lock().clone()
     }
@@ -195,6 +208,29 @@ impl Default for CostTracker {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Estimate USD cost from token counts based on model pricing (per 1M tokens).
+pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> f64 {
+    let (input_per_m, output_per_m) = match model {
+        m if m.contains("gpt-5.3") => (2.0, 10.0),
+        m if m.contains("gpt-5") => (2.0, 10.0),
+        m if m.contains("gpt-4o") => (2.50, 10.0),
+        m if m.contains("gpt-4-turbo") => (10.0, 30.0),
+        m if m.starts_with("o1") => (15.0, 60.0),
+        m if m.starts_with("o3") => (10.0, 40.0),
+        m if m.contains("opus") => (15.0, 75.0),
+        m if m.contains("sonnet") => (3.0, 15.0),
+        m if m.contains("haiku") => (0.25, 1.25),
+        m if m.contains("gemini-2.0-flash") => (0.075, 0.30),
+        m if m.contains("gemini") => (1.25, 5.0),
+        m if m.contains("deepseek") => (0.27, 1.10),
+        m if m.contains("mistral-large") => (2.0, 6.0),
+        m if m.contains("llama") => (0.0, 0.0), // local/free
+        _ => (2.0, 10.0),
+    };
+    (input_tokens as f64 / 1_000_000.0) * input_per_m
+        + (output_tokens as f64 / 1_000_000.0) * output_per_m
 }
 
 // ─── Shell state (persisted across Bash invocations) ─────────────────────────
@@ -252,6 +288,7 @@ pub fn filesystem() -> Vec<Box<dyn Tool>> {
         Box::new(file_read::FileReadTool),
         Box::new(file_write::FileWriteTool),
         Box::new(file_edit::FileEditTool),
+        Box::new(apply_patch::ApplyPatchTool),
         Box::new(glob_tool::GlobTool),
         Box::new(grep_tool::GrepTool),
         Box::new(notebook_edit::NotebookEditTool),

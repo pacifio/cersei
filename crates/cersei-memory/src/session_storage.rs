@@ -1,6 +1,5 @@
 //! Session storage: append-only JSONL transcript persistence.
 //!
-//! Compatible with Claude Code's session transcript format.
 //! Each session is a `.jsonl` file with one entry per line.
 //!
 //! When a session file exceeds `MAX_SESSION_SIZE` (50MB), writes automatically

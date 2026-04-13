@@ -1,5 +1,6 @@
 //! Agent runner: the core agentic loop.
 
+use crate::compact;
 use crate::events::{AgentControl, AgentEvent};
 use crate::{Agent, AgentOutput, ToolCallRecord};
 use cersei_hooks::{HookAction, HookContext, HookEvent};
@@ -11,7 +12,39 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
-// ─── Tool result budget ──────────────────────────────────────────────────────
+// ─── Retry jitter ────────────────────────────────────────────────────────────
+
+/// Simple pseudo-random jitter for retry delays (no external crate needed).
+fn rand_jitter() -> u64 {
+    use std::time::SystemTime;
+    let seed = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos() as u64;
+    seed ^ (seed >> 16) ^ (seed << 7)
+}
+
+// ─── Tool result size management ─────────────────────────────────────────────
+
+/// Maximum size of a single tool result before truncation (30KB).
+const MAX_SINGLE_RESULT_CHARS: usize = 30_000;
+
+/// Truncate an individual tool result if it exceeds the per-result cap.
+fn cap_tool_result(content: &str) -> String {
+    if content.len() <= MAX_SINGLE_RESULT_CHARS {
+        return content.to_string();
+    }
+    // Keep first 80% and last 10% of the budget to preserve head and tail context
+    let head = (MAX_SINGLE_RESULT_CHARS * 80 / 100).min(content.len());
+    let tail = (MAX_SINGLE_RESULT_CHARS * 10 / 100).min(content.len().saturating_sub(head));
+    let total_lines = content.lines().count();
+    let omitted = content.len().saturating_sub(head + tail);
+    format!(
+        "{}\n\n[... truncated {omitted} characters ({total_lines} total lines). Use targeted reads for specific sections ...]\n\n{}",
+        &content[..head],
+        &content[content.len().saturating_sub(tail)..]
+    )
+}
 
 /// Truncate oldest tool results when cumulative size exceeds budget.
 /// Modifies messages in place.
@@ -132,13 +165,30 @@ pub async fn run_agent_streaming(
     }
     } // end session load guard
 
-    // Add user prompt
-    agent.messages.lock().push(Message::user(prompt));
+    // Add user prompt (with exploration hint for analysis tasks)
+    let is_analysis = prompt.contains("index") || prompt.contains("analyze")
+        || prompt.contains("explore") || prompt.contains("understand")
+        || prompt.contains("tell me about") || prompt.contains("summary");
+
+    let expanded_prompt = if is_analysis {
+        format!(
+            "{}\n\n[system hint: The project_intel section in your context shows the most important files ranked by dependency graph analysis (tree-sitter). Use parallel Read calls to read those files — entry points, stores, commands, and type files listed there. Read at least 10 files before writing output. Focus on files with the most symbols and imports.]",
+            prompt
+        )
+    } else {
+        prompt.to_string()
+    };
+
+    agent.messages.lock().push(Message::user(&expanded_prompt));
 
     let mut tool_calls: Vec<ToolCallRecord> = Vec::new();
     let mut turn: u32 = 0;
     let mut last_stop_reason = StopReason::EndTurn;
     let mut _last_usage = Usage::default();
+    let mut max_tokens_retries: u32 = 0;
+    const MAX_TOKENS_RETRY_LIMIT: u32 = 3;
+    let mut had_tool_use = false;
+    let mut depth_nudge_sent = false;
 
     // Build tool context
     let tool_ctx = ToolContext {
@@ -168,6 +218,12 @@ pub async fn run_agent_streaming(
         let _ = event_tx.send(AgentEvent::TurnStart { turn }).await;
         agent.emit(AgentEvent::TurnStart { turn });
 
+        // Apply tool result budget to keep context manageable
+        {
+            let mut msgs = agent.messages.lock();
+            apply_tool_result_budget(&mut msgs, agent.tool_result_budget);
+        }
+
         // Build completion request
         let messages = agent.messages.lock().clone();
         let tool_defs: Vec<ToolDefinition> = agent.tools.iter().map(|t| t.to_definition()).collect();
@@ -182,10 +238,29 @@ pub async fn run_agent_streaming(
             options.set("thinking_budget", budget);
         }
 
+        // Todo nudge: on turns > 2, remind model about incomplete todos
+        let system_with_nudge = if turn > 2 {
+            let session_id = agent.session_id.as_deref().unwrap_or("default");
+            let todos = cersei_tools::todo_write::get_todos(session_id);
+            let incomplete = todos.iter().filter(|t| t.status != cersei_tools::todo_write::TodoStatus::Completed).count();
+            if incomplete > 0 {
+                let nudge = format!(
+                    "\n\n[system reminder: You have {} incomplete task{} in your TodoWrite list. Make sure to complete all tasks before ending your response. Use tools to make progress on each task.]",
+                    incomplete,
+                    if incomplete == 1 { "" } else { "s" }
+                );
+                agent.system_prompt.as_ref().map(|s| format!("{s}{nudge}"))
+            } else {
+                agent.system_prompt.clone()
+            }
+        } else {
+            agent.system_prompt.clone()
+        };
+
         let request = CompletionRequest {
             model: model.clone(),
             messages: messages.clone(),
-            system: agent.system_prompt.clone(),
+            system: system_with_nudge,
             tools: tool_defs,
             max_tokens: agent.max_tokens,
             temperature: agent.temperature,
@@ -201,10 +276,38 @@ pub async fn run_agent_streaming(
             })
             .await;
 
-        // Send to provider
-        let stream = agent.provider.complete(request).await?;
-        let mut rx = stream.into_receiver();
-        let mut accumulator = StreamAccumulator::new();
+        // Send to provider with automatic retry on transient errors
+        let mut retry_count = 0u32;
+        const MAX_RETRIES: u32 = 5;
+
+        let (mut rx, mut accumulator) = loop {
+            let req_clone = request.clone();
+            match agent.provider.complete(req_clone).await {
+                Ok(stream) => {
+                    break (stream.into_receiver(), StreamAccumulator::new());
+                }
+                Err(e) if e.is_retryable() && retry_count < MAX_RETRIES => {
+                    retry_count += 1;
+                    let delay_ms = (1000 * 2u64.pow(retry_count - 1)).min(30_000); // 1s, 2s, 4s, 8s, 16s
+                    let jitter = (delay_ms / 4) as u64;
+                    let actual_delay = delay_ms + (rand_jitter() % jitter.max(1));
+                    tracing::warn!(
+                        "Provider error (retryable, attempt {}/{}): {}. Retrying in {}ms...",
+                        retry_count, MAX_RETRIES, e, actual_delay
+                    );
+                    let _ = event_tx.send(AgentEvent::Status(format!(
+                        "Rate limited. Retrying in {:.1}s... ({}/{})",
+                        actual_delay as f64 / 1000.0, retry_count, MAX_RETRIES
+                    ))).await;
+                    agent.emit(AgentEvent::Status(format!(
+                        "Retrying in {:.1}s ({}/{})", actual_delay as f64 / 1000.0, retry_count, MAX_RETRIES
+                    )));
+                    tokio::time::sleep(std::time::Duration::from_millis(actual_delay)).await;
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
+        };
 
         let _ = event_tx
             .send(AgentEvent::ModelResponseStart {
@@ -213,25 +316,37 @@ pub async fn run_agent_streaming(
             })
             .await;
 
-        // Process stream events
-        while let Some(event) = rx.recv().await {
-            match &event {
-                StreamEvent::TextDelta { text, .. } => {
-                    let _ = event_tx.send(AgentEvent::TextDelta(text.clone())).await;
-                    agent.emit(AgentEvent::TextDelta(text.clone()));
+        // Process stream events (with cancellation support)
+        loop {
+            tokio::select! {
+                event = rx.recv() => {
+                    match event {
+                        Some(event) => {
+                            match &event {
+                                StreamEvent::TextDelta { text, .. } => {
+                                    let _ = event_tx.send(AgentEvent::TextDelta(text.clone())).await;
+                                    agent.emit(AgentEvent::TextDelta(text.clone()));
+                                }
+                                StreamEvent::ThinkingDelta { thinking, .. } => {
+                                    let _ = event_tx
+                                        .send(AgentEvent::ThinkingDelta(thinking.clone()))
+                                        .await;
+                                    agent.emit(AgentEvent::ThinkingDelta(thinking.clone()));
+                                }
+                                StreamEvent::Error { message } => {
+                                    return Err(CerseiError::Provider(message.clone()));
+                                }
+                                _ => {}
+                            }
+                            accumulator.process_event(event);
+                        }
+                        None => break, // Stream ended
+                    }
                 }
-                StreamEvent::ThinkingDelta { thinking, .. } => {
-                    let _ = event_tx
-                        .send(AgentEvent::ThinkingDelta(thinking.clone()))
-                        .await;
-                    agent.emit(AgentEvent::ThinkingDelta(thinking.clone()));
+                _ = agent.cancel_token.cancelled() => {
+                    return Err(CerseiError::Cancelled);
                 }
-                StreamEvent::Error { message } => {
-                    return Err(CerseiError::Provider(message.clone()));
-                }
-                _ => {}
             }
-            accumulator.process_event(event);
         }
 
         // Convert accumulated response
@@ -241,7 +356,7 @@ pub async fn run_agent_streaming(
 
         // Update cumulative usage
         agent.cumulative_usage.lock().merge(&response.usage);
-        agent.cost_tracker.add(&response.usage);
+        agent.cost_tracker.add_with_model(&response.usage, &model);
 
         // Emit cost update
         let cumulative = agent.cumulative_usage.lock().clone();
@@ -294,8 +409,22 @@ pub async fn run_agent_streaming(
 
         // Handle stop reason
         match &response.stop_reason {
-            StopReason::EndTurn => break,
+            StopReason::EndTurn => {
+                // Depth nudge: if we had tool calls but ended very early (turn <= 3),
+                // push the model to explore deeper before giving final answer.
+                // This prevents shallow 1-round analysis. Only nudge once.
+                if had_tool_use && turn <= 4 && !depth_nudge_sent {
+                    depth_nudge_sent = true;
+                    agent.messages.lock().push(Message::user(
+                        "[system] Your analysis is not deep enough yet. You MUST read actual source code files before writing a summary. Use Read to examine at least 8-10 source files (stores, components, commands, types, configs). Use parallel Read calls. Do NOT write the final output until you have read enough source files to provide specific details about implementations, not just file names."
+                    ));
+                    continue; // Don't break — force another round
+                }
+                break;
+            }
             StopReason::ToolUse => {
+                max_tokens_retries = 0;
+                had_tool_use = true;
                 // Process tool calls
                 let tool_use_blocks: Vec<(String, String, serde_json::Value)> = response
                     .message
@@ -310,9 +439,8 @@ pub async fn run_agent_streaming(
                     })
                     .collect();
 
-                let mut result_blocks: Vec<ContentBlock> = Vec::new();
-
-                for (tool_id, tool_name, tool_input) in tool_use_blocks {
+                // Phase 1: Emit ToolStart events for all tools
+                for (tool_id, tool_name, tool_input) in &tool_use_blocks {
                     let _ = event_tx
                         .send(AgentEvent::ToolStart {
                             name: tool_name.clone(),
@@ -325,62 +453,83 @@ pub async fn run_agent_streaming(
                         id: tool_id.clone(),
                         input: tool_input.clone(),
                     });
+                }
 
-                    let start = Instant::now();
+                // Phase 2: Execute all tools in PARALLEL via join_all
+                let msg_count = agent.messages.lock().len();
+                let exec_futures: Vec<_> = tool_use_blocks.iter().map(|(tool_id, tool_name, tool_input)| {
+                    let tool_name = tool_name.clone();
+                    let tool_id = tool_id.clone();
+                    let tool_input = tool_input.clone();
+                    let tool_ctx = tool_ctx.clone();
+                    let permission_policy = Arc::clone(&agent.permission_policy);
+                    let hooks = agent.hooks.clone();
+                    let cumulative_cost = cumulative.cost_usd.unwrap_or(0.0);
 
-                    // Find the tool
-                    let tool = agent.tools.iter().find(|t| t.name() == tool_name);
+                    // Find tool reference by name
+                    let tool_idx = agent.tools.iter().position(|t| t.name() == tool_name);
 
-                    let result = if let Some(tool) = tool {
-                        // Check permissions
-                        let perm_req = PermissionRequest {
-                            tool_name: tool_name.clone(),
-                            tool_input: tool_input.clone(),
-                            permission_level: tool.permission_level(),
-                            description: format!("Execute tool '{}'", tool_name),
-                            id: tool_id.clone(),
-                        };
+                    async move {
+                        let start = Instant::now();
 
-                        let decision = agent.permission_policy.check(&perm_req).await;
+                        let result = if let Some(idx) = tool_idx {
+                            let tool = &agent.tools[idx];
+                            // Check permissions
+                            let perm_req = PermissionRequest {
+                                tool_name: tool_name.clone(),
+                                tool_input: tool_input.clone(),
+                                permission_level: tool.permission_level(),
+                                description: format!("Execute tool '{}'", tool_name),
+                                id: tool_id.clone(),
+                            };
 
-                        match decision {
-                            PermissionDecision::Allow
-                            | PermissionDecision::AllowOnce
-                            | PermissionDecision::AllowForSession => {
-                                // Fire PreToolUse hooks
-                                let hook_ctx = HookContext {
-                                    event: HookEvent::PreToolUse,
-                                    tool_name: Some(tool_name.clone()),
-                                    tool_input: Some(tool_input.clone()),
-                                    tool_result: None,
-                                    tool_is_error: None,
-                                    turn,
-                                    cumulative_cost_usd: cumulative.cost_usd.unwrap_or(0.0),
-                                    message_count: agent.messages.lock().len(),
-                                };
-                                let hook_action =
-                                    cersei_hooks::run_hooks(&agent.hooks, &hook_ctx).await;
+                            let decision = permission_policy.check(&perm_req).await;
 
-                                match hook_action {
-                                    HookAction::Block(reason) => {
-                                        ToolResult::error(format!("Blocked by hook: {}", reason))
+                            match decision {
+                                PermissionDecision::Allow
+                                | PermissionDecision::AllowOnce
+                                | PermissionDecision::AllowForSession => {
+                                    let hook_ctx = HookContext {
+                                        event: HookEvent::PreToolUse,
+                                        tool_name: Some(tool_name.clone()),
+                                        tool_input: Some(tool_input.clone()),
+                                        tool_result: None,
+                                        tool_is_error: None,
+                                        turn,
+                                        cumulative_cost_usd: cumulative_cost,
+                                        message_count: msg_count,
+                                    };
+                                    let hook_action = cersei_hooks::run_hooks(&hooks, &hook_ctx).await;
+
+                                    match hook_action {
+                                        HookAction::Block(reason) => {
+                                            ToolResult::error(format!("Blocked by hook: {}", reason))
+                                        }
+                                        HookAction::ModifyInput(new_input) => {
+                                            tool.execute(new_input, &tool_ctx).await
+                                        }
+                                        _ => tool.execute(tool_input.clone(), &tool_ctx).await,
                                     }
-                                    HookAction::ModifyInput(new_input) => {
-                                        tool.execute(new_input, &tool_ctx).await
-                                    }
-                                    _ => tool.execute(tool_input.clone(), &tool_ctx).await,
+                                }
+                                PermissionDecision::Deny(reason) => {
+                                    ToolResult::error(format!("Permission denied: {}", reason))
                                 }
                             }
-                            PermissionDecision::Deny(reason) => {
-                                ToolResult::error(format!("Permission denied: {}", reason))
-                            }
-                        }
-                    } else {
-                        ToolResult::error(format!("Unknown tool: {}", tool_name))
-                    };
+                        } else {
+                            ToolResult::error(format!("Unknown tool: {}", tool_name))
+                        };
 
-                    let duration = start.elapsed();
+                        let duration = start.elapsed();
+                        (tool_id, tool_name, tool_input, result, duration)
+                    }
+                }).collect();
 
+                let results = futures::future::join_all(exec_futures).await;
+
+                // Phase 3: Process results sequentially (emit events, build result blocks)
+                let mut result_blocks: Vec<ContentBlock> = Vec::new();
+
+                for (tool_id, tool_name, tool_input, result, duration) in results {
                     let _ = event_tx
                         .send(AgentEvent::ToolEnd {
                             name: tool_name.clone(),
@@ -399,7 +548,7 @@ pub async fn run_agent_streaming(
                     });
 
                     tool_calls.push(ToolCallRecord {
-                        name: tool_name.clone(),
+                        name: tool_name,
                         id: tool_id.clone(),
                         input: tool_input,
                         result: result.content.clone(),
@@ -407,9 +556,14 @@ pub async fn run_agent_streaming(
                         duration,
                     });
 
+                    let capped_content = if result.is_error {
+                        result.content.clone()
+                    } else {
+                        cap_tool_result(&result.content)
+                    };
                     result_blocks.push(ContentBlock::ToolResult {
                         tool_use_id: tool_id,
-                        content: ToolResultContent::Text(result.content),
+                        content: ToolResultContent::Text(capped_content),
                         is_error: Some(result.is_error),
                     });
                 }
@@ -421,13 +575,90 @@ pub async fn run_agent_streaming(
                     .push(Message::user_blocks(result_blocks));
             }
             StopReason::MaxTokens => {
-                // Inject continuation message
+                max_tokens_retries += 1;
+                if max_tokens_retries > MAX_TOKENS_RETRY_LIMIT {
+                    break; // Give up after 3 retries
+                }
                 agent
                     .messages
                     .lock()
-                    .push(Message::user("Continue from where you left off."));
+                    .push(Message::user("Continue from exactly where you stopped."));
             }
             _ => break,
+        }
+
+        // Auto-compact: check context utilization after each turn
+        if agent.auto_compact {
+            let model_name = agent.model.as_deref().unwrap_or("claude-sonnet-4-6");
+            let tokens_used = compact::estimate_messages_tokens(&agent.messages.lock());
+            let context_window = compact::context_window_for_model(model_name);
+            let pct = if context_window > 0 {
+                tokens_used as f64 / context_window as f64
+            } else {
+                0.0
+            };
+
+            // Emit token warnings
+            if pct >= compact::WARNING_PCT {
+                use crate::events::WarningState;
+                let state = if pct >= compact::CRITICAL_PCT {
+                    WarningState::Critical
+                } else {
+                    WarningState::Warning
+                };
+                let _ = event_tx
+                    .send(AgentEvent::TokenWarning {
+                        pct_used: pct,
+                        state,
+                    })
+                    .await;
+                agent.emit(AgentEvent::TokenWarning {
+                    pct_used: pct,
+                    state,
+                });
+            }
+
+            // Auto-compact at 90%: try LLM summarization, fall back to snip
+            if compact::should_compact(tokens_used, context_window) {
+                let msgs_snapshot = agent.messages.lock().clone();
+                let model_name_owned = model_name.to_string();
+
+                // Try LLM-based summarization first
+                match compact::compact_conversation(
+                    agent.provider.as_ref(),
+                    &msgs_snapshot,
+                    &model_name_owned,
+                    compact::KEEP_RECENT_MESSAGES,
+                    None,
+                ).await {
+                    Ok(result) if !result.summary.is_empty() => {
+                        let mut msgs = agent.messages.lock();
+                        let before = msgs.len();
+                        let split_idx = msgs.len().saturating_sub(compact::KEEP_RECENT_MESSAGES);
+                        let recent = msgs[split_idx..].to_vec();
+                        *msgs = vec![Message::user(&result.summary)];
+                        msgs.extend(recent);
+                        tracing::info!(
+                            "LLM compact: {before} → {} messages, freed ~{} tokens",
+                            msgs.len(), result.tokens_freed_estimate
+                        );
+                    }
+                    _ => {
+                        // Fallback: snip-compact (truncation)
+                        let mut msgs = agent.messages.lock();
+                        let before = msgs.len();
+                        let (compacted, freed) = compact::snip_compact(
+                            std::mem::take(&mut *msgs),
+                            compact::KEEP_RECENT_MESSAGES,
+                        );
+                        *msgs = compacted;
+                        tracing::info!(
+                            "Snip compact (fallback): {before} → {} messages, freed ~{freed} tokens",
+                            msgs.len()
+                        );
+                    }
+                }
+            }
         }
     }
 

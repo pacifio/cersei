@@ -42,7 +42,9 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
     // Install signal handlers
     crate::signals::install(cancel_token.clone(), running.clone())?;
 
-    // Build the initial agent
+    // Build the initial agent with shared permission mode and TUI permission channel
+    let shared_mode = crate::permissions::new_shared_mode();
+    let (perm_tx, perm_rx) = crate::permissions::permission_channel();
     let (agent, resolved_model) = build_agent(
         &config.model,
         &config,
@@ -50,6 +52,8 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
         &session_id,
         cancel_token.clone(),
         None,
+        Some(shared_mode.clone()),
+        Some(perm_tx),
     )?;
     config.model = resolved_model;
 
@@ -60,10 +64,13 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
     }
 
     // Dispatch to REPL or single-shot
-    if let Some(prompt_text) = &cli.prompt {
+    // "." means "start interactive in current directory"
+    let prompt = cli.prompt.as_deref().filter(|p| *p != ".");
+    if let Some(prompt_text) = prompt {
+        let prompt_text = prompt_text.to_string();
         repl::run_single_shot(
             agent,
-            prompt_text,
+            &prompt_text,
             &theme,
             &session_id,
             &config,
@@ -73,7 +80,8 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
             cancel_token,
         )
         .await
-    } else {
+    } else if cli.json {
+        // JSON mode uses the old REPL (no TUI)
         repl::run_repl(
             agent,
             &theme,
@@ -82,7 +90,19 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
             &memory_manager,
             cli.json,
             running,
+            cancel_token.clone(),
+        )
+        .await
+    } else {
+        // TUI mode (default interactive)
+        crate::tui::run(
+            agent,
+            &config,
+            &memory_manager,
+            &session_id,
             cancel_token,
+            shared_mode,
+            perm_rx,
         )
         .await
     }
@@ -96,11 +116,13 @@ pub fn build_agent(
     session_id: &str,
     cancel_token: CancellationToken,
     existing_messages: Option<Vec<Message>>,
+    shared_mode: Option<crate::permissions::SharedPermissionMode>,
+    perm_tx: Option<tokio::sync::mpsc::Sender<crate::permissions::TuiPermissionRequest>>,
 ) -> anyhow::Result<(cersei::Agent, String)> {
     let (provider, resolved_model) = cersei_provider::from_model_string(model_string)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let system_prompt = prompt::build_cli_system_prompt(config, memory_manager);
+    let system_prompt = prompt::build_cli_system_prompt(config, memory_manager, &resolved_model);
     let effort = EffortLevel::from_str(&config.effort);
 
     let mcp_configs: Vec<McpServerConfig> = config
@@ -114,9 +136,13 @@ pub fn build_agent(
         })
         .collect();
 
+    // Build tool list: built-in + LSP
+    let mut tools = cersei_tools::all();
+    tools.push(Box::new(cersei_tools::lsp_tool::LspTool::new(&config.working_dir)));
+
     let mut builder = cersei::Agent::builder()
         .provider(provider)
-        .tools(cersei_tools::all())
+        .tools(tools)
         .system_prompt(system_prompt)
         .model(&resolved_model)
         .max_turns(config.max_turns)
@@ -130,6 +156,11 @@ pub fn build_agent(
     // Permission policy
     if config.permissions_mode == "allow_all" {
         builder = builder.permission_policy(AllowAll);
+    } else if let (Some(mode), Some(tx)) = (shared_mode, perm_tx) {
+        // TUI mode: use channel-based permission flow (no stdin conflict)
+        builder = builder.permission_policy(
+            crate::permissions::TuiPermissionPolicy::new(mode, tx)
+        );
     } else {
         builder = builder.permission_policy(CliPermissionPolicy::new());
     }

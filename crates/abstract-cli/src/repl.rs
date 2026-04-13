@@ -119,7 +119,7 @@ fn read_choice() -> String {
 
 /// Run the interactive REPL.
 pub async fn run_repl(
-    mut agent: Agent,
+    agent: Agent,
     theme: &Theme,
     session_id: &str,
     config: &AppConfig,
@@ -134,6 +134,7 @@ pub async fn run_repl(
     let mut cmd_registry = commands::CommandRegistry::new();
     let mut is_first_turn = true;
     let mut current_model = config.model.clone();
+    let mut agent = Arc::new(agent);
 
     loop {
         let prompt_str = "\x1b[36m> \x1b[0m";
@@ -208,9 +209,11 @@ pub async fn run_repl(
                                     session_id,
                                     cancel_token.clone(),
                                     Some(msgs),
+                                    None,
+                                    None,
                                 ) {
                                     Ok((new_agent, resolved)) => {
-                                        agent = new_agent;
+                                        agent = Arc::new(new_agent);
                                         current_model = format!("{}/{}", new_model.split('/').next().unwrap_or(""), &resolved);
                                         if current_model.starts_with('/') {
                                             current_model = resolved.clone();
@@ -254,6 +257,7 @@ pub async fn run_single_shot(
 ) -> anyhow::Result<()> {
     let mut renderer = StreamRenderer::new(theme, json_mode);
     let mut status = StatusLine::new(theme, &config.model, session_id, false);
+    let agent = Arc::new(agent);
 
     running.store(true, Ordering::Relaxed);
     let result = run_agent_streaming(&agent, prompt, &mut renderer, &mut status, json_mode, true).await;
@@ -271,7 +275,7 @@ pub async fn run_single_shot(
 /// Core event loop: stream agent events and render them.
 /// Returns Ok(()) on success or Err(error_message) on failure.
 async fn run_agent_streaming(
-    agent: &Agent,
+    agent: &Arc<Agent>,
     prompt: &str,
     renderer: &mut StreamRenderer,
     status: &mut StatusLine,

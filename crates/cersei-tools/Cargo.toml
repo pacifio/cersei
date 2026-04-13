@@ -10,6 +10,7 @@ description = "Tool trait, built-in tools, and permission system for the Cersei 
 [dependencies]
 cersei-types = { workspace = true }
 cersei-mcp = { workspace = true }
+cersei-lsp = { path = "../cersei-lsp" }
 async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -31,3 +32,17 @@ reqwest = { workspace = true }
 html2text = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
+tree-sitter = "0.25"
+tree-sitter-bash = "0.23"
+tree-sitter-rust = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-go = "0.23"
+notify = { version = "7", optional = true }
+portable-pty = { version = "0.8", optional = true }
+base64 = "0.22"
+
+[features]
+default = ["file-watch"]
+pty = ["dep:portable-pty"]
+file-watch = ["dep:notify"]

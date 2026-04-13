@@ -1,0 +1,15 @@
+[package]
+name = "cersei-lsp"
+version = "0.1.6"
+edition = "2021"
+description = "LSP client for the Cersei coding agent SDK"
+license = "MIT"
+
+[dependencies]
+tokio = { workspace = true, features = ["process", "io-util", "sync", "time", "rt"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+dashmap = "6"
+which = "7"
+tracing = { workspace = true }
+thiserror = { workspace = true }

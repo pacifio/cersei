@@ -1,0 +1,221 @@
+---
+title: "Cookbook: General Agent"
+description: Build a full-featured agent with automatic memory, skills, and MCP integration.
+---
+
+# Cookbook: General Agent
+
+Build a production-ready agent that automatically handles memory persistence, skill discovery, MCP server connections, and multi-turn conversations — the full Cersei stack in one setup.
+
+## The Complete Setup
+
+```rust
+use cersei::prelude::*;
+use cersei_memory::manager::MemoryManager;
+use cersei_mcp::McpServerConfig;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let working_dir = std::env::current_dir()?;
+
+    // 1. Provider: auto-detect from environment
+    let (provider, model) = cersei_provider::from_model_string("auto")?;
+    println!("Using: {model}");
+
+    // 2. Memory: graph + flat files + CLAUDE.md hierarchy
+    let mut memory = MemoryManager::new(&working_dir);
+
+    #[cfg(feature = "graph")]
+    {
+        let graph_path = dirs::home_dir()
+            .unwrap_or_default()
+            .join(".abstract/graph.db");
+        if let Some(parent) = graph_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        memory = memory.with_graph(&graph_path)?;
+    }
+
+    // 3. Tools: all built-ins + LSP
+    let mut tools = cersei_tools::all(); // 35 tools
+    tools.push(Box::new(cersei_tools::lsp_tool::LspTool::new(&working_dir)));
+
+    // 4. MCP servers (if configured)
+    let mcp_configs = vec![
+        McpServerConfig::stdio("filesystem", "npx", &["-y", "@anthropic/mcp-server-filesystem", "."]),
+        McpServerConfig::stdio("github", "npx", &["-y", "@anthropic/mcp-server-github"]),
+    ];
+
+    // 5. Skills: auto-discovered from .claude/commands/ and .claude/skills/
+    // (automatically loaded by the skill tool in cersei_tools::all())
+
+    // 6. Build the agent
+    let mut builder = Agent::builder()
+        .provider(provider)
+        .tools(tools)
+        .model(&model)
+        .max_turns(50)
+        .max_tokens(16384)
+        .auto_compact(true)
+        .enable_broadcast(512)
+        .working_dir(&working_dir)
+        .session_id("general-session")
+        .memory(memory);
+
+    // Add MCP servers
+    for config in mcp_configs {
+        builder = builder.mcp_server(config);
+    }
+
+    let agent = builder.build()?;
+    let agent = std::sync::Arc::new(agent);
+
+    // 7. Run with streaming
+    let mut stream = agent.run_stream("What files have changed since last session?");
+
+    while let Some(event) = stream.next().await {
+        match event {
+            AgentEvent::TextDelta(t) => print!("{t}"),
+            AgentEvent::ToolStart { name, .. } => eprintln!("\n  [{name}]"),
+            AgentEvent::Complete(_) => break,
+            AgentEvent::Error(e) => {
+                eprintln!("\nError: {e}");
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+```
+
+## What You Get Automatically
+
+### Memory
+
+The `MemoryManager` composes three layers:
+
+```
+Graph DB (Grafeo)     ← 98us recall, relationship tracking
+├── Memory nodes      ← User preferences, project decisions
+├── Topic nodes       ← Tags for categorization
+└── Session nodes     ← History tracking
+
+Flat Files (memdir)   ← ~/.abstract/memory/*.md
+├── user_role.md      ← "Senior Rust developer"
+├── feedback_*.md     ← Corrections and preferences
+└── project_*.md      ← Project-specific context
+
+CLAUDE.md Hierarchy   ← Walk up from working dir
+├── ./AGENTS.md       ← Project instructions
+├── ../AGENTS.md      ← Parent directory instructions
+└── ~/.abstract/AGENTS.md ← Global instructions
+```
+
+All three layers are composed into a single context string injected into every system prompt.
+
+### Skills
+
+Skills are auto-discovered from the filesystem:
+
+```
+.claude/commands/deploy.md     → /deploy skill
+.claude/commands/review.md     → /review skill
+.claude/skills/test/SKILL.md   → /test skill (with YAML frontmatter)
+```
+
+The agent can invoke them via the Skill tool:
+```
+Agent: [Skill] skill="deploy", args="production"
+→ Expands deploy.md template with args, executes as a prompt
+```
+
+### MCP Servers
+
+External tool servers connected via JSON-RPC:
+
+```rust
+// Filesystem MCP server — gives agent sandboxed file access
+McpServerConfig::stdio("fs", "npx", &["-y", "@anthropic/mcp-server-filesystem", "."]);
+
+// GitHub MCP server — issues, PRs, repos
+McpServerConfig::stdio("github", "npx", &["-y", "@anthropic/mcp-server-github"]);
+
+// Custom MCP server
+McpServerConfig::stdio("my-server", "./my-mcp-server", &["--port", "8080"]);
+```
+
+MCP tools appear alongside built-in tools — the agent doesn't know the difference.
+
+## Multi-Turn Conversation
+
+```rust
+// First message
+let output1 = agent.run("Read the README and summarize the project").await?;
+
+// Follow-up (same conversation, memory persists)
+let output2 = agent.run("Now look at the test coverage").await?;
+
+// Session is auto-saved to JSONL
+// Resume later:
+let agent = Agent::builder()
+    .session_id("general-session") // Same ID
+    .memory(memory)
+    // ... other config
+    .build()?;
+// History is loaded automatically from session storage
+```
+
+## Hooks for Lifecycle Control
+
+```rust
+use cersei_hooks::{Hook, HookEvent, HookContext, HookAction};
+
+struct LoggingHook;
+
+#[async_trait]
+impl Hook for LoggingHook {
+    fn event(&self) -> HookEvent { HookEvent::PostToolUse }
+
+    async fn run(&self, ctx: &HookContext) -> HookAction {
+        if let Some(tool) = &ctx.tool_name {
+            println!("[hook] Tool used: {tool}");
+        }
+        HookAction::Continue
+    }
+}
+
+// Add to agent
+let agent = Agent::builder()
+    .hook(LoggingHook)
+    // ...
+    .build()?;
+```
+
+## Event-Driven Architecture
+
+Subscribe to all agent events for custom UIs:
+
+```rust
+let agent = Agent::builder()
+    .enable_broadcast(512) // Enable broadcast channel
+    .build()?;
+
+// Subscribe from multiple listeners
+let mut rx = agent.subscribe();
+
+tokio::spawn(async move {
+    while let Ok(event) = rx.recv().await {
+        match event {
+            AgentEvent::CostUpdate { cumulative_cost, .. } => {
+                update_cost_display(cumulative_cost);
+            }
+            AgentEvent::TokenWarning { pct_used, .. } => {
+                show_context_warning(pct_used);
+            }
+            _ => {}
+        }
+    }
+});
+```

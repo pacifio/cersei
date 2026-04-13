@@ -25,6 +25,8 @@
 //! let status = git::status(path).await?;
 //! ```
 
+pub mod bash_safety;
+pub mod code_intel;
 pub mod diff;
 pub mod fs;
 pub mod git;

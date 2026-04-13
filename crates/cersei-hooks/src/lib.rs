@@ -73,8 +73,7 @@ pub enum HookAction {
 
 // ─── Shell hook (compat with cc-core HookEntry) ──────────────────────────────
 
-/// A hook that runs a shell command. Compatible with the existing
-/// `settings.json` hook format from Claude Code.
+/// A hook that runs a shell command from settings.json configuration.
 pub struct ShellHook {
     pub command: String,
     pub hook_events: Vec<HookEvent>,
