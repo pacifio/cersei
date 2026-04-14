@@ -30,6 +30,7 @@ pub mod synthetic_output;
 pub mod tasks;
 pub mod todo_write;
 pub mod tool_search;
+pub mod exa_search;
 pub mod web_fetch;
 pub mod web_search;
 pub mod worktree;
@@ -258,7 +259,7 @@ pub fn clear_session_shell_state(session_id: &str) {
 
 // ─── Built-in tool sets ──────────────────────────────────────────────────────
 
-/// All built-in tools (34 tools).
+/// All built-in tools (35 tools).
 pub fn all() -> Vec<Box<dyn Tool>> {
     let mut tools: Vec<Box<dyn Tool>> = Vec::new();
     tools.extend(filesystem());
@@ -303,11 +304,12 @@ pub fn shell() -> Vec<Box<dyn Tool>> {
     ]
 }
 
-/// Web tools: WebFetch, WebSearch.
+/// Web tools: WebFetch, WebSearch, ExaSearch.
 pub fn web() -> Vec<Box<dyn Tool>> {
     vec![
         Box::new(web_fetch::WebFetchTool),
         Box::new(web_search::WebSearchTool),
+        Box::new(exa_search::ExaSearchTool),
     ]
 }
 
