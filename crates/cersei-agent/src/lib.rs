@@ -87,6 +87,7 @@ pub struct Agent {
     auto_compact: bool,
     compact_threshold: f64,
     tool_result_budget: usize,
+    pub benchmark_mode: bool,
     messages: Arc<parking_lot::Mutex<Vec<Message>>>,
     cumulative_usage: Arc<parking_lot::Mutex<Usage>>,
     cancel_token: tokio_util::sync::CancellationToken,
@@ -208,6 +209,7 @@ pub struct AgentBuilder {
     compact_threshold: f64,
     tool_result_budget: usize,
     initial_messages: Option<Vec<Message>>,
+    benchmark_mode: bool,
 }
 
 impl Default for AgentBuilder {
@@ -237,6 +239,7 @@ impl Default for AgentBuilder {
             compact_threshold: 0.9,
             tool_result_budget: 50_000,
             initial_messages: None,
+            benchmark_mode: false,
         }
     }
 }
@@ -371,6 +374,12 @@ impl AgentBuilder {
         self
     }
 
+    /// Enable benchmark mode (self-verification loop for terminal-bench).
+    pub fn benchmark_mode(mut self, enabled: bool) -> Self {
+        self.benchmark_mode = enabled;
+        self
+    }
+
     pub fn build(self) -> cersei_types::Result<Agent> {
         let provider = self
             .provider
@@ -411,6 +420,7 @@ impl AgentBuilder {
             auto_compact: self.auto_compact,
             compact_threshold: self.compact_threshold,
             tool_result_budget: self.tool_result_budget,
+            benchmark_mode: self.benchmark_mode,
             messages: Arc::new(parking_lot::Mutex::new(self.initial_messages.unwrap_or_default())),
             cumulative_usage: Arc::new(parking_lot::Mutex::new(Usage::default())),
             cancel_token: self

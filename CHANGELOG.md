@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.1.6-patch.1] - 2026-04-13
+
+### Added
+
+- **VibeProxy support.** Abstract CLI can now route requests through VibeProxy or any compatible local proxy, enabling use of existing AI subscriptions (Claude Pro/Max, ChatGPT Plus) instead of API keys.
+  - **`--proxy` CLI flag** — force proxy usage even when API keys are set.
+  - **`--proxy-url URL` flag** — specify a custom proxy URL (default: `http://localhost:8317/v1`).
+  - **Auto-detection** — when no API keys are set and VibeProxy is running on `localhost:8317`, Abstract automatically routes through the proxy.
+  - **`/proxy` slash command** — shows proxy status, URL, and authenticated accounts from `~/.cli-proxy-api/`.
+  - **`[proxy]` config section** in `.abstract/config.toml` — `enabled`, `force`, `url` fields.
+  - Header shows `model via proxy` when proxy is active.
+- **Channel-based TUI permission system.** Permissions now flow through `tokio::sync::mpsc` + `oneshot` channels instead of reading from stdin directly. Fixes permission overlay freezing the TUI.
+- **Virtualized message list.** `VirtualList` renders only visible items (O(viewport_height) per frame instead of O(total_lines)). Pre-built committed items are cached; only streaming content is rebuilt per frame. Buffer cleared before render to prevent stale content bleed-through.
+- **Inline diff viewer.** File edit tools (Edit, Write, ApplyPatch) now show syntax-highlighted unified diffs inline in the conversation with `┌─ diff` / `│ +/-` / `└─` borders.
+- **Edit tool captures diffs.** `file_edit.rs` reads file before and after edit, computes unified diff, includes it in the tool result.
+- **Multi-line input.** Textarea with word wrapping, dynamic height (1-10 lines), and newline insertion via Option+Enter (macOS), Ctrl+J, or Shift+Enter (kitty protocol terminals).
+- **Kitty keyboard protocol.** `PushKeyboardEnhancementFlags(DISAMBIGUATE_ESCAPE_CODES)` enabled at startup for terminals that support it. Shift+Enter works in iTerm2, Kitty, WezTerm, Alacritty.
+- **4 new cookbook pages** — ML Coding Agent, Research Agent, General Agent (memory + skills + MCP), Graph Memory Deep Dive.
+- **Comparisons page** — Cersei vs Claude Code SDK, Cersei vs Pydantic AI / LangChain with feature matrix.
+- **Code & AST Intelligence docs** — full API breakdown for `cersei-lsp` and tree-sitter modules.
+
+### Changed
+
+- **Permission system rewritten** from stdin-based to channel-based for TUI mode. `TuiPermissionPolicy` sends requests via `mpsc`, TUI renders overlay, user decision sent back via `oneshot`. No more stdin race condition.
+- Permission overlay enlarged to 75% x 55% with padding and `Wrap { trim: true }`.
+- Recovery overlay also enlarged.
+- Help overlay updated with all 17+ commands, keybindings, and permission modes.
+- File tree in side panel now shows compact directory view with `▸ dir/ (count)` format instead of fully expanded tree.
+- Git diff panel shows `git status --short` with human-readable labels (untracked/modified/added/deleted) instead of raw `??`/`M`/`A` codes.
+- Side panel supports focus mode: Ctrl+B focuses panel, j/k scroll, Tab switches tabs, Esc returns to input. Yellow border when focused.
+- Tool call output preview: file tools get 12 lines (up from 5), diff rendering for Edit/Write/ApplyPatch.
+
+### Fixed
+
+- **TUI permission freeze** — permission overlay no longer blocks input. Root cause: old `CliPermissionPolicy` called `crossterm::event::read()` and `enable_raw_mode()`/`disable_raw_mode()` while TUI was already in raw mode, causing stdin race condition and raw mode corruption.
+- **Stale content in scrolled messages** — VirtualList now clears buffer area with `cell.reset()` before rendering visible items.
+- **Resize crash in Ghostty** — kitty keyboard protocol only enabled if `supports_keyboard_enhancement()` returns true. Event drain capped at 50 per tick. Protocol re-pushed on resize.
+- **Cost display $0** — CostUpdate and TurnComplete handlers now estimate cost from model pricing when provider reports $0.
+- `/memory`, `/sessions`, `/model` no longer return "unknown command".
+
 ## [0.1.6] - 2026-04-12
 
 ### Added

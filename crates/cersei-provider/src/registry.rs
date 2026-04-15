@@ -116,8 +116,9 @@ pub static REGISTRY: &[ProviderEntry] = &[
         api_base: "https://api.openai.com/v1",
         env_keys: &["OPENAI_API_KEY"],
         api_format: ApiFormat::OpenAiCompatible,
-        default_model: "gpt-5.3-chat-latest",
+        default_model: "gpt-5.4-2026-03-05",
         models: &[
+            ModelEntry { id: "gpt-5.4-2026-03-05", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gpt-5.3-chat-latest", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gpt-5.3-chat", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gpt-5.3-codex", context_window: 1_000_000, capabilities: FULL },
@@ -137,6 +138,8 @@ pub static REGISTRY: &[ProviderEntry] = &[
         api_format: ApiFormat::Google,
         default_model: "gemini-2.0-flash",
         models: &[
+            ModelEntry { id: "gemini-3.1-pro-preview", context_window: 2_000_000, capabilities: FULL },
+            ModelEntry { id: "gemini-3.0-flash", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gemini-2.0-flash", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gemini-2.0-pro", context_window: 1_000_000, capabilities: FULL },
             ModelEntry { id: "gemini-1.5-pro", context_window: 2_000_000, capabilities: FULL },

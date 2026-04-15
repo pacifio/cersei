@@ -1,0 +1,9 @@
+{
+  "id": "hello-world",
+  "instruction": "Create a file called /app/hello.py that prints 'Hello, World!' when run with python3.",
+  "test_command": "python3 /app/hello.py | grep -q 'Hello, World!'",
+  "timeout_agent": 60,
+  "timeout_test": 10,
+  "category": "file-creation",
+  "difficulty": "trivial"
+}

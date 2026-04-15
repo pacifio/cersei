@@ -9,3 +9,5 @@ Cargo.lock
 .env.local
 
 _inspirations
+
+bench/runner-*.sh

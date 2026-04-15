@@ -189,6 +189,8 @@ pub async fn run_agent_streaming(
     const MAX_TOKENS_RETRY_LIMIT: u32 = 3;
     let mut had_tool_use = false;
     let mut depth_nudge_sent = false;
+    let mut benchmark_retries: u32 = 0;
+    const BENCHMARK_MAX_RETRIES: u32 = 4;
 
     // Build tool context
     let tool_ctx = ToolContext {
@@ -410,6 +412,69 @@ pub async fn run_agent_streaming(
         // Handle stop reason
         match &response.stop_reason {
             StopReason::EndTurn => {
+                // ── Benchmark self-verification ──
+                // In TB 2.0 tests are run externally by the verifier AFTER the agent
+                // finishes. We only intervene if:
+                // 1) The instruction mentions a specific test/verify command — nudge
+                //    the agent to run it if it hasn't.
+                // 2) The agent ran such a command and it failed — nudge to retry.
+                // We do NOT hardcode /tests/run-tests.sh — that path doesn't exist
+                // during agent execution in TB 2.0.
+                if agent.benchmark_mode && benchmark_retries < BENCHMARK_MAX_RETRIES {
+                    // Check if the instruction mentions a verification command
+                    let has_instruction_tests = prompt.contains("test_outputs.py")
+                        || prompt.contains("run_tests")
+                        || prompt.contains("run-tests")
+                        || prompt.contains("pytest")
+                        || prompt.contains("verify.py")
+                        || prompt.contains("check.py")
+                        || prompt.contains("npm test")
+                        || prompt.contains("cargo test")
+                        || prompt.contains("make test");
+
+                    if has_instruction_tests {
+                        let verification = benchmark_check_tests(&tool_calls);
+                        match verification {
+                            BenchmarkVerification::TestsNotRun => {
+                                if benchmark_retries == 0 {
+                                    benchmark_retries += 1;
+                                    agent.messages.lock().push(Message::user(
+                                        "[system] The task instruction mentions a verification command. \
+                                         Run it now to check your solution. Look at the instruction again \
+                                         for the exact command."
+                                    ));
+                                    let _ = event_tx.send(AgentEvent::Status(
+                                        "Benchmark: nudge to run instruction's test command".into()
+                                    )).await;
+                                    continue;
+                                }
+                                break;
+                            }
+                            BenchmarkVerification::TestsFailed(ref test_output) => {
+                                benchmark_retries += 1;
+                                let truncated: String = test_output.chars().take(3000).collect();
+                                agent.messages.lock().push(Message::user(
+                                    &format!(
+                                        "[system] Verification FAILED (attempt {}/{}).\n\n\
+                                         Output:\n```\n{}\n```\n\n\
+                                         Try a COMPLETELY DIFFERENT approach. Do NOT patch — rewrite.",
+                                        benchmark_retries, BENCHMARK_MAX_RETRIES, truncated
+                                    )
+                                ));
+                                let _ = event_tx.send(AgentEvent::Status(
+                                    format!("Benchmark: retry {}/{}", benchmark_retries, BENCHMARK_MAX_RETRIES)
+                                )).await;
+                                continue;
+                            }
+                            BenchmarkVerification::TestsPassed => {
+                                break;
+                            }
+                        }
+                    }
+                    // No test command in instruction — let the agent finish.
+                    // The external verifier will run tests after.
+                }
+
                 // Depth nudge: if we had tool calls but ended very early (turn <= 3),
                 // push the model to explore deeper before giving final answer.
                 // This prevents shallow 1-round analysis. Only nudge once.
@@ -700,4 +765,84 @@ pub async fn run_agent_streaming(
     }
 
     Ok(output)
+}
+
+// ─── Benchmark self-verification helpers ────────────────────────────────────
+
+#[derive(Debug)]
+enum BenchmarkVerification {
+    TestsNotRun,
+    TestsFailed(String), // carries the test output for retry feedback
+    TestsPassed,
+}
+
+/// Analyze tool call history to determine if tests were run and whether they passed.
+fn benchmark_check_tests(tool_calls: &[ToolCallRecord]) -> BenchmarkVerification {
+    let test_patterns = [
+        "run-tests", "run_tests", "pytest", "python -m pytest",
+        "bash run-tests.sh", "npm test", "cargo test", "go test",
+        "make test", "jest", "mocha", "unittest",
+    ];
+
+    let mut found_test_run = false;
+    let mut last_test_failed = false;
+    let mut last_test_output = String::new();
+
+    // Check the most recent tool calls (last 30) for test execution
+    for tc in tool_calls.iter().rev().take(30) {
+        if tc.name != "Bash" && tc.name != "bash" {
+            continue;
+        }
+
+        let cmd = tc.input.get("command")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        let is_test_cmd = test_patterns.iter().any(|p| cmd.contains(p));
+        if !is_test_cmd {
+            continue;
+        }
+
+        found_test_run = true;
+        last_test_output = tc.result.clone();
+
+        // Primary signal: exit code (most reliable)
+        if tc.is_error {
+            last_test_failed = true;
+            break;
+        }
+
+        // Secondary: parse output for pass/fail indicators
+        let result_lower = tc.result.to_lowercase();
+
+        let has_pass = result_lower.contains("passed")
+            || result_lower.contains("success")
+            || result_lower.contains("all tests")
+            || result_lower.contains("exit code 0")
+            || tc.result.contains("PASSED")
+            || tc.result.contains("PASS")
+            || (result_lower.contains(" ok") && !result_lower.contains("not ok"));
+
+        let has_failure = result_lower.contains("failed")
+            || result_lower.contains("failure")
+            || result_lower.contains("traceback")
+            || result_lower.contains("not ok")
+            || result_lower.contains("assertion")
+            || (result_lower.contains("error") && !result_lower.contains("error handling") && !result_lower.contains("error_"));
+
+        if has_failure && !has_pass {
+            last_test_failed = true;
+        } else {
+            last_test_failed = false;
+        }
+        break; // Only care about the most recent test run
+    }
+
+    if !found_test_run {
+        BenchmarkVerification::TestsNotRun
+    } else if last_test_failed {
+        BenchmarkVerification::TestsFailed(last_test_output)
+    } else {
+        BenchmarkVerification::TestsPassed
+    }
 }

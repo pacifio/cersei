@@ -59,7 +59,9 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
 
     // Show startup banner
     let effort = EffortLevel::from_str(&config.effort);
-    if !cli.json {
+    // JSON mode: --json flag OR --output-format stream-json
+    let json_mode = cli.json || config.output_format == "stream-json";
+    if !json_mode {
         print_banner(&config, &session_id, &effort);
     }
 
@@ -75,12 +77,12 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
             &session_id,
             &config,
             &memory_manager,
-            cli.json,
+            json_mode,
             running,
             cancel_token,
         )
         .await
-    } else if cli.json {
+    } else if json_mode {
         // JSON mode uses the old REPL (no TUI)
         repl::run_repl(
             agent,
@@ -88,7 +90,7 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
             &session_id,
             &config,
             &memory_manager,
-            cli.json,
+            json_mode,
             running,
             cancel_token.clone(),
         )
@@ -108,6 +110,54 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
     }
 }
 
+/// Detect if a local proxy (VibeProxy or compatible) is running.
+/// Returns the proxy URL if detected and no direct API key is available.
+fn detect_proxy(config: &AppConfig) -> Option<String> {
+    if !config.proxy.enabled {
+        return None;
+    }
+
+    // Only auto-detect if no direct API keys are set (unless --proxy forces it)
+    if !config.proxy.force {
+        let has_anthropic = std::env::var("ANTHROPIC_API_KEY")
+            .ok()
+            .filter(|k| !k.is_empty())
+            .is_some();
+        let has_openai = std::env::var("OPENAI_API_KEY")
+            .ok()
+            .filter(|k| !k.is_empty())
+            .is_some();
+
+        if has_anthropic || has_openai {
+            return None; // Direct API keys available, no need for proxy
+        }
+    }
+
+    // Quick TCP check on proxy port
+    let base = config.proxy.url.trim_end_matches("/v1").trim_end_matches('/');
+    let addr = base
+        .trim_start_matches("http://")
+        .trim_start_matches("https://");
+
+    if let Ok(addr) = addr.parse::<std::net::SocketAddr>() {
+        if std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(200)).is_ok() {
+            return Some(config.proxy.url.clone());
+        }
+    } else {
+        // Try resolving as host:port
+        use std::net::ToSocketAddrs;
+        if let Ok(mut addrs) = addr.to_socket_addrs() {
+            if let Some(sock_addr) = addrs.next() {
+                if std::net::TcpStream::connect_timeout(&sock_addr, std::time::Duration::from_millis(200)).is_ok() {
+                    return Some(config.proxy.url.clone());
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Build an agent for a given model string. Reusable for initial build and provider switching.
 pub fn build_agent(
     model_string: &str,
@@ -119,8 +169,20 @@ pub fn build_agent(
     shared_mode: Option<crate::permissions::SharedPermissionMode>,
     perm_tx: Option<tokio::sync::mpsc::Sender<crate::permissions::TuiPermissionRequest>>,
 ) -> anyhow::Result<(cersei::Agent, String)> {
-    let (provider, resolved_model) = cersei_provider::from_model_string(model_string)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    // Check for proxy (VibeProxy or compatible) before resolving provider
+    let (provider, resolved_model) = if let Some(proxy_url) = detect_proxy(config) {
+        let model = if model_string == "auto" { "claude-sonnet-4-6" } else { model_string };
+        let provider = cersei_provider::OpenAi::builder()
+            .api_key("vibeproxy")
+            .base_url(&proxy_url)
+            .model(model)
+            .build()
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        (Box::new(provider) as Box<dyn cersei_provider::Provider>, format!("{model} via proxy"))
+    } else {
+        cersei_provider::from_model_string(model_string)
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+    };
 
     let system_prompt = prompt::build_cli_system_prompt(config, memory_manager, &resolved_model);
     let effort = EffortLevel::from_str(&config.effort);
@@ -151,7 +213,8 @@ pub fn build_agent(
         .enable_broadcast(512)
         .cancel_token(cancel_token)
         .session_id(session_id)
-        .working_dir(&config.working_dir);
+        .working_dir(&config.working_dir)
+        .benchmark_mode(config.benchmark_mode);
 
     // Permission policy
     if config.permissions_mode == "allow_all" {

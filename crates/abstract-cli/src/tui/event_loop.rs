@@ -649,6 +649,49 @@ fn handle_slash_command(state: &mut AppState, input: &str, config: &AppConfig) {
                 thinking: None,
             });
         }
+        "proxy" => {
+            let proxy_url = &config.proxy.url;
+            let is_via_proxy = state.model.contains("via proxy");
+
+            // Check for authenticated accounts
+            let mut accounts = Vec::new();
+            if let Some(home) = dirs::home_dir() {
+                let auth_dir = home.join(".cli-proxy-api");
+                if auth_dir.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&auth_dir) {
+                        for entry in entries.flatten() {
+                            let name = entry.file_name().to_string_lossy().to_string();
+                            if name.ends_with(".json") {
+                                if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                        let provider = json["type"].as_str().unwrap_or("?");
+                                        let email = json["email"].as_str().unwrap_or("?");
+                                        let expired = json["expired"].as_str().unwrap_or("?");
+                                        accounts.push(format!("  {} ({}) — expires {}", provider, email, expired));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let status = if is_via_proxy { "active" } else { "inactive" };
+            let accounts_str = if accounts.is_empty() {
+                "  No accounts found in ~/.cli-proxy-api/".to_string()
+            } else {
+                accounts.join("\n")
+            };
+
+            state.turns.push(crate::tui::app::Turn {
+                role: crate::tui::app::TurnRole::System,
+                content: format!(
+                    "Proxy: {status}\nURL: {proxy_url}\nAccounts:\n{accounts_str}\n\nConfigure in .abstract/config.toml:\n[proxy]\nenabled = true\nurl = \"http://localhost:8317/v1\""
+                ),
+                tools: Vec::new(),
+                thinking: None,
+            });
+        }
         _ => {
             state.turns.push(crate::tui::app::Turn {
                 role: crate::tui::app::TurnRole::System,

@@ -32,6 +32,26 @@ export function Tag({ type }) {
   );
 }
 
+<Version version="0.1.6-patch.1" date="2026-04-13">
+
+<Tag type="added" /> **VibeProxy support.** Route requests through local proxy (VibeProxy or compatible) using existing AI subscriptions instead of API keys. `--proxy` and `--proxy-url` CLI flags. Auto-detection when no API keys set. `/proxy` command shows status and authenticated accounts. `[proxy]` config section.
+
+<Tag type="added" /> **Channel-based TUI permissions.** Rewrote permission system from stdin-based to `mpsc`+`oneshot` channels. TUI renders overlay, user decides, decision flows back — no more stdin race condition or raw mode corruption.
+
+<Tag type="added" /> **Virtualized message list.** O(viewport_height) rendering instead of O(total_lines). Pre-built committed items cached. Buffer cleared before render. Smooth 60fps scrolling for long conversations.
+
+<Tag type="added" /> **Inline diff viewer.** Edit/Write/ApplyPatch tools show syntax-highlighted unified diffs inline with `┌─ diff` borders. Edit tool auto-captures before/after content.
+
+<Tag type="added" /> **Multi-line input.** Textarea with word wrapping, dynamic height (1-10 lines). Option+Enter / Ctrl+J / Shift+Enter for newlines. Kitty keyboard protocol support.
+
+<Tag type="added" /> **4 cookbooks** — ML Coding Agent, Research Agent, General Agent, Graph Memory. **Comparisons page** — Cersei vs Claude Code SDK vs Pydantic AI vs LangChain. **Code & AST Intelligence docs.**
+
+<Tag type="changed" /> Permission overlay: 75% x 55% with padding. Side panel: focus mode with j/k scroll, compact file tree. Git diff: human-readable status labels. Help overlay lists all commands.
+
+<Tag type="fixed" /> TUI permission freeze (stdin race condition). Stale scroll content (buffer clear). Ghostty resize crash (kitty protocol detection). Cost $0 display. Missing slash commands.
+
+</Version>
+
 <Version version="0.1.6" date="2026-04-12">
 
 <Tag type="added" /> **New crate: `cersei-lsp`.** On-demand LSP server management with JSON-RPC 2.0 over stdio. 5 operations (hover, definition, references, symbols, diagnostics). 13 built-in server configs. Auto-detection by file extension, lazy startup.

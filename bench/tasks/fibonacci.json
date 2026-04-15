@@ -1,0 +1,9 @@
+{
+  "id": "fibonacci",
+  "instruction": "Create a file /app/fib.py that defines a function fibonacci(n) returning the nth Fibonacci number (0-indexed, so fibonacci(0)=0, fibonacci(1)=1, fibonacci(10)=55). The script should print the result of fibonacci(10) when run directly.",
+  "test_command": "python3 -c \"import sys; sys.path.insert(0,'/app'); from fib import fibonacci; assert fibonacci(0)==0; assert fibonacci(1)==1; assert fibonacci(10)==55; assert fibonacci(20)==6765; print('ALL TESTS PASSED')\"",
+  "timeout_agent": 120,
+  "timeout_test": 10,
+  "category": "algorithms",
+  "difficulty": "easy"
+}

@@ -32,7 +32,7 @@ use clap::{Parser, Subcommand};
 )]
 pub struct Cli {
     /// Prompt to run in single-shot mode (omit for REPL)
-    #[arg(value_name = "PROMPT")]
+    #[arg(short = 'p', long = "prompt", value_name = "PROMPT")]
     pub prompt: Option<String>,
 
     /// Resume a previous session
@@ -44,7 +44,7 @@ pub struct Cli {
     pub model: Option<String>,
 
     /// Provider to use (anthropic, openai)
-    #[arg(short, long)]
+    #[arg(short = 'P', long)]
     pub provider: Option<String>,
 
     /// Fast mode (low effort, minimal thinking)
@@ -74,6 +74,22 @@ pub struct Cli {
     /// Working directory override
     #[arg(short = 'C', long)]
     pub directory: Option<String>,
+
+    /// Headless autonomous mode: task-focused prompt, auto-approve all tools, extended turns
+    #[arg(long, alias = "benchmark")]
+    pub headless: bool,
+
+    /// Output format: text (default) or stream-json (NDJSON events)
+    #[arg(long, value_name = "FORMAT")]
+    pub output_format: Option<String>,
+
+    /// Use a local proxy (VibeProxy or compatible) instead of direct API keys
+    #[arg(long)]
+    pub proxy: bool,
+
+    /// Proxy URL (default: http://localhost:8317/v1)
+    #[arg(long, value_name = "URL")]
+    pub proxy_url: Option<String>,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -268,6 +284,22 @@ fn apply_cli_overrides(cli: &Cli, config: &mut config::AppConfig) {
     }
     if !cli.fallback.is_empty() {
         config.fallback_models = cli.fallback.clone();
+    }
+    if cli.proxy {
+        config.proxy.enabled = true;
+        config.proxy.force = true;
+    }
+    if cli.headless {
+        config.benchmark_mode = true;
+        config.permissions_mode = "allow_all".into();
+        config.max_turns = 80;
+    }
+    if let Some(fmt) = &cli.output_format {
+        config.output_format = fmt.clone();
+    }
+    if let Some(url) = &cli.proxy_url {
+        config.proxy.enabled = true;
+        config.proxy.url = url.clone();
     }
 }
 

@@ -1,0 +1,8 @@
+[project]
+name = "abstract-bench"
+version = "0.1.0"
+description = "Abstract CLI benchmark harness — terminal-bench 2.0 via harbor"
+requires-python = ">=3.13"
+dependencies = [
+    "harbor",
+]

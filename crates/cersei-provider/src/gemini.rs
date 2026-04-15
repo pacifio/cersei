@@ -51,6 +51,8 @@ impl Provider for Gemini {
 
     fn context_window(&self, model: &str) -> u64 {
         match model {
+            m if m.contains("gemini-3.1") => 2_000_000,
+            m if m.contains("gemini-3.0") => 1_000_000,
             m if m.contains("gemini-2.0") => 1_000_000,
             m if m.contains("gemini-1.5-pro") => 2_000_000,
             m if m.contains("gemini-1.5-flash") => 1_000_000,
@@ -159,13 +161,25 @@ impl Provider for Gemini {
                                 ContentBlock::Text { text } => {
                                     parts.push(serde_json::json!({ "text": text }));
                                 }
-                                ContentBlock::ToolUse { id: _, name, input } => {
-                                    parts.push(serde_json::json!({
-                                        "functionCall": {
-                                            "name": name,
-                                            "args": input,
-                                        }
-                                    }));
+                                ContentBlock::ToolUse { id, name, input } => {
+                                    // Extract fc_id and thoughtSignature from encoded tool_id
+                                    // Format: "gemini-tool-N::fc_id::thoughtSignature" or "gemini-tool-N"
+                                    let segments: Vec<&str> = id.splitn(3, "::").collect();
+                                    let mut fc = serde_json::json!({
+                                        "name": name,
+                                        "args": input,
+                                    });
+                                    let mut part_obj = serde_json::Map::new();
+                                    if segments.len() >= 3 {
+                                        // Has fc_id and thoughtSignature
+                                        fc["id"] = serde_json::Value::String(segments[1].to_string());
+                                        part_obj.insert("functionCall".to_string(), fc);
+                                        part_obj.insert("thoughtSignature".to_string(),
+                                            serde_json::Value::String(segments[2].to_string()));
+                                    } else {
+                                        part_obj.insert("functionCall".to_string(), fc);
+                                    }
+                                    parts.push(serde_json::Value::Object(part_obj));
                                 }
                                 _ => {}
                             }
@@ -279,6 +293,7 @@ impl Provider for Gemini {
                     let mut block_index: usize = 0;
                     let mut total_input_tokens: u64 = 0;
                     let mut total_output_tokens: u64 = 0;
+                    let mut saw_function_calls = false;
 
                     while let Some(chunk) = stream.next().await {
                         match chunk {
@@ -341,6 +356,7 @@ impl Provider for Gemini {
                                                             }
 
                                                             if let Some(fc) = part.get("functionCall") {
+                                                                saw_function_calls = true;
                                                                 let name = fc
                                                                     .get("name")
                                                                     .and_then(|n| n.as_str())
@@ -350,7 +366,20 @@ impl Provider for Gemini {
                                                                     .get("args")
                                                                     .cloned()
                                                                     .unwrap_or(serde_json::Value::Object(Default::default()));
-                                                                let tool_id = format!("gemini-tool-{}", block_index);
+                                                                // Capture thoughtSignature (sibling of functionCall at part level, Gemini 3.1+)
+                                                                let thought_sig = part.get("thoughtSignature")
+                                                                    .and_then(|s| s.as_str())
+                                                                    .unwrap_or("");
+                                                                // Capture functionCall.id if present
+                                                                let fc_id = fc.get("id")
+                                                                    .and_then(|s| s.as_str())
+                                                                    .unwrap_or("");
+                                                                // Encode both in tool_id for roundtrip
+                                                                let tool_id = if thought_sig.is_empty() {
+                                                                    format!("gemini-tool-{}", block_index)
+                                                                } else {
+                                                                    format!("gemini-tool-{}::{}::{}", block_index, fc_id, thought_sig)
+                                                                };
 
                                                                 let _ = tx
                                                                     .send(StreamEvent::ContentBlockStart {
@@ -382,11 +411,15 @@ impl Provider for Gemini {
                                                         .get("finishReason")
                                                         .and_then(|r| r.as_str());
                                                     if let Some(reason) = finish_reason {
-                                                        let stop = match reason {
-                                                            "STOP" => StopReason::EndTurn,
-                                                            "MAX_TOKENS" => StopReason::MaxTokens,
-                                                            "SAFETY" => StopReason::EndTurn,
-                                                            _ => StopReason::EndTurn,
+                                                        let stop = if saw_function_calls {
+                                                            StopReason::ToolUse
+                                                        } else {
+                                                            match reason {
+                                                                "STOP" => StopReason::EndTurn,
+                                                                "MAX_TOKENS" => StopReason::MaxTokens,
+                                                                "SAFETY" => StopReason::EndTurn,
+                                                                _ => StopReason::EndTurn,
+                                                            }
                                                         };
                                                         let _ = tx
                                                             .send(StreamEvent::MessageDelta {

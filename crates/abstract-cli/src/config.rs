@@ -32,7 +32,15 @@ pub struct AppConfig {
     pub mcp_servers: Vec<McpServerEntry>,
     #[serde(default)]
     pub hooks: Vec<HookEntry>,
+    #[serde(default)]
+    pub proxy: ProxyConfig,
+    #[serde(default)]
+    pub benchmark_mode: bool,
+    #[serde(default = "default_output_format")]
+    pub output_format: String,
 }
+
+fn default_output_format() -> String { "text".into() }
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -51,9 +59,39 @@ impl Default for AppConfig {
             fallback_models: Vec::new(),
             mcp_servers: Vec::new(),
             hooks: Vec::new(),
+            proxy: ProxyConfig::default(),
+            benchmark_mode: false,
+            output_format: "text".into(),
         }
     }
 }
+
+/// Proxy configuration for routing through VibeProxy or similar local proxies.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProxyConfig {
+    /// Enable proxy auto-detection.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Force proxy even when API keys are available (set by --proxy flag).
+    #[serde(default)]
+    pub force: bool,
+    /// Proxy URL (default: http://localhost:8317/v1).
+    #[serde(default = "default_proxy_url")]
+    pub url: String,
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            force: false,
+            url: default_proxy_url(),
+        }
+    }
+}
+
+fn default_true() -> bool { true }
+fn default_proxy_url() -> String { "http://localhost:8317/v1".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerEntry {

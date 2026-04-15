@@ -1,0 +1,9 @@
+{
+  "id": "csv-parser",
+  "instruction": "Create /app/parse_csv.py that reads a CSV file from stdin and outputs a JSON array of objects (one per row, using the header row as keys). Handle quoted fields with commas inside them. Print the JSON to stdout.",
+  "test_command": "echo 'name,age,city\n\"Doe, John\",30,\"New York\"\nJane,25,Boston' | python3 /app/parse_csv.py | python3 -c \"import sys,json; data=json.load(sys.stdin); assert len(data)==2; assert data[0]['name']=='Doe, John'; assert data[0]['age']=='30'; assert data[1]['city']=='Boston'; print('ALL TESTS PASSED')\"",
+  "timeout_agent": 180,
+  "timeout_test": 10,
+  "category": "data-processing",
+  "difficulty": "medium"
+}
