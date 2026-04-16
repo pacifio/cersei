@@ -82,11 +82,12 @@ if [[ ! -f "$SCRIPT_DIR/abstract_tbench.py" ]]; then
 fi
 pass "Agent module"
 
-if [[ ! -f "$SCRIPT_DIR/abstract-linux-arm64" ]]; then
-  fail "Linux binary not found. See TERMINAL_BENCH.md"
+if [[ -f "$SCRIPT_DIR/abstract-linux-amd64" ]] || [[ -f "$SCRIPT_DIR/abstract-linux-arm64" ]]; then
+  pass "Linux binary"
+else
+  fail "No Linux binary found. See TERMINAL_BENCH.md"
   exit 1
 fi
-pass "Linux binary"
 
 # Environment check
 ENV_FLAG=""

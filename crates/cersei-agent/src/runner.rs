@@ -26,24 +26,42 @@ fn rand_jitter() -> u64 {
 
 // ─── Tool result size management ─────────────────────────────────────────────
 
-/// Maximum size of a single tool result before truncation (30KB).
-const MAX_SINGLE_RESULT_CHARS: usize = 30_000;
+/// Maximum number of lines to keep in a tool result before truncation.
+const MAX_HEAD_LINES: usize = 80;
+const MAX_TAIL_LINES: usize = 80;
+/// Char-based fallback for results without many newlines.
+const MAX_SINGLE_RESULT_CHARS: usize = 20_000;
 
-/// Truncate an individual tool result if it exceeds the per-result cap.
+/// Truncate an individual tool result using a head+tail line strategy.
+/// Keeps the first N and last N lines, which preserves both the command
+/// context (head) and error messages (tail) — errors are usually at the end.
 fn cap_tool_result(content: &str) -> String {
-    if content.len() <= MAX_SINGLE_RESULT_CHARS {
-        return content.to_string();
+    let lines: Vec<&str> = content.lines().collect();
+    let total_lines = lines.len();
+
+    // Line-based truncation if enough lines
+    if total_lines > MAX_HEAD_LINES + MAX_TAIL_LINES + 5 {
+        let head: String = lines[..MAX_HEAD_LINES].join("\n");
+        let tail: String = lines[total_lines.saturating_sub(MAX_TAIL_LINES)..].join("\n");
+        let omitted = total_lines - MAX_HEAD_LINES - MAX_TAIL_LINES;
+        return format!(
+            "{head}\n\n[... {omitted} lines omitted ({total_lines} total). Pipe through `head` or `tail` for specific sections ...]\n\n{tail}"
+        );
     }
-    // Keep first 80% and last 10% of the budget to preserve head and tail context
-    let head = (MAX_SINGLE_RESULT_CHARS * 80 / 100).min(content.len());
-    let tail = (MAX_SINGLE_RESULT_CHARS * 10 / 100).min(content.len().saturating_sub(head));
-    let total_lines = content.lines().count();
-    let omitted = content.len().saturating_sub(head + tail);
-    format!(
-        "{}\n\n[... truncated {omitted} characters ({total_lines} total lines). Use targeted reads for specific sections ...]\n\n{}",
-        &content[..head],
-        &content[content.len().saturating_sub(tail)..]
-    )
+
+    // Char-based fallback for single long lines or binary-ish output
+    if content.len() > MAX_SINGLE_RESULT_CHARS {
+        let head_chars = MAX_SINGLE_RESULT_CHARS * 70 / 100;
+        let tail_chars = MAX_SINGLE_RESULT_CHARS * 20 / 100;
+        let omitted = content.len().saturating_sub(head_chars + tail_chars);
+        return format!(
+            "{}\n\n[... {omitted} chars omitted ...]\n\n{}",
+            &content[..head_chars],
+            &content[content.len().saturating_sub(tail_chars)..]
+        );
+    }
+
+    content.to_string()
 }
 
 /// Truncate oldest tool results when cumulative size exceeds budget.
@@ -191,6 +209,7 @@ pub async fn run_agent_streaming(
     let mut depth_nudge_sent = false;
     let mut benchmark_retries: u32 = 0;
     const BENCHMARK_MAX_RETRIES: u32 = 4;
+    let mut doom_loop_warned = false;
 
     // Build tool context
     let tool_ctx = ToolContext {
@@ -638,6 +657,29 @@ pub async fn run_agent_streaming(
                     .messages
                     .lock()
                     .push(Message::user_blocks(result_blocks));
+
+                // ── Doom loop detection ──
+                // If the last N tool calls are the same tool with similar commands,
+                // the agent is stuck. Force a different approach.
+                if !doom_loop_warned && tool_calls.len() >= 4 {
+                    let recent: Vec<&ToolCallRecord> = tool_calls.iter().rev().take(4).collect();
+                    let all_same_tool = recent.iter().all(|tc| tc.name == recent[0].name);
+                    let all_errors = recent.iter().all(|tc| tc.is_error);
+                    if all_same_tool && all_errors {
+                        doom_loop_warned = true;
+                        agent.messages.lock().push(Message::user(
+                            "[system] You appear to be stuck in a loop — your last 4 tool calls \
+                             were the same tool and all failed. STOP and reconsider:\n\
+                             1. What exactly is going wrong?\n\
+                             2. Is there a completely different approach?\n\
+                             3. Try a different tool or different arguments.\n\
+                             Do NOT repeat the same failing command."
+                        ));
+                        let _ = event_tx.send(AgentEvent::Status(
+                            "Doom loop detected — forcing new approach".into()
+                        )).await;
+                    }
+                }
             }
             StopReason::MaxTokens => {
                 max_tokens_retries += 1;

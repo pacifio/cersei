@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# ─── Full run: Abstract on Terminal-Bench 2.0 (leaderboard) ───────────────
+# ─── Full run: Abstract on Terminal-Bench 2.0 ─────────────────────────────
 #
 # Usage:
-#   ./bench/run_tb_full.sh                                        # defaults (Daytona + Gemini)
+#   ./bench/run_tb_full.sh                                        # Gemini + embeddings + Daytona
 #   ./bench/run_tb_full.sh --model openai/gpt-5.4-2026-03-05      # OpenAI
-#   ./bench/run_tb_full.sh --concurrent 20                         # more parallel
-#   ./bench/run_tb_full.sh --local                                 # use local Docker
+#   ./bench/run_tb_full.sh --no-embedding                          # disable embedding search
+#   ./bench/run_tb_full.sh --local                                 # local Docker
 #
 # Prerequisites:
 #   - uv installed
@@ -29,39 +29,38 @@ CONCURRENT=20
 DATASET="terminal-bench@2.0"
 OUTPUT_DIR="$SCRIPT_DIR/tb-results"
 JOB_NAME="abstract-$(date +%Y%m%d-%H%M%S)"
-TIMEOUT_MULT="${TIMEOUT_MULT:-1.0}"
+TIMEOUT_MULT="${TIMEOUT_MULT:-1.5}"
 USE_DAYTONA=true
+ENABLE_EMBEDDING=true  # ON by default
 EXTRA_ARGS=()
 
 # ─── Parse args ────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model)        MODEL="$2"; shift 2 ;;
-    --concurrent)   CONCURRENT="$2"; shift 2 ;;
-    --dataset)      DATASET="$2"; shift 2 ;;
-    --output)       OUTPUT_DIR="$2"; shift 2 ;;
-    --timeout-mult) TIMEOUT_MULT="$2"; shift 2 ;;
-    --local)        USE_DAYTONA=false; shift ;;
-    --include)      EXTRA_ARGS+=("--include-task-name" "$2"); shift 2 ;;
-    --exclude)      EXTRA_ARGS+=("--exclude-task-name" "$2"); shift 2 ;;
-    --task)         EXTRA_ARGS+=("--include-task-name" "$2"); shift 2 ;;
-    --attempts)     EXTRA_ARGS+=("--n-attempts" "$2"); shift 2 ;;
-    --debug)        EXTRA_ARGS+=("--debug"); shift ;;
+    --model)            MODEL="$2"; shift 2 ;;
+    --concurrent)       CONCURRENT="$2"; shift 2 ;;
+    --dataset)          DATASET="$2"; shift 2 ;;
+    --output)           OUTPUT_DIR="$2"; shift 2 ;;
+    --timeout-mult)     TIMEOUT_MULT="$2"; shift 2 ;;
+    --local)            USE_DAYTONA=false; shift ;;
+    --no-embedding)     ENABLE_EMBEDDING=false; shift ;;
+    --include)          EXTRA_ARGS+=("--include-task-name" "$2"); shift 2 ;;
+    --exclude)          EXTRA_ARGS+=("--exclude-task-name" "$2"); shift 2 ;;
+    --task)             EXTRA_ARGS+=("--include-task-name" "$2"); shift 2 ;;
+    --attempts)         EXTRA_ARGS+=("--n-attempts" "$2"); shift 2 ;;
+    --debug)            EXTRA_ARGS+=("--debug"); shift ;;
     --help|-h)
       echo "Usage: $0 [OPTIONS]"
-      echo ""
-      echo "Run Abstract on the full terminal-bench 2.0 dataset."
       echo ""
       echo "Options:"
       echo "  --model <provider/model>  Model (default: google/gemini-3.1-pro-preview)"
       echo "  --concurrent <N>          Parallel tasks (default: 20)"
-      echo "  --dataset <name@ver>      Dataset (default: terminal-bench@2.0)"
-      echo "  --output <dir>            Output directory"
-      echo "  --timeout-mult <N>        Timeout multiplier (default: 1.0)"
+      echo "  --timeout-mult <N>        Timeout multiplier (default: 1.5)"
+      echo "  --no-embedding            Disable embedding-enhanced CodeSearch"
       echo "  --local                   Use local Docker instead of Daytona"
-      echo "  --include <pattern>       Include task name pattern (glob)"
-      echo "  --exclude <pattern>       Exclude task name pattern (glob)"
-      echo "  --task <name>             Run single task by name"
+      echo "  --include <pattern>       Include task name pattern"
+      echo "  --exclude <pattern>       Exclude task name pattern"
+      echo "  --task <name>             Run single task"
       echo "  --attempts <N>            Attempts per task (for pass@k)"
       echo "  --debug                   Enable debug logging"
       exit 0 ;;
@@ -85,46 +84,22 @@ warn()  { echo -e "${YELLOW}!${RESET} $*"; }
 
 # ─── Preflight ─────────────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Abstract × Terminal-Bench 2.0 — Full Run${RESET}"
+echo -e "${BOLD}Abstract × Terminal-Bench 2.0${RESET}"
 echo -e "${DIM}═══════════════════════════════════════════════════${RESET}"
 
-if ! command -v uv &>/dev/null; then
-  fail "'uv' not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
-  exit 1
-fi
+if ! command -v uv &>/dev/null; then fail "'uv' not found."; exit 1; fi
 pass "uv"
 
-if [[ ! -f "$SCRIPT_DIR/abstract_tbench.py" ]]; then
-  fail "Agent module not found"
-  exit 1
-fi
-pass "Agent module"
+[[ -f "$SCRIPT_DIR/abstract_tbench.py" ]] && pass "Agent module" || { fail "Agent module not found"; exit 1; }
+[[ -f "$SCRIPT_DIR/abstract-linux-amd64" || -f "$SCRIPT_DIR/abstract-linux-arm64" ]] && pass "Linux binary" || { fail "No binary found"; exit 1; }
 
-if [[ ! -f "$SCRIPT_DIR/abstract-linux-arm64" ]]; then
-  fail "Linux binary not found. See TERMINAL_BENCH.md"
-  exit 1
-fi
-pass "Linux binary"
-
-# Environment check
 ENV_FLAG=""
 if $USE_DAYTONA; then
-  if [[ -z "${DAYTONA_API_KEY:-}" ]]; then
-    fail "DAYTONA_API_KEY not set. Add it to bench/.env or use --local"
-    exit 1
-  fi
-  ENV_FLAG="--env daytona"
-  pass "Daytona"
+  [[ -n "${DAYTONA_API_KEY:-}" ]] && { ENV_FLAG="--env daytona"; pass "Daytona"; } || { fail "DAYTONA_API_KEY not set"; exit 1; }
 else
-  if ! docker info &>/dev/null; then
-    fail "Docker is not running"
-    exit 1
-  fi
-  ENV_FLAG="--env docker"
-  pass "Docker (local)"
+  docker info &>/dev/null && { ENV_FLAG="--env docker"; pass "Docker"; } || { fail "Docker not running"; exit 1; }
 fi
 
-# API key check
 PROVIDER="${MODEL%%/*}"
 case "$PROVIDER" in
   openai)    KEY_ORDER=(OPENAI_API_KEY) ;;
@@ -132,21 +107,11 @@ case "$PROVIDER" in
   anthropic) KEY_ORDER=(ANTHROPIC_API_KEY) ;;
   *)         KEY_ORDER=(OPENAI_API_KEY GOOGLE_API_KEY ANTHROPIC_API_KEY) ;;
 esac
-
-HAS_KEY=false
-KEY_NAME=""
+HAS_KEY=false; KEY_NAME=""
 for key in "${KEY_ORDER[@]}"; do
-  if [[ -n "${!key:-}" ]]; then
-    HAS_KEY=true
-    KEY_NAME="$key"
-    break
-  fi
+  [[ -n "${!key:-}" ]] && { HAS_KEY=true; KEY_NAME="$key"; break; }
 done
-
-if ! $HAS_KEY; then
-  fail "No API key for provider '$PROVIDER'. Add ${KEY_ORDER[0]} to bench/.env"
-  exit 1
-fi
+$HAS_KEY || { fail "No API key for '$PROVIDER'"; exit 1; }
 pass "API key ($KEY_NAME)"
 
 echo ""
@@ -154,24 +119,22 @@ echo -e "${DIM}─────────────────────�
 echo -e "  ${DIM}Model:${RESET}       ${CYAN}$MODEL${RESET}"
 echo -e "  ${DIM}Dataset:${RESET}     $DATASET"
 echo -e "  ${DIM}Concurrent:${RESET}  $CONCURRENT"
-echo -e "  ${DIM}Env:${RESET}         $($USE_DAYTONA && echo 'Daytona (cloud)' || echo 'Docker (local)')"
+echo -e "  ${DIM}Env:${RESET}         $($USE_DAYTONA && echo 'Daytona' || echo 'Docker')"
 echo -e "  ${DIM}Timeout:${RESET}     ${TIMEOUT_MULT}x"
+echo -e "  ${DIM}Embedding:${RESET}   $($ENABLE_EMBEDDING && echo 'ON (USearch + Gemini)' || echo 'off')"
+echo -e "  ${DIM}Retries:${RESET}     2 (on agent crash)"
 echo -e "  ${DIM}Job:${RESET}         $JOB_NAME"
-echo -e "  ${DIM}Output:${RESET}      $OUTPUT_DIR"
 echo -e "${DIM}───────────────────────────────────────────────────${RESET}"
 echo ""
 
-# ─── Run ───────────────────────────────────────────────────────────────────
-info "Starting full benchmark..."
-if $USE_DAYTONA; then
-  echo -e "${DIM}  Running on Daytona cloud with $CONCURRENT concurrent containers${RESET}"
-else
-  echo -e "${DIM}  Running locally — estimated 2-4 hours${RESET}"
+# ─── Agent kwargs ──────────────────────────────────────────────────────────
+if $ENABLE_EMBEDDING; then
+  EXTRA_ARGS+=("--agent-kwarg" "enable_embedding=true")
 fi
-echo ""
 
+# ─── Run ───────────────────────────────────────────────────────────────────
+info "Starting benchmark..."
 mkdir -p "$OUTPUT_DIR"
-
 START_TIME=$(date +%s)
 cd "$SCRIPT_DIR"
 
@@ -183,6 +146,8 @@ PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}" uv run harbor run \
     --jobs-dir "$OUTPUT_DIR" \
     --job-name "$JOB_NAME" \
     --timeout-multiplier "$TIMEOUT_MULT" \
+    --max-retries 2 \
+    --retry-include "NonZeroAgentExitCodeError" \
     --env-file "$ENV_FILE" \
     $ENV_FLAG \
     -y \

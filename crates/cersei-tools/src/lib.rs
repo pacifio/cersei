@@ -17,6 +17,7 @@ pub mod file_read;
 pub mod file_write;
 pub mod glob_tool;
 pub mod grep_tool;
+pub mod code_search;
 pub mod notebook_edit;
 pub mod permissions;
 pub mod plan_mode;
@@ -292,6 +293,7 @@ pub fn filesystem() -> Vec<Box<dyn Tool>> {
         Box::new(apply_patch::ApplyPatchTool),
         Box::new(glob_tool::GlobTool),
         Box::new(grep_tool::GrepTool),
+        Box::new(code_search::CodeSearchTool::new()),
         Box::new(notebook_edit::NotebookEditTool),
     ]
 }

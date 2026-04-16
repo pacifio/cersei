@@ -35,7 +35,7 @@ futures = "0.3"
 async-trait = "0.1"
 
 # HTTP
-reqwest = { version = "0.12", features = ["json", "stream", "native-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "rustls-tls-webpki-roots"], default-features = false }
 reqwest-eventsource = "0.6"
 
 # Serialization

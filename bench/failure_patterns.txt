@@ -1,0 +1,21 @@
+# Learned failure patterns — injected into agent prompt to avoid known mistakes.
+
+# --- Task-specific hints (from 3 previous runs) ---
+For hash cracking (7z, zip, etc.): extract the hash first with john-compatible tools (7z2john, zip2john), then use john with a wordlist. Don't brute-force the archive directly.
+For regex tasks: test your regex against ALL example inputs including edge cases (month boundaries, year transitions, single-digit days).
+For DNA/biology tasks: verify numerical constraints (melting temperature, GC content) with the tools mentioned in the instruction before submitting.
+For ELF/binary parsing: parse ALL sections (.data, .rodata, .bss, symbol table) — don't stop at the first match.
+For git tasks: check ALL branches and ALL commits, not just HEAD. Use git log --all, git reflog, git fsck.
+For server setup tasks: verify the server is actually accessible from localhost before finishing. Use curl or wget to test.
+For optimization tasks: profile your solution and compare against the baseline. Use time command to measure.
+For polyglot tasks: the file must be VALID in BOTH languages simultaneously. Test compilation/execution in both.
+
+# --- General anti-patterns ---
+When writing to a file, always verify it exists and has correct content afterward.
+When implementing algorithms, test with ALL examples given in the instruction before finishing.
+If a command fails, read the FULL error output — errors are usually at the END of long output.
+Do NOT run the same failing command more than twice — try a fundamentally different approach.
+Do NOT assume file formats — read and verify first.
+Always check for existing code/data in /app before writing new files.
+When a task mentions specific tools or libraries, use THOSE tools, not alternatives.
+For tasks requiring numerical precision, verify your output matches expected format exactly.

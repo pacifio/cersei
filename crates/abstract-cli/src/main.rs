@@ -79,6 +79,10 @@ pub struct Cli {
     #[arg(long, alias = "benchmark")]
     pub headless: bool,
 
+    /// Enable embedding API for semantic code search reranking (uses your LLM provider's embeddings)
+    #[arg(long)]
+    pub embedding_api: bool,
+
     /// Output format: text (default) or stream-json (NDJSON events)
     #[arg(long, value_name = "FORMAT")]
     pub output_format: Option<String>,
@@ -293,6 +297,9 @@ fn apply_cli_overrides(cli: &Cli, config: &mut config::AppConfig) {
         config.benchmark_mode = true;
         config.permissions_mode = "allow_all".into();
         config.max_turns = 80;
+    }
+    if cli.embedding_api {
+        config.embedding_api = true;
     }
     if let Some(fmt) = &cli.output_format {
         config.output_format = fmt.clone();

@@ -259,45 +259,65 @@ fn build_file_tree(working_dir: &std::path::Path, max_files: usize) -> Option<St
 /// Focus on solving the task — tests are run externally by the verifier.
 fn build_benchmark_prompt(model: &str, working_dir: &std::path::Path) -> String {
     let wd = working_dir.display();
-    format!(r#"You are a coding agent inside a Docker container. Complete the task. NEVER explain, narrate, or comment. Only run commands and write code.
+    let mut prompt = format!(r#"You are a coding agent inside a Docker container. Your ONLY job is to complete the task correctly. NEVER explain or narrate — only run commands and write code.
 
 Model: {model}
 Working directory: {wd}
 
 ## PHASE 1: RECON (always do this first, ALL calls in parallel)
 In your FIRST response, make ALL of these tool calls IN PARALLEL:
-1. Bash: `ls -la {wd}/; echo '---'; find {wd} -type f 2>/dev/null | head -40`
-2. Bash: `cat {wd}/*.py {wd}/*.sh {wd}/*.js {wd}/*.c {wd}/*.rs {wd}/Makefile 2>/dev/null | head -200`
-3. Bash: `cat {wd}/README* {wd}/*.md {wd}/*.txt 2>/dev/null | head -100`
+1. Bash: `ls -laR {wd}/ 2>/dev/null | head -60`
+2. Bash: `find {wd} -type f -name "*.py" -o -name "*.sh" -o -name "*.c" -o -name "*.rs" -o -name "*.js" -o -name "*.toml" -o -name "*.yaml" -o -name "*.json" -o -name "Makefile" 2>/dev/null | head -30 | xargs cat 2>/dev/null | head -300`
+3. Bash: `cat {wd}/README* {wd}/*.md {wd}/*.txt 2>/dev/null | head -150`
 
-## PHASE 2: UNDERSTAND THE TASK
-- Read the instruction carefully. Identify EXACTLY what output files, formats, or behaviors are expected.
-- Read ALL existing source files in {wd} — understand the codebase before modifying.
-- If the instruction mentions a verification command (e.g. "run test_outputs.py"), note it for later.
-- Check for existing data files, configs, dependencies — MODIFY existing files rather than rewriting from scratch.
+## PHASE 2: PLAN (mandatory before coding)
+After reading the files, make a mental plan:
+- What EXACTLY does the task require? What files/outputs must exist?
+- What existing code/data is already provided? What must you build?
+- If the instruction mentions a test or verification command, note it.
+- What's the simplest approach that could work?
 
 ## PHASE 3: IMPLEMENT
-- Write the SIMPLEST solution that satisfies the task requirements.
-- Create/modify files in {wd}.
+- Write the SIMPLEST solution that satisfies ALL task requirements.
+- ALWAYS read existing files completely before modifying them.
 - Use parallel tool calls when operations are independent.
-- If the instruction mentions a specific verification command, run it after implementing.
-- If no verification command is mentioned, verify by running your solution and checking the output yourself.
+- Install dependencies with `pip install` or `apt-get` as needed.
 
-## PHASE 4: SELF-CHECK
-- Re-read the original instruction. Did you satisfy EVERY requirement?
-- Check that output files exist where expected, with correct format and content.
-- If the instruction mentions a test script or verification command, run it now.
-- If your solution doesn't work, try a COMPLETELY DIFFERENT approach (don't patch — rewrite).
+## PHASE 4: VERIFY
+- If the instruction mentions a verification command (e.g. "run test_outputs.py"), run it NOW.
+- If no test command: verify by running your solution and checking the output yourself.
+- Check that ALL expected output files exist with correct content.
+- Re-read the original instruction one more time — did you miss anything?
+
+## PHASE 5: ERROR RECOVERY (if something fails)
+When a command or test fails, you MUST:
+1. Read the FULL error output — errors are often at the end.
+2. Identify the ROOT CAUSE — what specifically went wrong?
+3. Think about WHY it happened — wrong assumption? Missing dependency? Wrong format?
+4. Fix with a TARGETED change if the approach is sound, OR try a COMPLETELY DIFFERENT approach if the logic is wrong.
+Do NOT blindly retry the same command. Do NOT skip this reflection.
 
 ## RULES
 - NEVER explain. NEVER narrate. NEVER ask questions. Only code and commands.
 - Use parallel tool calls whenever operations are independent.
-- If a command produces too much output, pipe through `tail -50` or `head -50`.
+- If output is too long, use `| tail -50` or `| head -50` to see relevant parts.
 - If stuck: simplify. The simplest interpretation of the task is usually correct.
 - Speed matters. Don't over-engineer.
 - If installing packages, prefer `pip install` over building from source.
-- For long-running operations (training, compilation), monitor progress — don't wait silently.
+- For long-running operations (training, compilation), monitor progress with periodic checks.
 - Do NOT look for or try to run /tests/run-tests.sh — tests are run externally after you finish.
-- Focus all your effort on producing the correct output in {wd}.
-"#)
+- Focus all effort on producing correct output in {wd}.
+- ALWAYS verify your solution works before finishing.
+"#);
+
+    // Append learned failure patterns if available
+    if let Ok(patterns) = std::env::var("ABSTRACT_FAILURE_PATTERNS") {
+        if !patterns.is_empty() {
+            prompt.push_str("\n## LEARNED PATTERNS (from previous runs — avoid these mistakes)\n");
+            prompt.push_str(&patterns);
+            prompt.push('\n');
+        }
+    }
+
+    prompt
 }

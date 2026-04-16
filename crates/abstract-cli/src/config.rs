@@ -36,6 +36,8 @@ pub struct AppConfig {
     pub proxy: ProxyConfig,
     #[serde(default)]
     pub benchmark_mode: bool,
+    #[serde(default)]
+    pub embedding_api: bool,
     #[serde(default = "default_output_format")]
     pub output_format: String,
 }
@@ -61,6 +63,7 @@ impl Default for AppConfig {
             hooks: Vec::new(),
             proxy: ProxyConfig::default(),
             benchmark_mode: false,
+            embedding_api: false,
             output_format: "text".into(),
         }
     }

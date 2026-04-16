@@ -27,7 +27,7 @@ from harbor.models.agent.context import AgentContext
 from harbor.models.trial.paths import EnvironmentPaths
 
 
-# Pre-built Linux binary paths (lives next to this file)
+# Pre-built static binaries (lives next to this file)
 _BENCH_DIR = Path(__file__).resolve().parent
 _BINARY_ARM64 = _BENCH_DIR / "abstract-linux-arm64"
 _BINARY_AMD64 = _BENCH_DIR / "abstract-linux-amd64"
@@ -40,6 +40,10 @@ class AbstractAgent(BaseInstalledAgent):
     Copies a pre-built Linux binary into the container for instant setup (~2s).
     Supports any provider/model via --model flag.
     """
+
+    def __init__(self, *args, enable_embedding: bool = False, **kwargs):
+        self._enable_embedding = enable_embedding
+        super().__init__(*args, **kwargs)
 
     ENV_VARS = [
         EnvVar("google_api_key", env="GOOGLE_API_KEY", env_fallback="GOOGLE_API_KEY"),
@@ -68,12 +72,7 @@ class AbstractAgent(BaseInstalledAgent):
         return stdout.strip().removeprefix("abstract").strip()
 
     async def install(self, environment: BaseEnvironment) -> None:
-        """Install Abstract into the container.
-
-        Strategy: try uploading a pre-built static binary (instant).
-        If the binary doesn't match the container arch, fall back to
-        building from source via cargo (2-3 min on cloud, fine for Daytona).
-        """
+        """Upload pre-built static binary matching container architecture."""
         # Detect container architecture
         result = await environment.exec(command="uname -m")
         arch = result.stdout.strip() if result.stdout else ""
@@ -83,47 +82,19 @@ class AbstractAgent(BaseInstalledAgent):
         else:
             binary_path = _BINARY_ARM64
 
-        # Try pre-built binary first
-        if binary_path.exists():
-            await environment.upload_file(
-                source_path=binary_path,
-                target_path="/usr/local/bin/abstract",
+        if not binary_path.exists():
+            raise RuntimeError(
+                f"Binary not found at {binary_path}. "
+                "See TERMINAL_BENCH.md for build instructions."
             )
-            await self.exec_as_root(
-                environment,
-                command="chmod +x /usr/local/bin/abstract",
-            )
-            try:
-                await self.exec_as_agent(
-                    environment,
-                    command="abstract --version",
-                )
-                return  # Binary works
-            except Exception:
-                pass  # Binary incompatible, fall back to source build
 
-        # Fall back: build from source
+        await environment.upload_file(
+            source_path=binary_path,
+            target_path="/usr/local/bin/abstract",
+        )
         await self.exec_as_root(
             environment,
-            command=(
-                "apt-get update -qq && "
-                "apt-get install -y -qq curl build-essential pkg-config libssl-dev git >/dev/null 2>&1 || "
-                "apk add --no-cache curl build-base openssl-dev git pkgconf >/dev/null 2>&1 || true"
-            ),
-            timeout_sec=120,
-        )
-        await self.exec_as_agent(
-            environment,
-            command=(
-                "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>/dev/null && "
-                "source $HOME/.cargo/env && "
-                "cargo install abstract-cli --git https://github.com/pacifio/cersei 2>&1 | tail -3"
-            ),
-            timeout_sec=600,
-        )
-        await self.exec_as_agent(
-            environment,
-            command="source $HOME/.cargo/env && abstract --version",
+            command="chmod +x /usr/local/bin/abstract",
         )
 
     @with_prompt_template
@@ -139,7 +110,21 @@ class AbstractAgent(BaseInstalledAgent):
         if self.model_name:
             model_flag = f"--model {self.model_name} "
 
+        embedding_flag = "--embedding-api " if self._enable_embedding else ""
+
         env = self.resolve_env_vars()
+
+        # Inject learned failure patterns if available
+        patterns_file = _BENCH_DIR / "failure_patterns.txt"
+        if patterns_file.exists():
+            patterns = patterns_file.read_text()
+            # Filter out comments and empty lines, take first 20 patterns
+            active_patterns = [
+                line.strip() for line in patterns.splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ][:20]
+            if active_patterns:
+                env["ABSTRACT_FAILURE_PATTERNS"] = "\n".join(active_patterns)
 
         output_path = EnvironmentPaths.agent_dir / "abstract-output.jsonl"
 
@@ -148,6 +133,7 @@ class AbstractAgent(BaseInstalledAgent):
             command=(
                 f"abstract -p {escaped} "
                 f"{model_flag}"
+                f"{embedding_flag}"
                 "--no-permissions "
                 "--headless "
                 "--output-format stream-json "
