@@ -24,9 +24,13 @@ pub struct Anthropic {
 
 impl Anthropic {
     pub fn new(auth: Auth) -> Self {
+        let base_url = std::env::var("ANTHROPIC_BASE_URL")
+            .ok()
+            .filter(|u| !u.is_empty())
+            .unwrap_or_else(|| ANTHROPIC_API_BASE.to_string());
         Self {
             auth,
-            base_url: ANTHROPIC_API_BASE.to_string(),
+            base_url,
             default_model: "claude-sonnet-4-6".to_string(),
             thinking_budget: None,
             max_retries: 5,

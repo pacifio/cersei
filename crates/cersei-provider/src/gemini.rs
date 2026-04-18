@@ -22,9 +22,13 @@ pub struct Gemini {
 
 impl Gemini {
     pub fn new(api_key: impl Into<String>) -> Self {
+        let base_url = std::env::var("GEMINI_BASE_URL")
+            .ok()
+            .filter(|u| !u.is_empty())
+            .unwrap_or_else(|| GEMINI_API_BASE.to_string());
         Self {
             api_key: api_key.into(),
-            base_url: GEMINI_API_BASE.to_string(),
+            base_url,
             default_model: "gemini-3.1-pro-preview".to_string(),
             client: reqwest::Client::new(),
         }

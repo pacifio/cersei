@@ -16,9 +16,13 @@ pub struct OpenAi {
 
 impl OpenAi {
     pub fn new(auth: Auth) -> Self {
+        let base_url = std::env::var("OPENAI_BASE_URL")
+            .ok()
+            .filter(|u| !u.is_empty())
+            .unwrap_or_else(|| OPENAI_API_BASE.to_string());
         Self {
             auth,
-            base_url: OPENAI_API_BASE.to_string(),
+            base_url,
             default_model: "gpt-4o".to_string(),
             client: reqwest::Client::new(),
         }
