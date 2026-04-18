@@ -1,0 +1,7 @@
+Selected strategy: _DaytonaDirect
+Using prebuilt image: alexgshaw/crack-7z-hash:20251031
+Running command: chmod +x /usr/local/bin/abstract
+Command outputs captured
+Running command: abstract -p 'You need to create a file called "/app/solution.txt" with the word found in "secret_file.txt" in the "secrets.7z" archive.
+' --model google/gemini-3.1-pro-preview --embedding-api --no-permissions --headless --output-format stream-json 2>&1 | tee /logs/agent/abstract-output.jsonl
+Command outputs captured

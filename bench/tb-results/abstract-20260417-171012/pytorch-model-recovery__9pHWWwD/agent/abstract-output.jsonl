@@ -1,0 +1,5 @@
+error: unexpected argument '- ' found
+
+Usage: abstract [OPTIONS] [COMMAND]
+
+For more information, try '--help'.

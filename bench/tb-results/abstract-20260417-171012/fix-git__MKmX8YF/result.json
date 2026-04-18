@@ -1,0 +1,105 @@
+{
+    "id": "a3b1a5ae-7c08-47f1-a682-920f7f1cf054",
+    "task_name": "fix-git",
+    "trial_name": "fix-git__MKmX8YF",
+    "trial_uri": "file:///Users/adib/Desktop/ml/cersei/bench/tb-results/abstract-20260417-171012/fix-git__MKmX8YF",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "fix-git"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "7fa0a681f751d73f290d862522a82a5e448fa529834987ee1b80e5665c51aa7e",
+    "config": {
+        "task": {
+            "path": "fix-git",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "fix-git__MKmX8YF",
+        "trials_dir": "/Users/adib/Desktop/ml/cersei/bench/tb-results/abstract-20260417-171012",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": null,
+            "import_path": "abstract_tbench:AbstractAgent",
+            "model_name": "google/gemini-3.1-pro-preview",
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "kwargs": {
+                "enable_embedding": true
+            },
+            "env": {}
+        },
+        "environment": {
+            "type": "daytona",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "suppress_override_warnings": false,
+            "mounts_json": null,
+            "env": {},
+            "kwargs": {}
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "job_id": "9c34ccec-add3-48d7-87bc-99a1df894d55"
+    },
+    "agent_info": {
+        "name": "abstract",
+        "version": "0.1.6",
+        "model_info": {
+            "name": "gemini-3.1-pro-preview",
+            "provider": "google"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 177146,
+        "n_cache_tokens": null,
+        "n_output_tokens": 668,
+        "cost_usd": 0.0,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-04-17T11:19:38.440599Z",
+    "finished_at": "2026-04-17T11:21:27.363483Z",
+    "environment_setup": {
+        "started_at": "2026-04-17T11:19:38.445093Z",
+        "finished_at": "2026-04-17T11:19:41.832377Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-04-17T11:19:41.832394Z",
+        "finished_at": "2026-04-17T11:19:53.164893Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-04-17T11:19:53.164968Z",
+        "finished_at": "2026-04-17T11:21:11.816024Z"
+    },
+    "verifier": {
+        "started_at": "2026-04-17T11:21:15.873144Z",
+        "finished_at": "2026-04-17T11:21:26.149414Z"
+    }
+}

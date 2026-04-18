@@ -1,0 +1,53 @@
+{
+    "results": {
+        "tool": {
+            "name": "pytest",
+            "version": "8.4.1"
+        },
+        "summary": {
+            "tests": 3,
+            "passed": 1,
+            "failed": 2,
+            "skipped": 0,
+            "pending": 0,
+            "other": 0,
+            "start": 1776426530.6300118,
+            "stop": 1776426531.2714877
+        },
+        "tests": [
+            {
+                "name": "test_outputs.py::test_removal_of_secret_information",
+                "status": "failed",
+                "raw_status": "call_failed",
+                "duration": 0.0008537378162145615,
+                "start": 1776426530.8237178,
+                "stop": 1776426530.8396227,
+                "retries": 0,
+                "file_path": "test_outputs.py",
+                "trace": "def test_removal_of_secret_information():\n        for contaminated_path in CONTAMINATED_PATHS:\n            with open(contaminated_path, \"r\") as file:\n                contaminated_text = file.read()\n    \n>           assert FAKE_AWS_ACCESS_KEY_ID.lower() not in contaminated_text.lower()\nE           assert 'akia1234567890123456' not in '# an unique...$user /tmp\\n'\nE             \nE             'akia1234567890123456' is contained here:\nE               ss_key_id=akia1234567890123456' >> ~/.bashrc\nE                   - echo 'export aws_secret_access_key=d4w8z9wkn1avet3bpqj6kiun7wh8x0m9kfv5oqzf' >> ~/.bashrc\nE                   - pip install --upgrade pip setuptools wheel\nE                   - pip install -u \"ray[default] @ https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp310-cp310-manylinux2014_x86_64.whl\"\nE                   - pip install boto3==1.26.90...\nE             \nE             ...Full output truncated (14 lines hidden), use '-vv' to show\n\n/tests/test_outputs.py:27: AssertionError",
+                "message": "The test failed in the call phase due to an assertion error"
+            },
+            {
+                "name": "test_outputs.py::test_correct_replacement_of_secret_information",
+                "status": "failed",
+                "raw_status": "call_failed",
+                "duration": 0.0009502209722995758,
+                "start": 1776426530.8397896,
+                "stop": 1776426530.842554,
+                "retries": 0,
+                "file_path": "test_outputs.py",
+                "trace": "def test_correct_replacement_of_secret_information():\n        CONTAMINATED_PATHS = [\n            \"/app/dclm/ray_processing/ray_cluster.yaml\",\n            \"/app/dclm/ray_processing/process.py\",\n            \"/app/dclm/exp_data/datasets/tokenized/\"\n            \"rw_v2_fasttext_openhermes_vs_rw_v2_bigram_0.1_arcade100k.json\",\n        ]\n        DECONTAMINATED_PATHS = [\n            Path(__file__).parent / \"ray_cluster.yaml\",\n            Path(__file__).parent / \"process.py\",\n            Path(__file__).parent\n            / (\"rw_v2_fasttext_openhermes_vs_rw_v2_bigram_0.1_arcade100k.json\"),\n        ]\n    \n        for contaminated_path, decontaminated_path in zip(\n            CONTAMINATED_PATHS, DECONTAMINATED_PATHS\n        ):\n            with open(contaminated_path, \"r\") as file:\n                contaminated_text = file.read()\n    \n            with open(decontaminated_path, \"r\") as file:\n                decontaminated_text = file.read()\n    \n>           assert contaminated_text == decontaminated_text\nE           AssertionError: assert '# An unique ... $USER /tmp\\n' == '# An unique ... $USER /tmp\\n'\nE             \nE             Skipping 1098 identical leading characters in diff, use -v to show\nE             - SS_KEY_ID=<your-aws-access-key-id>' >> ~/.bashrc\nE             -     - echo 'export AWS_SECRET_ACCESS_KEY=<your-aws-secret-access-key>' >> ~/.bashrc\nE             + SS_KEY_ID=AKIA_REDACTED' >> ~/.bashrc\nE             +     - echo 'export AWS_SECRET_ACCESS_KEY=D4w8z9wKN1aVeT3BpQj6kIuN7wH8X0M9KfV5OqzF' >> ~/.bashrc\nE                   - pip install --upgrade pip setuptools wheel...\nE             \nE             ...Full output truncated (18 lines hidden), use '-vv' to show\n\n/tests/test_outputs.py:57: AssertionError",
+                "message": "The test failed in the call phase due to an assertion error"
+            },
+            {
+                "name": "test_outputs.py::test_no_other_files_changed",
+                "status": "passed",
+                "duration": 0.4283860772848129,
+                "start": 1776426530.8426907,
+                "stop": 1776426531.2712915,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            }
+        ]
+    }
+}

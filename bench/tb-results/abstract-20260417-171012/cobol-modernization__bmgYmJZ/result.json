@@ -1,0 +1,105 @@
+{
+    "id": "2c6b79ac-58e9-4dec-b962-d01fb48edc61",
+    "task_name": "cobol-modernization",
+    "trial_name": "cobol-modernization__bmgYmJZ",
+    "trial_uri": "file:///Users/adib/Desktop/ml/cersei/bench/tb-results/abstract-20260417-171012/cobol-modernization__bmgYmJZ",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "cobol-modernization"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "f8220a33bf193106989df1a28e4806985b12e5f93dcf07efb86acd8dbbc44f6a",
+    "config": {
+        "task": {
+            "path": "cobol-modernization",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "cobol-modernization__bmgYmJZ",
+        "trials_dir": "/Users/adib/Desktop/ml/cersei/bench/tb-results/abstract-20260417-171012",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": null,
+            "import_path": "abstract_tbench:AbstractAgent",
+            "model_name": "google/gemini-3.1-pro-preview",
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "kwargs": {
+                "enable_embedding": true
+            },
+            "env": {}
+        },
+        "environment": {
+            "type": "daytona",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "suppress_override_warnings": false,
+            "mounts_json": null,
+            "env": {},
+            "kwargs": {}
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "job_id": "9c34ccec-add3-48d7-87bc-99a1df894d55"
+    },
+    "agent_info": {
+        "name": "abstract",
+        "version": "0.1.6",
+        "model_info": {
+            "name": "gemini-3.1-pro-preview",
+            "provider": "google"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 1594489,
+        "n_cache_tokens": null,
+        "n_output_tokens": 12267,
+        "cost_usd": 0.0,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-04-17T11:17:09.952517Z",
+    "finished_at": "2026-04-17T11:25:16.338738Z",
+    "environment_setup": {
+        "started_at": "2026-04-17T11:17:09.953835Z",
+        "finished_at": "2026-04-17T11:17:12.252425Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-04-17T11:17:12.252440Z",
+        "finished_at": "2026-04-17T11:17:24.917947Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-04-17T11:17:24.918021Z",
+        "finished_at": "2026-04-17T11:24:58.870247Z"
+    },
+    "verifier": {
+        "started_at": "2026-04-17T11:25:04.123504Z",
+        "finished_at": "2026-04-17T11:25:14.938867Z"
+    }
+}

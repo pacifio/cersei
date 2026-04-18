@@ -1,0 +1,80 @@
+{
+    "job_name": "abstract-20260417-171012",
+    "jobs_dir": "/Users/adib/Desktop/ml/cersei/bench/tb-results",
+    "n_attempts": 1,
+    "timeout_multiplier": 1.0,
+    "agent_timeout_multiplier": null,
+    "verifier_timeout_multiplier": null,
+    "agent_setup_timeout_multiplier": null,
+    "environment_build_timeout_multiplier": null,
+    "debug": false,
+    "n_concurrent_trials": 20,
+    "quiet": false,
+    "retry": {
+        "max_retries": 2,
+        "include_exceptions": [
+            "NonZeroAgentExitCodeError"
+        ],
+        "exclude_exceptions": [
+            "VerifierTimeoutError",
+            "AgentTimeoutError",
+            "VerifierOutputParseError",
+            "RewardFileEmptyError",
+            "RewardFileNotFoundError"
+        ],
+        "wait_multiplier": 1.0,
+        "min_wait_sec": 1.0,
+        "max_wait_sec": 60.0
+    },
+    "environment": {
+        "type": "daytona",
+        "import_path": null,
+        "force_build": false,
+        "delete": true,
+        "override_cpus": null,
+        "override_memory_mb": null,
+        "override_storage_mb": null,
+        "override_gpus": null,
+        "suppress_override_warnings": false,
+        "mounts_json": null,
+        "env": {},
+        "kwargs": {}
+    },
+    "verifier": {
+        "override_timeout_sec": null,
+        "max_timeout_sec": null,
+        "disable": false
+    },
+    "metrics": [],
+    "agents": [
+        {
+            "name": null,
+            "import_path": "abstract_tbench:AbstractAgent",
+            "model_name": "google/gemini-3.1-pro-preview",
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "kwargs": {
+                "enable_embedding": true
+            },
+            "env": {}
+        }
+    ],
+    "datasets": [
+        {
+            "path": null,
+            "name": "terminal-bench",
+            "version": "2.0",
+            "ref": null,
+            "registry_url": null,
+            "registry_path": null,
+            "overwrite": false,
+            "download_dir": null,
+            "task_names": null,
+            "exclude_task_names": null,
+            "n_tasks": null
+        }
+    ],
+    "tasks": [],
+    "artifacts": []
+}

@@ -1,0 +1,86 @@
+Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8792 kB]
+Get:5 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [294 kB]
+Fetched 9340 kB in 1s (9535 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libcurl4
+The following NEW packages will be installed:
+  curl libcurl4
+0 upgraded, 2 newly installed, 0 to remove and 28 not upgraded.
+Need to get 707 kB of archives.
+After this operation, 1361 kB of additional disk space will be used.
+Get:1 http://deb.debian.org/debian bookworm/main amd64 libcurl4 amd64 7.88.1-10+deb12u14 [392 kB]
+Get:2 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10+deb12u14 [316 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 707 kB in 0s (21.4 MB/s)
+Selecting previously unselected package libcurl4:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 10322 files and directories currently installed.)
+Preparing to unpack .../libcurl4_7.88.1-10+deb12u14_amd64.deb ...
+Unpacking libcurl4:amd64 (7.88.1-10+deb12u14) ...
+Selecting previously unselected package curl.
+Preparing to unpack .../curl_7.88.1-10+deb12u14_amd64.deb ...
+Unpacking curl (7.88.1-10+deb12u14) ...
+Setting up libcurl4:amd64 (7.88.1-10+deb12u14) ...
+Setting up curl (7.88.1-10+deb12u14) ...
+Processing triggers for libc-bin (2.36-9+deb12u10) ...
+downloading uv 0.9.5 x86_64-unknown-linux-gnu
+no checksums to verify
+installing to /root/.local/bin
+  uv
+  uvx
+everything's installed!
+
+To add $HOME/.local/bin to your PATH, either restart your shell or run:
+
+    source $HOME/.local/bin/env (sh, bash, zsh)
+    source $HOME/.local/bin/env.fish (fish)
+Downloading pygments (1.2MiB)
+ Downloading pygments
+Installed 6 packages in 24ms
+============================= test session starts ==============================
+platform linux -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0
+rootdir: /tests
+plugins: json-ctrf-0.3.5
+collected 2 items
+
+../../tests/test_outputs.py F.                                           [100%]
+
+=================================== FAILURES ===================================
+_______________________________ test_about_file ________________________________
+
+    def test_about_file():
+        """
+        Test that the about file content is correct
+        """
+        ABOUT_FILE_PATH_OLD = "/app/resources/patch_files/about.md"
+        ABOUT_FILE_PATH_NEW = "/app/personal-site/_includes/about.md"
+>       compare_file_hashes(ABOUT_FILE_PATH_OLD, ABOUT_FILE_PATH_NEW)
+
+/tests/test_outputs.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path_a = '/app/resources/patch_files/about.md'
+path_b = '/app/personal-site/_includes/about.md'
+
+    def compare_file_hashes(path_a, path_b):
+>       assert hash_file(path_a) == hash_file(path_b), (
+            f"File {path_a} is not in the correct state"
+        )
+E       AssertionError: File /app/resources/patch_files/about.md is not in the correct state
+E       assert '0273104059c6...67b8847b22946' == '4e4c57a3b5df...622be4bd57300'
+E         
+E         - 4e4c57a3b5dfba71913622be4bd57300
+E         + 0273104059c6bf524e767b8847b22946
+
+/tests/test_outputs.py:19: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED ../../tests/test_outputs.py::test_layout_file
+FAILED ../../tests/test_outputs.py::test_about_file - AssertionError: File /a...
+========================= 1 failed, 1 passed in 0.07s ==========================

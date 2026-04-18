@@ -1,0 +1,105 @@
+{
+    "id": "be7f8f6a-1939-45ea-a214-e5d2e1e96f4d",
+    "task_name": "sam-cell-seg",
+    "trial_name": "sam-cell-seg__zamjVbT",
+    "trial_uri": "file:///Users/adib/Desktop/ml/cersei/bench/tb-results/abstract-20260417-171012/sam-cell-seg__zamjVbT",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "sam-cell-seg"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "1bc7f69e2e775b9ceac4b65975556b8c838b2d77cc0f50b01162adfea1630eb5",
+    "config": {
+        "task": {
+            "path": "sam-cell-seg",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "sam-cell-seg__zamjVbT",
+        "trials_dir": "/Users/adib/Desktop/ml/cersei/bench/tb-results/abstract-20260417-171012",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": null,
+            "import_path": "abstract_tbench:AbstractAgent",
+            "model_name": "google/gemini-3.1-pro-preview",
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "kwargs": {
+                "enable_embedding": true
+            },
+            "env": {}
+        },
+        "environment": {
+            "type": "daytona",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "suppress_override_warnings": false,
+            "mounts_json": null,
+            "env": {},
+            "kwargs": {}
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "job_id": "9c34ccec-add3-48d7-87bc-99a1df894d55"
+    },
+    "agent_info": {
+        "name": "abstract",
+        "version": "0.1.6",
+        "model_info": {
+            "name": "gemini-3.1-pro-preview",
+            "provider": "google"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 379020,
+        "n_cache_tokens": null,
+        "n_output_tokens": 3891,
+        "cost_usd": 0.0,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-04-17T11:45:23.105280Z",
+    "finished_at": "2026-04-17T11:51:30.300283Z",
+    "environment_setup": {
+        "started_at": "2026-04-17T11:45:23.110505Z",
+        "finished_at": "2026-04-17T11:45:25.840587Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-04-17T11:45:25.840612Z",
+        "finished_at": "2026-04-17T11:45:37.905772Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-04-17T11:45:37.905879Z",
+        "finished_at": "2026-04-17T11:50:55.360950Z"
+    },
+    "verifier": {
+        "started_at": "2026-04-17T11:51:03.308936Z",
+        "finished_at": "2026-04-17T11:51:29.414374Z"
+    }
+}

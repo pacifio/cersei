@@ -1,0 +1,134 @@
+{
+    "id": "9c34ccec-add3-48d7-87bc-99a1df894d55",
+    "started_at": "2026-04-17T17:10:17.454002",
+    "finished_at": "2026-04-17T19:17:47.946814",
+    "n_total_trials": 89,
+    "stats": {
+        "n_trials": 89,
+        "n_errors": 9,
+        "evals": {
+            "abstract__gemini-3.1-pro-preview__terminal-bench": {
+                "n_trials": 88,
+                "n_errors": 9,
+                "metrics": [
+                    {
+                        "mean": 0.5393258426966292
+                    }
+                ],
+                "reward_stats": {
+                    "reward": {
+                        "1.0": [
+                            "gpt2-codegolf__SJ84jcZ",
+                            "llm-inference-batching-scheduler__75uYzLB",
+                            "break-filter-js-from-html__5UHRqnL",
+                            "winning-avg-corewars__A4X8Vwx",
+                            "log-summary-date-ranges__p7oF2BH",
+                            "largest-eigenval__v7Lrpr5",
+                            "password-recovery__tgq8Yut",
+                            "portfolio-optimization__ygSjpNJ",
+                            "modernize-scientific-stack__jjdYADJ",
+                            "path-tracing__s9bYZcT",
+                            "prove-plus-comm__xpx3S4E",
+                            "feal-linear-cryptanalysis__zREakN9",
+                            "distribution-search__dAp6iS4",
+                            "pypi-server__vWL9Gui",
+                            "custom-memory-heap-crash__bmzCNjQ",
+                            "adaptive-rejection-sampler__e2FfnVk",
+                            "multi-source-data-merger__NRQunjs",
+                            "chess-best-move__4hH9ASm",
+                            "cobol-modernization__bmgYmJZ",
+                            "overfull-hbox__zKJTgpP",
+                            "polyglot-rust-c__TY8WK87",
+                            "compile-compcert__HuL8hWb",
+                            "headless-terminal__B5KTK4s",
+                            "schemelike-metacircular-eval__MgN8zqG",
+                            "qemu-startup__FyZGNoJ",
+                            "video-processing__6nUBriF",
+                            "qemu-alpine-ssh__cShrLJV",
+                            "kv-store-grpc__gA8NpDq",
+                            "tune-mjcf__SMnJVJ9",
+                            "circuit-fibsqrt__S6GVCvD",
+                            "mailman__GZV6ZDh",
+                            "query-optimize__FRDRLsi",
+                            "extract-elf__NUYXyBA",
+                            "code-from-image__BkYqY8b",
+                            "fix-code-vulnerability__dEUu597",
+                            "mcmc-sampling-stan__ijwPGpY",
+                            "feal-differential-cryptanalysis__si7QBPq",
+                            "cancel-async-tasks__Moi9y9T",
+                            "bn-fit-modify__ekFeKJF",
+                            "git-leak-recovery__URu68o8",
+                            "build-cython-ext__RU343Wi",
+                            "nginx-request-logging__MevhbKH",
+                            "large-scale-text-editing__PtCdZcx",
+                            "sqlite-db-truncate__KAtk2Wk",
+                            "build-pmars__kqeEsqN",
+                            "openssl-selfsigned-cert__SrFfSwq",
+                            "constraints-scheduling__kpvphZW",
+                            "vulnerable-secret__PkMPgJy"
+                        ],
+                        "0.0": [
+                            "write-compressor__XWthUXz",
+                            "merge-diff-arc-agi-task__XYvName",
+                            "pytorch-model-cli__SyMTrar",
+                            "path-tracing-reverse__zzR8XnS",
+                            "regex-chess__T7KEYrE",
+                            "torch-tensor-parallelism__7arj5ni",
+                            "caffe-cifar-10__PWuRyKp",
+                            "mteb-retrieve__GUfqDTU",
+                            "configure-git-webserver__qkvKwo3",
+                            "crack-7z-hash__2Ro5vAk",
+                            "hf-model-inference__Dm4wVh9",
+                            "db-wal-recovery__AeAvRGa",
+                            "fix-git__MKmX8YF",
+                            "build-pov-ray__58kodx4",
+                            "git-multibranch__gcsTZiq",
+                            "train-fasttext__TAT5BxS",
+                            "install-windows-3.11__r7iseAZ",
+                            "make-doom-for-mips__BXD9p7b",
+                            "torch-pipeline-parallelism__7ddbHbx",
+                            "extract-moves-from-video__H3pkfFy",
+                            "gcode-to-text__3gQt4rT",
+                            "make-mips-interpreter__7kKrSZK",
+                            "count-dataset-tokens__6VFYRkd",
+                            "mteb-leaderboard__MuNf6Ub",
+                            "raman-fitting__Y7eyXHk",
+                            "protein-assembly__DacW6cW",
+                            "financial-document-processor__o8BZAhe",
+                            "regex-log__gRhRxMG",
+                            "filter-js-from-html__5a7SVhU",
+                            "polyglot-c-py__NLUAywp",
+                            "fix-ocaml-gc__hRP4P74",
+                            "pytorch-model-recovery__9pHWWwD",
+                            "sam-cell-seg__zamjVbT",
+                            "model-extraction-relu-logits__mDsZYE5",
+                            "sparql-university__Z43DMJi",
+                            "sanitize-git-repo__XzQ6cQF",
+                            "rstan-to-pystan__oSEWg3k",
+                            "sqlite-with-gcov__t4DJwMc",
+                            "dna-insert__V33xcch",
+                            "dna-assembly__CmvYCcS"
+                        ]
+                    }
+                },
+                "exception_stats": {
+                    "VerifierTimeoutError": [
+                        "reshard-c4-data__JHPLch9"
+                    ],
+                    "AgentTimeoutError": [
+                        "caffe-cifar-10__PWuRyKp",
+                        "mteb-retrieve__GUfqDTU",
+                        "hf-model-inference__Dm4wVh9",
+                        "train-fasttext__TAT5BxS",
+                        "count-dataset-tokens__6VFYRkd",
+                        "protein-assembly__DacW6cW",
+                        "model-extraction-relu-logits__mDsZYE5"
+                    ],
+                    "NonZeroAgentExitCodeError": [
+                        "pytorch-model-recovery__9pHWWwD"
+                    ]
+                }
+            }
+        }
+    }
+}

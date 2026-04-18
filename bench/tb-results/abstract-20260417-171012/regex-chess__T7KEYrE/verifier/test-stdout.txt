@@ -1,0 +1,359 @@
+Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8792 kB]
+Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [294 kB]
+Fetched 9347 kB in 1s (9790 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  krb5-locales libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3 libkeyutils1
+  libkrb5-3 libkrb5support0 libldap-2.5-0 libldap-common libnghttp2-14 libpsl5
+  librtmp1 libsasl2-2 libsasl2-modules libsasl2-modules-db libssh2-1
+  publicsuffix
+Suggested packages:
+  krb5-doc krb5-user libsasl2-modules-gssapi-mit
+  | libsasl2-modules-gssapi-heimdal libsasl2-modules-ldap libsasl2-modules-otp
+  libsasl2-modules-sql
+The following NEW packages will be installed:
+  curl krb5-locales libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3
+  libkeyutils1 libkrb5-3 libkrb5support0 libldap-2.5-0 libldap-common
+  libnghttp2-14 libpsl5 librtmp1 libsasl2-2 libsasl2-modules
+  libsasl2-modules-db libssh2-1 publicsuffix
+0 upgraded, 19 newly installed, 0 to remove and 26 not upgraded.
+Need to get 2493 kB of archives.
+After this operation, 6813 kB of additional disk space will be used.
+Get:1 http://deb.debian.org/debian bookworm/main amd64 krb5-locales all 1.20.1-2+deb12u4 [63.4 kB]
+Get:2 http://deb.debian.org/debian bookworm/main amd64 libbrotli1 amd64 1.0.9-2+b6 [275 kB]
+Get:3 http://deb.debian.org/debian bookworm/main amd64 libkrb5support0 amd64 1.20.1-2+deb12u4 [33.2 kB]
+Get:4 http://deb.debian.org/debian bookworm/main amd64 libk5crypto3 amd64 1.20.1-2+deb12u4 [79.8 kB]
+Get:5 http://deb.debian.org/debian bookworm/main amd64 libkeyutils1 amd64 1.6.3-2 [8808 B]
+Get:6 http://deb.debian.org/debian bookworm/main amd64 libkrb5-3 amd64 1.20.1-2+deb12u4 [334 kB]
+Get:7 http://deb.debian.org/debian bookworm/main amd64 libgssapi-krb5-2 amd64 1.20.1-2+deb12u4 [135 kB]
+Get:8 http://deb.debian.org/debian bookworm/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg-10 [20.3 kB]
+Get:9 http://deb.debian.org/debian bookworm/main amd64 libsasl2-2 amd64 2.1.28+dfsg-10 [59.7 kB]
+Get:10 http://deb.debian.org/debian bookworm/main amd64 libldap-2.5-0 amd64 2.5.13+dfsg-5 [183 kB]
+Get:11 http://deb.debian.org/debian bookworm/main amd64 libnghttp2-14 amd64 1.52.0-1+deb12u2 [73.0 kB]
+Get:12 http://deb.debian.org/debian bookworm/main amd64 libpsl5 amd64 0.21.2-1 [58.7 kB]
+Get:13 http://deb.debian.org/debian bookworm/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2+b2 [60.8 kB]
+Get:14 http://deb.debian.org/debian bookworm/main amd64 libssh2-1 amd64 1.10.0-3+b1 [179 kB]
+Get:15 http://deb.debian.org/debian bookworm/main amd64 libcurl4 amd64 7.88.1-10+deb12u14 [392 kB]
+Get:16 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10+deb12u14 [316 kB]
+Get:17 http://deb.debian.org/debian bookworm/main amd64 libldap-common all 2.5.13+dfsg-5 [29.3 kB]
+Get:18 http://deb.debian.org/debian bookworm/main amd64 libsasl2-modules amd64 2.1.28+dfsg-10 [66.6 kB]
+Get:19 http://deb.debian.org/debian bookworm/main amd64 publicsuffix all 20230209.2326-1 [126 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 2493 kB in 0s (35.4 MB/s)
+Selecting previously unselected package krb5-locales.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6632 files and directories currently installed.)
+Preparing to unpack .../00-krb5-locales_1.20.1-2+deb12u4_all.deb ...
+Unpacking krb5-locales (1.20.1-2+deb12u4) ...
+Selecting previously unselected package libbrotli1:amd64.
+Preparing to unpack .../01-libbrotli1_1.0.9-2+b6_amd64.deb ...
+Unpacking libbrotli1:amd64 (1.0.9-2+b6) ...
+Selecting previously unselected package libkrb5support0:amd64.
+Preparing to unpack .../02-libkrb5support0_1.20.1-2+deb12u4_amd64.deb ...
+Unpacking libkrb5support0:amd64 (1.20.1-2+deb12u4) ...
+Selecting previously unselected package libk5crypto3:amd64.
+Preparing to unpack .../03-libk5crypto3_1.20.1-2+deb12u4_amd64.deb ...
+Unpacking libk5crypto3:amd64 (1.20.1-2+deb12u4) ...
+Selecting previously unselected package libkeyutils1:amd64.
+Preparing to unpack .../04-libkeyutils1_1.6.3-2_amd64.deb ...
+Unpacking libkeyutils1:amd64 (1.6.3-2) ...
+Selecting previously unselected package libkrb5-3:amd64.
+Preparing to unpack .../05-libkrb5-3_1.20.1-2+deb12u4_amd64.deb ...
+Unpacking libkrb5-3:amd64 (1.20.1-2+deb12u4) ...
+Selecting previously unselected package libgssapi-krb5-2:amd64.
+Preparing to unpack .../06-libgssapi-krb5-2_1.20.1-2+deb12u4_amd64.deb ...
+Unpacking libgssapi-krb5-2:amd64 (1.20.1-2+deb12u4) ...
+Selecting previously unselected package libsasl2-modules-db:amd64.
+Preparing to unpack .../07-libsasl2-modules-db_2.1.28+dfsg-10_amd64.deb ...
+Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...
+Selecting previously unselected package libsasl2-2:amd64.
+Preparing to unpack .../08-libsasl2-2_2.1.28+dfsg-10_amd64.deb ...
+Unpacking libsasl2-2:amd64 (2.1.28+dfsg-10) ...
+Selecting previously unselected package libldap-2.5-0:amd64.
+Preparing to unpack .../09-libldap-2.5-0_2.5.13+dfsg-5_amd64.deb ...
+Unpacking libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...
+Selecting previously unselected package libnghttp2-14:amd64.
+Preparing to unpack .../10-libnghttp2-14_1.52.0-1+deb12u2_amd64.deb ...
+Unpacking libnghttp2-14:amd64 (1.52.0-1+deb12u2) ...
+Selecting previously unselected package libpsl5:amd64.
+Preparing to unpack .../11-libpsl5_0.21.2-1_amd64.deb ...
+Unpacking libpsl5:amd64 (0.21.2-1) ...
+Selecting previously unselected package librtmp1:amd64.
+Preparing to unpack .../12-librtmp1_2.4+20151223.gitfa8646d.1-2+b2_amd64.deb ...
+Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+Selecting previously unselected package libssh2-1:amd64.
+Preparing to unpack .../13-libssh2-1_1.10.0-3+b1_amd64.deb ...
+Unpacking libssh2-1:amd64 (1.10.0-3+b1) ...
+Selecting previously unselected package libcurl4:amd64.
+Preparing to unpack .../14-libcurl4_7.88.1-10+deb12u14_amd64.deb ...
+Unpacking libcurl4:amd64 (7.88.1-10+deb12u14) ...
+Selecting previously unselected package curl.
+Preparing to unpack .../15-curl_7.88.1-10+deb12u14_amd64.deb ...
+Unpacking curl (7.88.1-10+deb12u14) ...
+Selecting previously unselected package libldap-common.
+Preparing to unpack .../16-libldap-common_2.5.13+dfsg-5_all.deb ...
+Unpacking libldap-common (2.5.13+dfsg-5) ...
+Selecting previously unselected package libsasl2-modules:amd64.
+Preparing to unpack .../17-libsasl2-modules_2.1.28+dfsg-10_amd64.deb ...
+Unpacking libsasl2-modules:amd64 (2.1.28+dfsg-10) ...
+Selecting previously unselected package publicsuffix.
+Preparing to unpack .../18-publicsuffix_20230209.2326-1_all.deb ...
+Unpacking publicsuffix (20230209.2326-1) ...
+Setting up libkeyutils1:amd64 (1.6.3-2) ...
+Setting up libpsl5:amd64 (0.21.2-1) ...
+Setting up libbrotli1:amd64 (1.0.9-2+b6) ...
+Setting up libsasl2-modules:amd64 (2.1.28+dfsg-10) ...
+Setting up libnghttp2-14:amd64 (1.52.0-1+deb12u2) ...
+Setting up krb5-locales (1.20.1-2+deb12u4) ...
+Setting up libldap-common (2.5.13+dfsg-5) ...
+Setting up libkrb5support0:amd64 (1.20.1-2+deb12u4) ...
+Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...
+Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+Setting up libk5crypto3:amd64 (1.20.1-2+deb12u4) ...
+Setting up libsasl2-2:amd64 (2.1.28+dfsg-10) ...
+Setting up libssh2-1:amd64 (1.10.0-3+b1) ...
+Setting up libkrb5-3:amd64 (1.20.1-2+deb12u4) ...
+Setting up publicsuffix (20230209.2326-1) ...
+Setting up libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...
+Setting up libgssapi-krb5-2:amd64 (1.20.1-2+deb12u4) ...
+Setting up libcurl4:amd64 (7.88.1-10+deb12u14) ...
+Setting up curl (7.88.1-10+deb12u14) ...
+Processing triggers for libc-bin (2.36-9+deb12u10) ...
+downloading uv 0.9.5 x86_64-unknown-linux-gnu
+no checksums to verify
+installing to /root/.local/bin
+  uv
+  uvx
+everything's installed!
+
+To add $HOME/.local/bin to your PATH, either restart your shell or run:
+
+    source $HOME/.local/bin/env (sh, bash, zsh)
+    source $HOME/.local/bin/env.fish (fish)
+   Building chess==1.11.2
+Downloading pygments (1.2MiB)
+ Downloading pygments
+      Built chess==1.11.2
+Installed 7 packages in 28ms
+============================= test session starts ==============================
+platform linux -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0
+rootdir: /tests
+plugins: json-ctrf-0.3.5
+collected 4 items
+
+../tests/test_outputs.py FFF.                                            [100%]
+
+=================================== FAILURES ===================================
+______________________________ test_immortal_game ______________________________
+
+    def test_immortal_game():
+        pgn = """[Event "Casual Game"]
+    [Site "London ENG"]
+    [Date "1851.06.21"]
+    [Round "?"]
+    [White "Anderssen, Adolf"]
+    [Black "Kieseritzky, Lionel"]
+    [Result "1-0"]
+    
+    1. e4 e5 2. f4 exf4 3. Bc4 Qh4+ 4. Kf1 b5 5. Bxb5 Nf6 6. Nf3 Qh6 7. d3 Nh5 8. Nh4 Qg5 9. Nf5 c6 10. g4 Nf6 11. Rg1 cxb5 12. h4 Qg6 13. h5 Qg5 14. Qf3 Ng8 15. Bxf4 Qf6 16. Nc3 Bc5 17. Nd5 Qxb2 18. Bd6 Bxg1 19. e5 Qxa1+ 20. Ke2 Na6 21. Nxg7+ Kd8 22. Qf6+ Nxf6 23. Be7# 1-0"""
+>       do_test_game(pgn, "Anderssen's Immortal Game")
+
+/tests/test_outputs.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tests/test_outputs.py:86: in do_test_game
+    verify_legal_moves(fen)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fen = 'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPP2PP/RNBQK1NR w KQkq - 2 4'
+
+    def verify_legal_moves(fen):
+        """Verify that the solution generates all legal moves for a given position."""
+        our_moves = run_solution(fen)
+    
+        board = chess.Board(fen)
+        python_chess_moves = set()
+        for move in board.legal_moves:
+            if move.promotion and move.promotion != chess.QUEEN:
+                continue
+    
+            board_copy = board.copy()
+            board_copy.push(move)
+            python_chess_moves.add(" ".join(board_copy.fen().split(" ")[:-2]))
+    
+        print(f"Position: {fen}, Our moves: {len(our_moves)}, Python-chess moves: {len(python_chess_moves)}")
+    
+        for x in our_moves:
+>           assert x in python_chess_moves or x.rpartition(" ")[0]+" -" in python_chess_moves, (
+                f"Position: {fen}, Our move: {x} not found in Python-chess moves: {python_chess_moves}"
+            )
+E           AssertionError: Position: rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPP2PP/RNBQK1NR w KQkq - 2 4, Our move: rnb1kbnr/pppp1ppp/8/8/2B1PpPq/8/PPPP3P/RNBQK1NR b KQkq g3 not found in Python-chess moves: {'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/6P1/PPPP3P/RNBQK1NR b KQkq -', 'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPPK1PP/RNBQ2NR b kq -', 'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPP2PP/RNBQ1KNR b kq -'}
+E           assert ('rnb1kbnr/pppp1ppp/8/8/2B1PpPq/8/PPPP3P/RNBQK1NR b KQkq g3' in {'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/6P1/PPPP3P/RNBQK1NR b KQkq -', 'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPP2PP/RNBQ1KNR b kq -', 'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPPK1PP/RNBQ2NR b kq -'} or ('rnb1kbnr/pppp1ppp/8/8/2B1PpPq/8/PPPP3P/RNBQK1NR b KQkq' + ' -') in {'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/6P1/PPPP3P/RNBQK1NR b KQkq -', 'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPP2PP/RNBQ1KNR b kq -', 'rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPPK1PP/RNBQ2NR b kq -'})
+
+/tests/test_outputs.py:35: AssertionError
+----------------------------- Captured stdout call -----------------------------
+
+Testing positions from: Anderssen's Immortal Game
+PGN string length: 417
+Testing initial position
+Position: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, Our moves: 20, Python-chess moves: 20
+Found 45 moves in the game
+Testing position after move 1: e2e4
+Position: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, Our moves: 20, Python-chess moves: 20
+Testing position after move 3: f2f4
+Position: rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2, Our moves: 29, Python-chess moves: 29
+Testing position after move 5: f1c4
+Position: rnbqkbnr/pppp1ppp/8/8/4Pp2/8/PPPP2PP/RNBQKBNR w KQkq - 0 3, Our moves: 29, Python-chess moves: 29
+Testing position after move 7: e1f1
+Position: rnb1kbnr/pppp1ppp/8/8/2B1Pp1q/8/PPPP2PP/RNBQK1NR w KQkq - 2 4, Our moves: 7, Python-chess moves: 3
+_____________________________ test_game_of_century _____________________________
+
+    def test_game_of_century():
+        pgn = """[Event "Third Rosenwald Trophy"]
+    [Site "New York, NY USA"]
+    [Date "1956.10.17"]
+    [Round "8"]
+    [White "Byrne, Donald"]
+    [Black "Fischer, Robert James"]
+    [Result "0-1"]
+    
+    1. Nf3 Nf6 2. c4 g6 3. Nc3 Bg7 4. d4 O-O 5. Bf4 d5 6. Qb3 dxc4 7. Qxc4 c6 8. e4 Nbd7 9. Rd1 Nb6 10. Qc5 Bg4 11. Bg5 Na4 12. Qa3 Nxc3 13. bxc3 Nxe4 14. Bxe7 Qb6 15. Bc4 Nxc3 16. Bc5 Rfe8+ 17. Kf1 Be6 18. Bxb6 Bxc4+ 19. Kg1 Ne2+ 20. Kf1 Nxd4+ 21. Kg1 Ne2+ 22. Kf1 Nc3+ 23. Kg1 axb6 24. Qb4 Ra4 25. Qxb6 Nxd1 26. h3 Rxa2 27. Kh2 Nxf2 28. Re1 Rxe1 29. Qd8+ Bf8 30. Nxe1 Bd5 31. Nf3 Ne4 32. Qb8 b5 33. h4 h5 34. Ne5 Kg7 35. Kg1 Bc5+ 36. Kf1 Ng3+ 37. Ke1 Bb4+ 38. Kd1 Bb3+ 39. Kc1 Ne2+ 40. Kb1 Nc3+ 41. Kc1 Rc2# 0-1"""
+>       do_test_game(pgn, "Fischer's Game of the Century")
+
+/tests/test_outputs.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tests/test_outputs.py:86: in do_test_game
+    verify_legal_moves(fen)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fen = 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 1 5'
+
+    def verify_legal_moves(fen):
+        """Verify that the solution generates all legal moves for a given position."""
+        our_moves = run_solution(fen)
+    
+        board = chess.Board(fen)
+        python_chess_moves = set()
+        for move in board.legal_moves:
+            if move.promotion and move.promotion != chess.QUEEN:
+                continue
+    
+            board_copy = board.copy()
+            board_copy.push(move)
+            python_chess_moves.add(" ".join(board_copy.fen().split(" ")[:-2]))
+    
+        print(f"Position: {fen}, Our moves: {len(our_moves)}, Python-chess moves: {len(python_chess_moves)}")
+    
+        for x in our_moves:
+>           assert x in python_chess_moves or x.rpartition(" ")[0]+" -" in python_chess_moves, (
+                f"Position: {fen}, Our move: {x} not found in Python-chess moves: {python_chess_moves}"
+            )
+E           AssertionError: Position: rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 1 5, Our move: rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP1KPPPP/R1BQ1B1R b  - not found in Python-chess moves: {'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PPQ1PPPP/R1B1KB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/3P4/2P5/2N2N2/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N5/PP1NPPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP1B2/2N2N2/PP2PPPP/R2QKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2NP1/PP2PP1P/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP1KPPPP/R1BQ1B1R b - -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP1BPPPP/R2QKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP2P1/2N2N2/PP2PP1P/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/N1PP4/5N2/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PPN3/5N2/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP2PPPP/R1BQKBR1 b Q -', 'rnbq1rk1/ppppppbp/5np1/3N4/2PP4/5N2/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/4N3/2PP4/2N5/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/1QN2N2/PP2PPPP/R1B1KB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/5N2/PP2PPPP/RNBQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/P1PP4/2N2N2/1P2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP2PPPP/1RBQKB1R b K -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2NQ1N2/PP2PPPP/R1B1KB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N1PN2/PP3PPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PPP3/2N2N2/PP3PPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/2P5/3P4/2N2N2/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/P1N2N2/1P2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/6B1/2PP4/2N2N2/PP2PPPP/R2QKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/1N6/2PP4/5N2/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5npB/8/2PP4/2N2N2/PP2PPPP/R2QKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP1QPPPP/R1B1KB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP3P/2N2N2/PP2PPP1/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/1PPP4/2N2N2/P3PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/1PN2N2/P3PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N1P/PP2PPP1/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP3N/2N5/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/6N1/2PP4/2N5/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N5/PP2PPPP/R1BQKBNR b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/Q1PP4/2N2N2/PP2PPPP/R1B1KB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/8/2PP4/2N1BN2/PP2PPPP/R2QKB1R b KQ -'}
+E           assert ('rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP1KPPPP/R1BQ1B1R b  -' in {'rnbq1rk1/ppppppbp/5np1/1N6/2PP4/5N2/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/2P5/3P4/2N2N2/PP2PPPP/R1BQKB1R...ppppbp/5np1/4N3/2PP4/2N5/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/6B1/2PP4/2N2N2/PP2PPPP/R2QKB1R b KQ -', ...} or ('rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP1KPPPP/R1BQ1B1R b ' + ' -') in {'rnbq1rk1/ppppppbp/5np1/1N6/2PP4/5N2/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/2P5/3P4/2N2N2/PP2PPPP/R1BQKB1R...ppppbp/5np1/4N3/2PP4/2N5/PP2PPPP/R1BQKB1R b KQ -', 'rnbq1rk1/ppppppbp/5np1/6B1/2PP4/2N2N2/PP2PPPP/R2QKB1R b KQ -', ...})
+
+/tests/test_outputs.py:35: AssertionError
+----------------------------- Captured stdout call -----------------------------
+
+Testing positions from: Fischer's Game of the Century
+PGN string length: 672
+Testing initial position
+Position: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, Our moves: 20, Python-chess moves: 20
+Found 82 moves in the game
+Testing position after move 1: g1f3
+Position: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, Our moves: 20, Python-chess moves: 20
+Testing position after move 3: c2c4
+Position: rnbqkb1r/pppppppp/5n2/8/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 2 2, Our moves: 22, Python-chess moves: 22
+Testing position after move 5: b1c3
+Position: rnbqkb1r/pppppp1p/5np1/8/2P5/5N2/PP1PPPPP/RNBQKB1R w KQkq - 0 3, Our moves: 24, Python-chess moves: 24
+Testing position after move 7: d2d4
+Position: rnbqk2r/ppppppbp/5np1/8/2P5/2N2N2/PP1PPPPP/R1BQKB1R w KQkq - 2 4, Our moves: 28, Python-chess moves: 28
+Testing position after move 9: c1f4
+Position: rnbq1rk1/ppppppbp/5np1/8/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 1 5, Our moves: 35, Python-chess moves: 35
+___________________________ test_naroditsky_ivanchuk ___________________________
+
+    def test_naroditsky_ivanchuk():
+        pgn = """[Event "World Blitz Championship"]
+    [Site "New York, NY USA"]
+    [Date "2024.12.30"]
+    [EventDate "2024.12.30"]
+    [Round "11.9"]
+    [Result "0-1"]
+    [White "Vasyl Ivanchuk"]
+    [Black "Daniel Naroditsky"]
+    [ECO "E60"]
+    [WhiteElo "2651"]
+    [BlackElo "2711"]
+    [PlyCount "82"]
+    
+    1. d4 Nf6 2. c4 g6 3. f3 Bg7 4. e4 d6 5. Be3 O-O 6. Nc3 a6 7. Bd3 Nfd7 8.
+    Nge2 c5 9. d5 Ne5 10. a4 Nbd7 11. b3 Nxd3+ 12. Qxd3 f5 13. Rd1 b5 14. cxb5
+    axb5 15. axb5 Ne5 16. Qc2 fxe4 17. Nxe4 Qa5+ 18. N2c3 Nxf3+ 19. gxf3 Rxf3
+    20. Kd2 Bd4 21. Ra1 Bxe3+ 22. Ke2 Bg4 23. Rxa5 Rxa5 24. Kd3 Bd4+ 25. Kc4
+    Bf5 26. Qd2 Bxc3 27. Nxc3 e5 28. Re1 Rf4+ 29. Qxf4 exf4 30. Ne4 Bxe4 31.
+    Rxe4 g5 32. b6 Ra8 33. Kb5 f3 34. Re1 g4 35. Kc6 h5 36. Kxd6 Rf8 37. b7 h4
+    38. Rg1 f2 39. Rxg4+ Kh7 40. Rxh4+ Kg6 41. Rg4+ 0-1"""
+>       do_test_game(pgn)
+
+/tests/test_outputs.py:141: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tests/test_outputs.py:86: in do_test_game
+    verify_legal_moves(fen)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fen = 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP4PP/RN1QKBNR w KQ - 2 6'
+
+    def verify_legal_moves(fen):
+        """Verify that the solution generates all legal moves for a given position."""
+        our_moves = run_solution(fen)
+    
+        board = chess.Board(fen)
+        python_chess_moves = set()
+        for move in board.legal_moves:
+            if move.promotion and move.promotion != chess.QUEEN:
+                continue
+    
+            board_copy = board.copy()
+            board_copy.push(move)
+            python_chess_moves.add(" ".join(board_copy.fen().split(" ")[:-2]))
+    
+        print(f"Position: {fen}, Our moves: {len(our_moves)}, Python-chess moves: {len(python_chess_moves)}")
+    
+        for x in our_moves:
+>           assert x in python_chess_moves or x.rpartition(" ")[0]+" -" in python_chess_moves, (
+                f"Position: {fen}, Our move: {x} not found in Python-chess moves: {python_chess_moves}"
+            )
+E           AssertionError: Position: rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP4PP/RN1QKBNR w KQ - 2 6, Our move: rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP3KPP/RN1Q1BNR b  - not found in Python-chess moves: {'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP1P/PP4P1/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP1K2PP/RN1Q1BNR b - -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/3QBP2/PP4PP/RN2KBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/3P4/2P1P3/4BP2/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP2K1PP/RN1Q1BNR b - -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/1PPPP3/4BP2/P5PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PPQ3PP/RN2KBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/4P3/2PP4/4BP2/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/P1PPP3/4BP2/1P4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/1P2BP2/P5PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1npB/8/2PPP3/5P2/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP4PP/RNQ1KBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPPP2/4B3/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/3BBP2/PP4PP/RN1QK1NR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP2B1PP/RN1QK1NR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPPB2/5P2/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/5P2/PP1B2PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP2P/4BP2/PP4P1/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP1P1/4BP2/PP5P/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/6B1/2PPP3/5P2/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/5P2/PP4PP/RNBQKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/P3BP2/1P4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP1Q2PP/RN2KBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/1Q2BP2/PP4PP/RN2KBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP2N1PP/RN1QKB1R b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/2P5/3PP3/4BP2/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP2Q1PP/RN2KBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BPP1/PP5P/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP3KPP/RN1Q1BNR b - -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/N3BP2/PP4PP/R2QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP1N2PP/R2QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/5P2/PP3BPP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/2N1BP2/PP4PP/R2QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/Q1PPP3/4BP2/PP4PP/RN2KBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP1N/PP4PP/RN1QKB1R b KQ -'}
+E           assert ('rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP3KPP/RN1Q1BNR b  -' in {'rnbq1rk1/ppp1ppbp/3p1np1/2P5/3PP3/4BP2/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/3P4/2P1P3/4BP2/PP4PP/RN1QKB...p1ppbp/3p1np1/8/1PPPP3/4BP2/P5PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP1P1/4BP2/PP5P/RN1QKBNR b KQ -', ...} or ('rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP3KPP/RN1Q1BNR b ' + ' -') in {'rnbq1rk1/ppp1ppbp/3p1np1/2P5/3PP3/4BP2/PP4PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/3P4/2P1P3/4BP2/PP4PP/RN1QKB...p1ppbp/3p1np1/8/1PPPP3/4BP2/P5PP/RN1QKBNR b KQ -', 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP1P1/4BP2/PP5P/RN1QKBNR b KQ -', ...})
+
+/tests/test_outputs.py:35: AssertionError
+----------------------------- Captured stdout call -----------------------------
+
+Testing positions from: Unnamed Game
+PGN string length: 749
+Testing initial position
+Position: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, Our moves: 20, Python-chess moves: 20
+Found 81 moves in the game
+Testing position after move 1: d2d4
+Position: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, Our moves: 20, Python-chess moves: 20
+Testing position after move 3: c2c4
+Position: rnbqkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 2, Our moves: 28, Python-chess moves: 28
+Testing position after move 5: f2f3
+Position: rnbqkb1r/pppppp1p/5np1/8/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 0 3, Our moves: 30, Python-chess moves: 30
+Testing position after move 7: e2e4
+Position: rnbqk2r/ppppppbp/5np1/8/2PP4/5P2/PP2P1PP/RNBQKBNR w KQkq - 1 4, Our moves: 29, Python-chess moves: 29
+Testing position after move 9: c1e3
+Position: rnbqk2r/ppp1ppbp/3p1np1/8/2PPP3/5P2/PP4PP/RNBQKBNR w KQkq - 0 5, Our moves: 33, Python-chess moves: 33
+Testing position after move 11: b1c3
+Position: rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/4BP2/PP4PP/RN1QKBNR w KQ - 2 6, Our moves: 35, Python-chess moves: 35
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED ../tests/test_outputs.py::test_not_long
+FAILED ../tests/test_outputs.py::test_immortal_game - AssertionError: Positio...
+FAILED ../tests/test_outputs.py::test_game_of_century - AssertionError: Posit...
+FAILED ../tests/test_outputs.py::test_naroditsky_ivanchuk - AssertionError: P...
+========================= 3 failed, 1 passed in 0.21s ==========================

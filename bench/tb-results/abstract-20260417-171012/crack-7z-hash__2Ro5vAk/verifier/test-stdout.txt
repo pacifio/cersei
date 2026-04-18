@@ -1,0 +1,25 @@
+Reading package lists...
+E: Could not get lock /var/lib/apt/lists/lock. It is held by process 195 (apt-get)
+E: Unable to lock directory /var/lib/apt/lists/
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libcurl4t64
+The following NEW packages will be installed:
+  curl libcurl4t64
+0 upgraded, 2 newly installed, 0 to remove and 2 not upgraded.
+Need to get 567 kB of archives.
+After this operation, 1481 kB of additional disk space will be used.
+Ign:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libcurl4t64 amd64 8.5.0-2ubuntu10.6
+Ign:2 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 curl amd64 8.5.0-2ubuntu10.6
+Err:1 http://security.ubuntu.com/ubuntu noble-updates/main amd64 libcurl4t64 amd64 8.5.0-2ubuntu10.6
+  404  Not Found [IP: 185.125.190.82 80]
+Err:2 http://security.ubuntu.com/ubuntu noble-updates/main amd64 curl amd64 8.5.0-2ubuntu10.6
+  404  Not Found [IP: 185.125.190.82 80]
+E: Failed to fetch http://security.ubuntu.com/ubuntu/pool/main/c/curl/libcurl4t64_8.5.0-2ubuntu10.6_amd64.deb  404  Not Found [IP: 185.125.190.82 80]
+E: Failed to fetch http://security.ubuntu.com/ubuntu/pool/main/c/curl/curl_8.5.0-2ubuntu10.6_amd64.deb  404  Not Found [IP: 185.125.190.82 80]
+E: Unable to fetch some archives, maybe run apt-get update or try with --fix-missing?
+/tests/test.sh: line 8: curl: command not found
+/tests/test.sh: line 10: /root/.local/bin/env: No such file or directory
+/tests/test.sh: line 19: uvx: command not found

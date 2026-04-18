@@ -1,0 +1,205 @@
+Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
+Hit:2 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:4 http://security.ubuntu.com/ubuntu noble-security InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  krb5-locales libcurl4t64 libgssapi-krb5-2 libk5crypto3 libkeyutils1
+  libkrb5-3 libkrb5support0 libnghttp2-14 libpsl5t64 librtmp1 libssh-4
+  publicsuffix
+Suggested packages:
+  krb5-doc krb5-user
+The following NEW packages will be installed:
+  curl krb5-locales libcurl4t64 libgssapi-krb5-2 libk5crypto3 libkeyutils1
+  libkrb5-3 libkrb5support0 libnghttp2-14 libpsl5t64 librtmp1 libssh-4
+  publicsuffix
+0 upgraded, 13 newly installed, 0 to remove and 13 not upgraded.
+15 not fully installed or removed.
+Need to get 1706 kB of archives.
+After this operation, 4850 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 krb5-locales all 1.20.1-6ubuntu2.6 [14.8 kB]
+Get:2 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libkrb5support0 amd64 1.20.1-6ubuntu2.6 [34.4 kB]
+Get:3 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libk5crypto3 amd64 1.20.1-6ubuntu2.6 [82.0 kB]
+Get:4 http://archive.ubuntu.com/ubuntu noble/main amd64 libkeyutils1 amd64 1.6.3-3build1 [9490 B]
+Get:5 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libkrb5-3 amd64 1.20.1-6ubuntu2.6 [348 kB]
+Get:6 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libgssapi-krb5-2 amd64 1.20.1-6ubuntu2.6 [143 kB]
+Get:7 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libnghttp2-14 amd64 1.59.0-1ubuntu0.2 [74.3 kB]
+Get:8 http://archive.ubuntu.com/ubuntu noble/main amd64 libpsl5t64 amd64 0.21.2-1.1build1 [57.1 kB]
+Get:9 http://archive.ubuntu.com/ubuntu noble/main amd64 publicsuffix all 20231001.0357-0.1 [129 kB]
+Get:10 http://archive.ubuntu.com/ubuntu noble/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2build7 [56.3 kB]
+Get:11 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libssh-4 amd64 0.10.6-2ubuntu0.4 [190 kB]
+Get:12 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libcurl4t64 amd64 8.5.0-2ubuntu10.8 [342 kB]
+Get:13 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 curl amd64 8.5.0-2ubuntu10.8 [227 kB]
+debconf: DbDriver "config": /var/cache/debconf/config.dat is locked by another process: Resource temporarily unavailable
+Fetched 1706 kB in 0s (8453 kB/s)
+Selecting previously unselected package krb5-locales.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 17127 files and directories currently installed.)
+Preparing to unpack .../00-krb5-locales_1.20.1-6ubuntu2.6_all.deb ...
+Unpacking krb5-locales (1.20.1-6ubuntu2.6) ...
+Selecting previously unselected package libkrb5support0:amd64.
+Preparing to unpack .../01-libkrb5support0_1.20.1-6ubuntu2.6_amd64.deb ...
+Unpacking libkrb5support0:amd64 (1.20.1-6ubuntu2.6) ...
+Selecting previously unselected package libk5crypto3:amd64.
+Preparing to unpack .../02-libk5crypto3_1.20.1-6ubuntu2.6_amd64.deb ...
+Unpacking libk5crypto3:amd64 (1.20.1-6ubuntu2.6) ...
+Selecting previously unselected package libkeyutils1:amd64.
+Preparing to unpack .../03-libkeyutils1_1.6.3-3build1_amd64.deb ...
+Unpacking libkeyutils1:amd64 (1.6.3-3build1) ...
+Selecting previously unselected package libkrb5-3:amd64.
+Preparing to unpack .../04-libkrb5-3_1.20.1-6ubuntu2.6_amd64.deb ...
+Unpacking libkrb5-3:amd64 (1.20.1-6ubuntu2.6) ...
+Selecting previously unselected package libgssapi-krb5-2:amd64.
+Preparing to unpack .../05-libgssapi-krb5-2_1.20.1-6ubuntu2.6_amd64.deb ...
+Unpacking libgssapi-krb5-2:amd64 (1.20.1-6ubuntu2.6) ...
+Selecting previously unselected package libnghttp2-14:amd64.
+Preparing to unpack .../06-libnghttp2-14_1.59.0-1ubuntu0.2_amd64.deb ...
+Unpacking libnghttp2-14:amd64 (1.59.0-1ubuntu0.2) ...
+Selecting previously unselected package libpsl5t64:amd64.
+Preparing to unpack .../07-libpsl5t64_0.21.2-1.1build1_amd64.deb ...
+Unpacking libpsl5t64:amd64 (0.21.2-1.1build1) ...
+Selecting previously unselected package publicsuffix.
+Preparing to unpack .../08-publicsuffix_20231001.0357-0.1_all.deb ...
+Unpacking publicsuffix (20231001.0357-0.1) ...
+Selecting previously unselected package librtmp1:amd64.
+Preparing to unpack .../09-librtmp1_2.4+20151223.gitfa8646d.1-2build7_amd64.deb ...
+Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2build7) ...
+Selecting previously unselected package libssh-4:amd64.
+Preparing to unpack .../10-libssh-4_0.10.6-2ubuntu0.4_amd64.deb ...
+Unpacking libssh-4:amd64 (0.10.6-2ubuntu0.4) ...
+Selecting previously unselected package libcurl4t64:amd64.
+Preparing to unpack .../11-libcurl4t64_8.5.0-2ubuntu10.8_amd64.deb ...
+Unpacking libcurl4t64:amd64 (8.5.0-2ubuntu10.8) ...
+Selecting previously unselected package curl.
+Preparing to unpack .../12-curl_8.5.0-2ubuntu10.8_amd64.deb ...
+Unpacking curl (8.5.0-2ubuntu10.8) ...
+Setting up libkeyutils1:amd64 (1.6.3-3build1) ...
+Setting up libpsl5t64:amd64 (0.21.2-1.1build1) ...
+Setting up libnghttp2-14:amd64 (1.59.0-1ubuntu0.2) ...
+Setting up krb5-locales (1.20.1-6ubuntu2.6) ...
+Setting up libkrb5support0:amd64 (1.20.1-6ubuntu2.6) ...
+Setting up tzdata (2026a-0ubuntu0.24.04.1) ...
+debconf: DbDriver "config": /var/cache/debconf/config.dat is locked by another process: Resource temporarily unavailable
+dpkg: error processing package tzdata (--configure):
+ installed tzdata package post-installation script subprocess returned error exit status 1
+Setting up ca-certificates (20240203) ...
+debconf: DbDriver "config": /var/cache/debconf/config.dat is locked by another process: Resource temporarily unavailable
+dpkg: error processing package ca-certificates (--configure):
+ installed ca-certificates package post-installation script subprocess returned error exit status 1
+Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2build7) ...
+dpkg: dependency problems prevent configuration of python3-pip:
+ python3-pip depends on ca-certificates; however:
+  Package ca-certificates is not configured yet.
+
+dpkg: error processing package python3-pip (--configure):
+ dependency problems - leaving unconfigured
+Setting up libk5crypto3:amd64 (1.20.1-6ubuntu2.6) ...
+Setting up libkrb5-3:amd64 (1.20.1-6ubuntu2.6) ...
+Setting up publicsuffix (20231001.0357-0.1) ...
+dpkg: dependency problems prevent configuration of libpython3.12-stdlib:amd64:
+ libpython3.12-stdlib:amd64 depends on tzdata; however:
+  Package tzdata is not configured yet.
+
+dpkg: error processing package libpython3.12-stdlib:amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of python3.12:
+ python3.12 depends on libpython3.12-stdlib (= 3.12.3-1ubuntu0.12); however:
+  Package libpython3.12-stdlib:amd64 is not configured yet.
+ python3.12 depends on tzdata; however:
+  Package tzdata is not configured yet.
+
+dpkg: error processing package python3.12 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of python3:
+ python3 depends on python3.12 (>= 3.12.3-0~); however:
+  Package python3.12 is not configured yet.
+
+dpkg: error processing package python3 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of libpython3.12-dev:amd64:
+ libpython3.12-dev:amd64 depends on libpython3.12-stdlib (= 3.12.3-1ubuntu0.12); however:
+  Package libpython3.12-stdlib:amd64 is not configured yet.
+
+dpkg: error processing package libpython3.12-dev:amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of python3-wheel:
+ python3-wheel depends on python3:any; however:
+  Package python3 is not configured yet.
+
+dpkg: error processing package python3-wheel (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of libpython3.12t64:amd64:
+ libpython3.12t64:amd64 depends on libpython3.12-stdlib (= 3.12.3-1ubuntu0.12); however:
+  Package libpython3.12-stdlib:amd64 is not configured yet.
+
+dpkg: error processing package libpython3.12t64:amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of python3-dev:
+ python3-dev depends on python3 (= 3.12.3-0ubuntu2.1); however:
+  Package python3 is not configured yet.
+
+dpkg: error processing package python3-dev (--configure):
+ dependency problems - leaving unconfigured
+Setting up libgssapi-krb5-2:amd64 (1.20.1-6ubuntu2.6) ...
+dpkg: dependency problems prevent configuration of python3.12-dev:
+ python3.12-dev depends on python3.12 (= 3.12.3-1ubuntu0.12); however:
+  Package python3.12 is not configured yet.
+ python3.12-dev depends on libpython3.12-dev (= 3.12.3-1ubuntu0.12); however:
+  Package libpython3.12-dev:amd64 is not configured yet.
+ python3.12-dev depends on libpython3.12t64 (= 3.12.3-1ubuntu0.12); however:
+  Package libpython3.12t64:amd64 is not configured yet.
+
+dpkg: error processing package python3.12-dev (--configure):
+ dependency problems - leaving unconfigured
+Setting up libssh-4:amd64 (0.10.6-2ubuntu0.4) ...
+dpkg: dependency problems prevent configuration of libpython3-stdlib:amd64:
+ libpython3-stdlib:amd64 depends on libpython3.12-stdlib (>= 3.12.3-0~); however:
+  Package libpython3.12-stdlib:amd64 is not configured yet.
+
+dpkg: error processing package libpython3-stdlib:amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of python3-pkg-resources:
+ python3-pkg-resources depends on python3:any; however:
+  Package python3 is not configured yet.
+
+dpkg: error processing package python3-pkg-resources (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of libpython3-dev:amd64:
+ libpython3-dev:amd64 depends on libpython3.12-dev (>= 3.12.3-0~); however:
+  Package libpython3.12-dev:amd64 is not configured yet.
+
+dpkg: error processing package libpython3-dev:amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of python3-setuptools:
+ python3-setuptools depends on python3-pkg-resources (= 68.1.2-2ubuntu1.2); however:
+  Package python3-pkg-resources is not configured yet.
+ python3-setuptools depends on python3:any; however:
+  Package python3 is not configured yet.
+
+dpkg: error processing package python3-setuptools (--configure):
+ dependency problems - leaving unconfigured
+Setting up libcurl4t64:amd64 (8.5.0-2ubuntu10.8) ...
+Setting up curl (8.5.0-2ubuntu10.8) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.7) ...
+Errors were encountered while processing:
+ tzdata
+ ca-certificates
+ python3-pip
+ libpython3.12-stdlib:amd64
+ python3.12
+ python3
+ libpython3.12-dev:amd64
+ python3-wheel
+ libpython3.12t64:amd64
+ python3-dev
+ python3.12-dev
+ libpython3-stdlib:amd64
+ python3-pkg-resources
+ libpython3-dev:amd64
+ python3-setuptools
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+curl: (77) error setting certificate file: /etc/ssl/certs/ca-certificates.crt
+/tests/test.sh: line 10: /root/.local/bin/env: No such file or directory
+/tests/test.sh: line 19: uvx: command not found

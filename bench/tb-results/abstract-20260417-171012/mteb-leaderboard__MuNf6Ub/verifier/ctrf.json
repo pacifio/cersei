@@ -1,0 +1,44 @@
+{
+    "results": {
+        "tool": {
+            "name": "pytest",
+            "version": "8.4.1"
+        },
+        "summary": {
+            "tests": 2,
+            "passed": 0,
+            "failed": 2,
+            "skipped": 0,
+            "pending": 0,
+            "other": 0,
+            "start": 1776426069.7825265,
+            "stop": 1776426069.8504515
+        },
+        "tests": [
+            {
+                "name": "test_outputs.py::test_result_exists",
+                "status": "failed",
+                "raw_status": "call_failed",
+                "duration": 0.0005534272640943527,
+                "start": 1776426069.8335743,
+                "stop": 1776426069.848773,
+                "retries": 0,
+                "file_path": "test_outputs.py",
+                "trace": "def test_result_exists():\n>       assert os.path.exists(\"/app/result.txt\"), \"result.txt file does not exist\"\nE       AssertionError: result.txt file does not exist\nE       assert False\nE        +  where False = <function exists at 0x769854be3240>('/app/result.txt')\nE        +    where <function exists at 0x769854be3240> = <module 'posixpath' (frozen)>.exists\nE        +      where <module 'posixpath' (frozen)> = os.path\n\n/tests/test_outputs.py:7: AssertionError",
+                "message": "The test failed in the call phase due to an assertion error"
+            },
+            {
+                "name": "test_outputs.py::test_data_matches",
+                "status": "failed",
+                "raw_status": "call_failed",
+                "duration": 0.00035067833960056305,
+                "start": 1776426069.8489506,
+                "stop": 1776426069.850317,
+                "retries": 0,
+                "file_path": "test_outputs.py",
+                "trace": "def test_data_matches():\n        expected = \"GritLM/GritLM-7B\"\n>       with open(\"/app/result.txt\", \"r\") as f:\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       FileNotFoundError: [Errno 2] No such file or directory: '/app/result.txt'\n\n/tests/test_outputs.py:12: FileNotFoundError",
+                "message": "The test failed in the call phase"
+            }
+        ]
+    }
+}

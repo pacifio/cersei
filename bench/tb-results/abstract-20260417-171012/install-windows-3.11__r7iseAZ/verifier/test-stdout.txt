@@ -1,0 +1,247 @@
+Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
+Hit:2 http://security.ubuntu.com/ubuntu noble-security InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:4 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+curl is already the newest version (8.5.0-2ubuntu10.8).
+0 upgraded, 0 newly installed, 0 to remove and 150 not upgraded.
+downloading uv 0.9.5 x86_64-unknown-linux-gnu
+no checksums to verify
+installing to /root/.local/bin
+  uv
+  uvx
+everything's installed!
+
+To add $HOME/.local/bin to your PATH, either restart your shell or run:
+
+    source $HOME/.local/bin/env (sh, bash, zsh)
+    source $HOME/.local/bin/env.fish (fish)
+Reading package lists...
+Building dependency tree...
+Reading state information...
+vncsnapshot is already the newest version (1.2a-5.2).
+The following additional packages will be installed:
+  libarchive13t64 libgif7 liblept5 libtesseract5 tesseract-ocr-eng
+  tesseract-ocr-osd
+Suggested packages:
+  lrzip floppyd
+The following NEW packages will be installed:
+  libarchive13t64 libgif7 liblept5 libtesseract5 mtools socat tesseract-ocr
+  tesseract-ocr-eng tesseract-ocr-osd
+0 upgraded, 9 newly installed, 0 to remove and 150 not upgraded.
+Need to get 9365 kB of archives.
+After this operation, 24.8 MB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libarchive13t64 amd64 3.7.2-2ubuntu0.6 [382 kB]
+Get:2 http://archive.ubuntu.com/ubuntu noble/main amd64 libgif7 amd64 5.2.2-1ubuntu1 [35.2 kB]
+Get:3 http://archive.ubuntu.com/ubuntu noble/universe amd64 liblept5 amd64 1.82.0-3build4 [1099 kB]
+Get:4 http://archive.ubuntu.com/ubuntu noble/universe amd64 libtesseract5 amd64 5.3.4-1build5 [1291 kB]
+Get:5 http://archive.ubuntu.com/ubuntu noble/main amd64 mtools amd64 4.0.43-1build1 [197 kB]
+Get:6 http://archive.ubuntu.com/ubuntu noble/universe amd64 tesseract-ocr-eng all 1:4.1.0-2 [1818 kB]
+Get:7 http://archive.ubuntu.com/ubuntu noble/universe amd64 tesseract-ocr-osd all 1:4.1.0-2 [3841 kB]
+Get:8 http://archive.ubuntu.com/ubuntu noble/universe amd64 tesseract-ocr amd64 5.3.4-1build5 [328 kB]
+Get:9 http://archive.ubuntu.com/ubuntu noble/main amd64 socat amd64 1.8.0.0-4build3 [374 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 9365 kB in 3s (3212 kB/s)
+Selecting previously unselected package libarchive13t64:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 43702 files and directories currently installed.)
+Preparing to unpack .../0-libarchive13t64_3.7.2-2ubuntu0.6_amd64.deb ...
+Unpacking libarchive13t64:amd64 (3.7.2-2ubuntu0.6) ...
+Selecting previously unselected package libgif7:amd64.
+Preparing to unpack .../1-libgif7_5.2.2-1ubuntu1_amd64.deb ...
+Unpacking libgif7:amd64 (5.2.2-1ubuntu1) ...
+Selecting previously unselected package liblept5:amd64.
+Preparing to unpack .../2-liblept5_1.82.0-3build4_amd64.deb ...
+Unpacking liblept5:amd64 (1.82.0-3build4) ...
+Selecting previously unselected package libtesseract5:amd64.
+Preparing to unpack .../3-libtesseract5_5.3.4-1build5_amd64.deb ...
+Unpacking libtesseract5:amd64 (5.3.4-1build5) ...
+Selecting previously unselected package mtools.
+Preparing to unpack .../4-mtools_4.0.43-1build1_amd64.deb ...
+Unpacking mtools (4.0.43-1build1) ...
+Selecting previously unselected package tesseract-ocr-eng.
+Preparing to unpack .../5-tesseract-ocr-eng_1%3a4.1.0-2_all.deb ...
+Unpacking tesseract-ocr-eng (1:4.1.0-2) ...
+Selecting previously unselected package tesseract-ocr-osd.
+Preparing to unpack .../6-tesseract-ocr-osd_1%3a4.1.0-2_all.deb ...
+Unpacking tesseract-ocr-osd (1:4.1.0-2) ...
+Selecting previously unselected package tesseract-ocr.
+Preparing to unpack .../7-tesseract-ocr_5.3.4-1build5_amd64.deb ...
+Unpacking tesseract-ocr (5.3.4-1build5) ...
+Selecting previously unselected package socat.
+Preparing to unpack .../8-socat_1.8.0.0-4build3_amd64.deb ...
+Unpacking socat (1.8.0.0-4build3) ...
+Setting up mtools (4.0.43-1build1) ...
+Setting up tesseract-ocr-eng (1:4.1.0-2) ...
+Setting up socat (1.8.0.0-4build3) ...
+Setting up libgif7:amd64 (5.2.2-1ubuntu1) ...
+Setting up tesseract-ocr-osd (1:4.1.0-2) ...
+Setting up libarchive13t64:amd64 (3.7.2-2ubuntu0.6) ...
+Setting up liblept5:amd64 (1.82.0-3build4) ...
+Setting up libtesseract5:amd64 (5.3.4-1build5) ...
+Setting up tesseract-ocr (5.3.4-1build5) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.6) ...
+Downloading cpython-3.13.9-linux-x86_64-gnu (download) (32.0MiB)
+ Downloading cpython-3.13.9-linux-x86_64-gnu (download)
+Downloading pygments (1.2MiB)
+Downloading pillow (6.8MiB)
+Downloading opencv-python (60.1MiB)
+Downloading numpy (15.9MiB)
+ Downloading pillow
+ Downloading pygments
+ Downloading numpy
+ Downloading opencv-python
+Installed 10 packages in 48ms
+============================= test session starts ==============================
+platform linux -- Python 3.13.9, pytest-8.4.1, pluggy-1.6.0
+rootdir: /tests
+plugins: json-ctrf-0.3.5
+collected 4 items
+
+../tests/test_outputs.py .E.F                                            [100%]
+
+==================================== ERRORS ====================================
+___________ ERROR at setup of test_qemu_running_with_correct_params ____________
+
+qemu_pid = '1197\n1199\n1209\n1211\n1532\n1534'
+
+    @pytest.fixture
+    def cmdline(qemu_pid):
+        cmdline_result = subprocess.run(
+            ["cat", f"/proc/{qemu_pid}/cmdline"],
+            capture_output=True,
+            text=True,
+        )
+>       assert cmdline_result.returncode == 0, "Failed to get QEMU command line"
+E       AssertionError: Failed to get QEMU command line
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['cat', '/proc/1197\n1199\n1209\n1211\n1532\n1534/cmdline'], returncode=1, stdout='', stderr="cat: '/proc/1197'$'\\n''1199'$'\\n''1209'$'\\n''1211'$'\\n''1532'$'\\n''1534/cmdline': No such file or directory\n").returncode
+
+/tests/test_outputs.py:35: AssertionError
+=================================== FAILURES ===================================
+____________________ test_windows_keys_with_visual_feedback ____________________
+
+monitor_socket = '/tmp/qemu-monitor.sock'
+
+    def test_windows_keys_with_visual_feedback(monitor_socket):
+        """Test Windows-specific keys; pass if any key causes >=10% pixel difference."""
+        import time
+        import cv2  # type: ignore
+        import numpy as np  # type: ignore
+        from pathlib import Path
+    
+        try:
+            # Baseline screenshot
+            assert subprocess.run([
+                "vncsnapshot", "-allowblank", "localhost:1", "baseline_screen.png"
+            ], capture_output=True, timeout=10).returncode == 0, "Failed to take baseline screenshot"
+    
+            baseline_path = Path("baseline_screen.png")
+            assert baseline_path.exists(), "Baseline screenshot not created"
+    
+            baseline_img = cv2.imread(str(baseline_path), cv2.IMREAD_GRAYSCALE)
+            assert baseline_img is not None, "Baseline screenshot is invalid"
+    
+            windows_keys = [
+                ("sendkey f1", "F1 (Help)"),
+                ("sendkey alt-tab", "Alt+Tab (Switch)"),
+                ("sendkey f10", "F10 (Menu)"),
+                ("sendkey alt-f4", "Alt+F4 (Close)"),
+                ("sendkey ctrl-esc", "Ctrl+Esc (Start Menu)")
+            ]
+    
+            threshold_pct = 10.0  # percent different pixels
+    
+            for i, (cmd, description) in enumerate(windows_keys):
+                # Send key
+                res = subprocess.run([
+                    "socat", "-", f"UNIX-CONNECT:{monitor_socket}"
+                ], input=f"{cmd}\n", capture_output=True, text=True, timeout=5)
+>               assert res.returncode == 0, f"Failed to send {description} via monitor"
+E               AssertionError: Failed to send F1 (Help) via monitor
+E               assert 1 == 0
+E                +  where 1 = CompletedProcess(args=['socat', '-', 'UNIX-CONNECT:/tmp/qemu-monitor.sock'], returncode=1, stdout='', stderr='2026/04/17 07:48:27 socat[6906] E connect(, AF=1 "/tmp/qemu-monitor.sock", 24): No such file or directory\n').returncode
+
+/tests/test_outputs.py:381: AssertionError
+
+During handling of the above exception, another exception occurred:
+
+monitor_socket = '/tmp/qemu-monitor.sock'
+
+    def test_windows_keys_with_visual_feedback(monitor_socket):
+        """Test Windows-specific keys; pass if any key causes >=10% pixel difference."""
+        import time
+        import cv2  # type: ignore
+        import numpy as np  # type: ignore
+        from pathlib import Path
+    
+        try:
+            # Baseline screenshot
+            assert subprocess.run([
+                "vncsnapshot", "-allowblank", "localhost:1", "baseline_screen.png"
+            ], capture_output=True, timeout=10).returncode == 0, "Failed to take baseline screenshot"
+    
+            baseline_path = Path("baseline_screen.png")
+            assert baseline_path.exists(), "Baseline screenshot not created"
+    
+            baseline_img = cv2.imread(str(baseline_path), cv2.IMREAD_GRAYSCALE)
+            assert baseline_img is not None, "Baseline screenshot is invalid"
+    
+            windows_keys = [
+                ("sendkey f1", "F1 (Help)"),
+                ("sendkey alt-tab", "Alt+Tab (Switch)"),
+                ("sendkey f10", "F10 (Menu)"),
+                ("sendkey alt-f4", "Alt+F4 (Close)"),
+                ("sendkey ctrl-esc", "Ctrl+Esc (Start Menu)")
+            ]
+    
+            threshold_pct = 10.0  # percent different pixels
+    
+            for i, (cmd, description) in enumerate(windows_keys):
+                # Send key
+                res = subprocess.run([
+                    "socat", "-", f"UNIX-CONNECT:{monitor_socket}"
+                ], input=f"{cmd}\n", capture_output=True, text=True, timeout=5)
+                assert res.returncode == 0, f"Failed to send {description} via monitor"
+    
+                time.sleep(2)
+    
+                # After screenshot
+                screenshot_name = f"after_key_{i}.png"
+                assert subprocess.run([
+                    "vncsnapshot", "-allowblank", "localhost:1", screenshot_name
+                ], capture_output=True, timeout=10).returncode == 0, f"Failed screenshot after {description}"
+    
+                after_img = cv2.imread(screenshot_name, cv2.IMREAD_GRAYSCALE)
+                assert after_img is not None, f"Invalid screenshot after {description}"
+    
+                # Percentage of different pixels
+                diff_pct = (np.count_nonzero(baseline_img != after_img) / baseline_img.size) * 100.0
+    
+                if diff_pct >= threshold_pct:
+                    baseline_path.unlink(missing_ok=True)
+                    return
+    
+            # If none exceeded threshold
+            baseline_path.unlink(missing_ok=True)
+            assert False, "No key caused >=10% image difference"
+    
+        except subprocess.TimeoutExpired:
+            assert False, "Screenshot or keyboard test timed out"
+        except Exception as e:
+>           assert False, f"Windows keyboard test failed: {e}"
+E           AssertionError: Windows keyboard test failed: Failed to send F1 (Help) via monitor
+E             assert 1 == 0
+E              +  where 1 = CompletedProcess(args=['socat', '-', 'UNIX-CONNECT:/tmp/qemu-monitor.sock'], returncode=1, stdout='', stderr='2026/04/17 07:48:27 socat[6906] E connect(, AF=1 "/tmp/qemu-monitor.sock", 24): No such file or directory\n').returncode
+E           assert False
+
+/tests/test_outputs.py:408: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED ../tests/test_outputs.py::test_network_status
+PASSED ../tests/test_outputs.py::test_windows_311_core_files_verification
+ERROR ../tests/test_outputs.py::test_qemu_running_with_correct_params - Asser...
+FAILED ../tests/test_outputs.py::test_windows_keys_with_visual_feedback - Ass...
+===================== 1 failed, 2 passed, 1 error in 8.77s =====================

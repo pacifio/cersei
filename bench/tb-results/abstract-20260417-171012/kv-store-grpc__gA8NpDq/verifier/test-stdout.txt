@@ -1,0 +1,68 @@
+Collecting pytest==8.4.2
+  Downloading pytest-8.4.2-py3-none-any.whl.metadata (7.7 kB)
+Collecting requests==2.32.5
+  Downloading requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+Collecting psutil==7.0.0
+  Downloading psutil-7.0.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (22 kB)
+Collecting pytest-json-ctrf==0.3.5
+  Downloading pytest_json_ctrf-0.3.5-py3-none-any.whl.metadata (3.3 kB)
+Collecting iniconfig>=1 (from pytest==8.4.2)
+  Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+Collecting packaging>=20 (from pytest==8.4.2)
+  Downloading packaging-26.1-py3-none-any.whl.metadata (3.5 kB)
+Collecting pluggy<2,>=1.5 (from pytest==8.4.2)
+  Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+Collecting pygments>=2.7.2 (from pytest==8.4.2)
+  Downloading pygments-2.20.0-py3-none-any.whl.metadata (2.5 kB)
+Collecting charset_normalizer<4,>=2 (from requests==2.32.5)
+  Downloading charset_normalizer-3.4.7-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (40 kB)
+Collecting idna<4,>=2.5 (from requests==2.32.5)
+  Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+Collecting urllib3<3,>=1.21.1 (from requests==2.32.5)
+  Downloading urllib3-2.6.3-py3-none-any.whl.metadata (6.9 kB)
+Collecting certifi>=2017.4.17 (from requests==2.32.5)
+  Downloading certifi-2026.2.25-py3-none-any.whl.metadata (2.5 kB)
+Downloading pytest-8.4.2-py3-none-any.whl (365 kB)
+Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+Downloading psutil-7.0.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (277 kB)
+Downloading pytest_json_ctrf-0.3.5-py3-none-any.whl (6.8 kB)
+Downloading charset_normalizer-3.4.7-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (215 kB)
+Downloading idna-3.11-py3-none-any.whl (71 kB)
+Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+Downloading urllib3-2.6.3-py3-none-any.whl (131 kB)
+Downloading certifi-2026.2.25-py3-none-any.whl (153 kB)
+Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+Downloading packaging-26.1-py3-none-any.whl (95 kB)
+Downloading pygments-2.20.0-py3-none-any.whl (1.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 337.8 MB/s  0:00:00
+Installing collected packages: urllib3, pygments, psutil, pluggy, packaging, iniconfig, idna, charset_normalizer, certifi, requests, pytest, pytest-json-ctrf
+
+Successfully installed certifi-2026.2.25 charset_normalizer-3.4.7 idna-3.11 iniconfig-2.3.0 packaging-26.1 pluggy-1.6.0 psutil-7.0.0 pygments-2.20.0 pytest-8.4.2 pytest-json-ctrf-0.3.5 requests-2.32.5 urllib3-2.6.3
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip
+============================= test session starts ==============================
+platform linux -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0
+rootdir: /tests
+plugins: json-ctrf-0.3.5
+collected 7 items
+
+../tests/test_outputs.py .......                                         [100%]
+
+==================================== PASSES ====================================
+_________________________ test_grpc_tools_installation _________________________
+----------------------------- Captured stdout call -----------------------------
+✓ grpcio successfully imported
+_________________________ test_grpc_protocol_handshake _________________________
+----------------------------- Captured stdout call -----------------------------
+✓ gRPC protocol handshake successful
+=========================== short test summary info ============================
+PASSED ../tests/test_outputs.py::test_proto_file_creation
+PASSED ../tests/test_outputs.py::test_grpc_tools_installation
+PASSED ../tests/test_outputs.py::test_protobuf_generation
+PASSED ../tests/test_outputs.py::test_server_file_creation
+PASSED ../tests/test_outputs.py::test_real_grpc_server_running
+PASSED ../tests/test_outputs.py::test_grpc_protocol_handshake
+PASSED ../tests/test_outputs.py::test_grpc_server_functionality
+============================== 7 passed in 0.07s ===============================

@@ -1,0 +1,10 @@
+Reading package lists.../tests/test.sh: line 4:  4634 Segmentation fault      (core dumped) apt-get update
+Reading package lists.../tests/test.sh: line 5:  4717 Segmentation fault      (core dumped) apt-get install -y curl
+curl: (56) Failure when receiving data from the peer
+/tests/test.sh: line 10: /root/.local/bin/env: No such file or directory
+/tests/test.sh: line 19: uvx: command not found
+rontend. It is held by process 4717 (apt-get)
+E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?
+curl: (56) Failure when receiving data from the peer
+/tests/test.sh: line 10: /root/.local/bin/env: No such file or directory
+/tests/test.sh: line 19: uvx: command not found

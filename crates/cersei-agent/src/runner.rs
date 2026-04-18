@@ -210,6 +210,12 @@ pub async fn run_agent_streaming(
     let mut benchmark_retries: u32 = 0;
     const BENCHMARK_MAX_RETRIES: u32 = 4;
     let mut doom_loop_warned = false;
+    let mut completion_verified = false;
+
+    // Runtime guards
+    let mut files_read: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut tool_error_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    const MAX_TOOL_ERRORS_PER_TOOL: u32 = 3;
 
     // Build tool context
     let tool_ctx = ToolContext {
@@ -431,6 +437,30 @@ pub async fn run_agent_streaming(
         // Handle stop reason
         match &response.stop_reason {
             StopReason::EndTurn => {
+                // ── Completion verification nudge ──
+                // If agent is finishing but hasn't verified its output, nudge once.
+                if agent.benchmark_mode && !completion_verified && turn >= 3 {
+                    let recent_has_verify = tool_calls.iter().rev().take(5).any(|tc| {
+                        let cmd = tc.input.get("command").and_then(|v| v.as_str()).unwrap_or("");
+                        cmd.contains("cat ") || cmd.contains("python ") || cmd.contains("test")
+                            || cmd.contains("verify") || cmd.contains("node ")
+                            || cmd.contains("./") || cmd.contains("check")
+                    });
+                    if !recent_has_verify {
+                        completion_verified = true;
+                        agent.messages.lock().push(Message::user(
+                            "[system] Before finishing, verify your solution is correct:\n\
+                             1. Check that all expected output files exist and have correct content\n\
+                             2. Run your solution to confirm it produces the right output\n\
+                             3. Re-read the original instruction — did you satisfy EVERY requirement?"
+                        ));
+                        let _ = event_tx.send(AgentEvent::Status(
+                            "Nudging agent to verify before completion".into()
+                        )).await;
+                        continue;
+                    }
+                }
+
                 // ── Benchmark self-verification ──
                 // In TB 2.0 tests are run externally by the verifier AFTER the agent
                 // finishes. We only intervene if:
@@ -613,7 +643,42 @@ pub async fn run_agent_streaming(
                 // Phase 3: Process results sequentially (emit events, build result blocks)
                 let mut result_blocks: Vec<ContentBlock> = Vec::new();
 
-                for (tool_id, tool_name, tool_input, result, duration) in results {
+                for (tool_id, tool_name, tool_input, mut result, duration) in results {
+                    // ── Guard: Read-before-edit ──
+                    // Track files that have been read; block edits to unread files
+                    if (tool_name == "Read" || tool_name == "read") && !result.is_error {
+                        if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
+                            files_read.insert(path.to_string());
+                        }
+                    }
+                    if (tool_name == "Edit" || tool_name == "edit") && !result.is_error {
+                        if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
+                            if !files_read.contains(path) {
+                                // Check if file exists — new files don't need prior read
+                                let file_exists = std::path::Path::new(path).exists()
+                                    || tool_ctx.working_dir.join(path).exists();
+                                if file_exists {
+                                    result = ToolResult::error(
+                                        format!("You must Read '{}' before editing it. Read the file first to understand its current contents.", path)
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Guard: Per-tool error counter with reflection ──
+                    if result.is_error {
+                        let count = tool_error_counts.entry(tool_name.clone()).or_insert(0);
+                        *count += 1;
+                        let remaining = MAX_TOOL_ERRORS_PER_TOOL.saturating_sub(*count);
+                        result.content = format!(
+                            "{}\n\n[Tool '{}' failed {} time(s). {} attempts remaining. Analyze the error and try a different approach.]",
+                            result.content, tool_name, count, remaining
+                        );
+                    } else {
+                        tool_error_counts.remove(&tool_name);
+                    }
+
                     let _ = event_tx
                         .send(AgentEvent::ToolEnd {
                             name: tool_name.clone(),
@@ -659,21 +724,34 @@ pub async fn run_agent_streaming(
                     .push(Message::user_blocks(result_blocks));
 
                 // ── Doom loop detection ──
-                // If the last N tool calls are the same tool with similar commands,
-                // the agent is stuck. Force a different approach.
-                if !doom_loop_warned && tool_calls.len() >= 4 {
-                    let recent: Vec<&ToolCallRecord> = tool_calls.iter().rev().take(4).collect();
-                    let all_same_tool = recent.iter().all(|tc| tc.name == recent[0].name);
-                    let all_errors = recent.iter().all(|tc| tc.is_error);
-                    if all_same_tool && all_errors {
+                // Detects two patterns:
+                // 1. 3+ consecutive identical tool calls that all error
+                // 2. Repeating 2-call pattern [A,B][A,B][A,B] (alternating failures)
+                if !doom_loop_warned && tool_calls.len() >= 6 {
+                    let names: Vec<&str> = tool_calls.iter().rev().take(6)
+                        .map(|tc| tc.name.as_str()).collect();
+                    let errors: Vec<bool> = tool_calls.iter().rev().take(6)
+                        .map(|tc| tc.is_error).collect();
+
+                    // Pattern 1: 3+ identical consecutive failing calls
+                    let is_3_identical = names.len() >= 3
+                        && names[0] == names[1] && names[1] == names[2]
+                        && errors[0] && errors[1] && errors[2];
+
+                    // Pattern 2: [A,B][A,B][A,B] alternating pattern
+                    let is_2_pattern = names.len() >= 6
+                        && names[0] == names[2] && names[2] == names[4]
+                        && names[1] == names[3] && names[3] == names[5];
+
+                    if is_3_identical || is_2_pattern {
                         doom_loop_warned = true;
                         agent.messages.lock().push(Message::user(
-                            "[system] You appear to be stuck in a loop — your last 4 tool calls \
-                             were the same tool and all failed. STOP and reconsider:\n\
-                             1. What exactly is going wrong?\n\
-                             2. Is there a completely different approach?\n\
-                             3. Try a different tool or different arguments.\n\
-                             Do NOT repeat the same failing command."
+                            "[system] You are stuck in a repetitive loop. Your recent tool calls \
+                             are repeating the same pattern. STOP and reconsider:\n\
+                             1. What exactly is going wrong? Read the error messages carefully.\n\
+                             2. Is there a COMPLETELY different approach to this problem?\n\
+                             3. Try a different tool, different arguments, or a different algorithm.\n\
+                             Do NOT repeat the same commands."
                         ));
                         let _ = event_tx.send(AgentEvent::Status(
                             "Doom loop detected — forcing new approach".into()

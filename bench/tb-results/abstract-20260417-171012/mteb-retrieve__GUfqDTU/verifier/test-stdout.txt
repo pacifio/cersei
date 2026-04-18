@@ -1,0 +1,126 @@
+Hit:1 http://deb.debian.org/debian bookworm InRelease
+Hit:2 http://deb.debian.org/debian bookworm-updates InRelease
+Hit:3 http://deb.debian.org/debian-security bookworm-security InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+curl is already the newest version (7.88.1-10+deb12u14).
+0 upgraded, 0 newly installed, 0 to remove and 16 not upgraded.
+downloading uv 0.9.5 x86_64-unknown-linux-gnu
+no checksums to verify
+installing to /root/.local/bin
+  uv
+  uvx
+everything's installed!
+
+To add $HOME/.local/bin to your PATH, either restart your shell or run:
+
+    source $HOME/.local/bin/env (sh, bash, zsh)
+    source $HOME/.local/bin/env.fish (fish)
+Downloading cpython-3.13.9-linux-x86_64-gnu (download) (32.0MiB)
+ Downloading cpython-3.13.9-linux-x86_64-gnu (download)
+Downloading pygments (1.2MiB)
+Downloading numpy (15.9MiB)
+Downloading sympy (6.0MiB)
+Downloading tokenizers (3.1MiB)
+Downloading torchvision (7.2MiB)
+Downloading hf-xet (4.0MiB)
+Downloading pydantic-core (2.0MiB)
+Downloading pandas (10.4MiB)
+Downloading setuptools (1.0MiB)
+Downloading torch (506.1MiB)
+Downloading polars-runtime-32 (44.7MiB)
+Downloading scipy (33.6MiB)
+Downloading scikit-learn (8.5MiB)
+Downloading cuda-bindings (5.9MiB)
+Downloading aiohttp (1.7MiB)
+Downloading nvidia-cusparselt-cu13 (162.0MiB)
+Downloading nvidia-cudnn-cu13 (349.1MiB)
+Downloading pillow (6.8MiB)
+Downloading networkx (2.0MiB)
+Downloading pyarrow (45.4MiB)
+Downloading nvidia-cuda-cupti (10.2MiB)
+Downloading nvidia-cuda-nvrtc (86.0MiB)
+Downloading mteb (1.8MiB)
+Downloading nvidia-nvjitlink (38.8MiB)
+Downloading transformers (9.8MiB)
+Downloading nvidia-cufft (204.2MiB)
+Downloading nvidia-nvshmem-cu13 (57.6MiB)
+Downloading triton (179.6MiB)
+Downloading nvidia-cuda-runtime (2.1MiB)
+Downloading nvidia-cusolver (191.6MiB)
+Downloading nvidia-curand (56.8MiB)
+Downloading nvidia-nccl-cu13 (187.4MiB)
+Downloading nvidia-cufile (1.2MiB)
+Downloading nvidia-cusparse (139.2MiB)
+Downloading nvidia-cublas (403.5MiB)
+ Downloading nvidia-cufile
+ Downloading aiohttp
+ Downloading pydantic-core
+ Downloading nvidia-cuda-runtime
+ Downloading pygments
+ Downloading setuptools
+ Downloading tokenizers
+ Downloading networkx
+ Downloading hf-xet
+ Downloading cuda-bindings
+ Downloading pillow
+ Downloading mteb
+ Downloading torchvision
+ Downloading scikit-learn
+ Downloading sympy
+ Downloading nvidia-cuda-cupti
+ Downloading numpy
+ Downloading transformers
+ Downloading nvidia-nvjitlink
+ Downloading scipy
+ Downloading pandas
+ Downloading polars-runtime-32
+ Downloading nvidia-nvshmem-cu13
+ Downloading nvidia-curand
+ Downloading nvidia-cuda-nvrtc
+ Downloading pyarrow
+ Downloading nvidia-cusparse
+ Downloading nvidia-cusparselt-cu13
+ Downloading nvidia-nccl-cu13
+ Downloading nvidia-cusolver
+ Downloading triton
+ Downloading nvidia-cufft
+ Downloading nvidia-cudnn-cu13
+ Downloading nvidia-cublas
+ Downloading torch
+Installed 92 packages in 1.07s
+============================= test session starts ==============================
+platform linux -- Python 3.13.9, pytest-8.4.1, pluggy-1.6.0
+rootdir: /tests
+plugins: anyio-4.13.0, json-ctrf-0.3.5
+collected 2 items
+
+../tests/test_outputs.py FF                                              [100%]
+
+=================================== FAILURES ===================================
+______________________________ test_result_exists ______________________________
+
+    def test_result_exists():
+>       assert os.path.exists("/app/result.txt"), "result.txt file does not exist"
+E       AssertionError: result.txt file does not exist
+E       assert False
+E        +  where False = <function exists at 0x71c440b6f240>('/app/result.txt')
+E        +    where <function exists at 0x71c440b6f240> = <module 'posixpath' (frozen)>.exists
+E        +      where <module 'posixpath' (frozen)> = os.path
+
+/tests/test_outputs.py:7: AssertionError
+______________________________ test_data_matches _______________________________
+
+    def test_data_matches():
+        expected = "MTEB: Massive Text Embedding Benchmark"
+>       with open("/app/result.txt", "r") as f:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/app/result.txt'
+
+/tests/test_outputs.py:12: FileNotFoundError
+=========================== short test summary info ============================
+FAILED ../tests/test_outputs.py::test_result_exists - AssertionError: result....
+FAILED ../tests/test_outputs.py::test_data_matches - FileNotFoundError: [Errn...
+============================== 2 failed in 0.05s ===============================

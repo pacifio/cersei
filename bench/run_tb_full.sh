@@ -25,11 +25,12 @@ fi
 
 # ─── Defaults ──────────────────────────────────────────────────────────────
 MODEL="${MODEL:-google/gemini-3.1-pro-preview}"
-CONCURRENT=20
+CONCURRENT="${CONCURRENT:-20}"
 DATASET="terminal-bench@2.0"
 OUTPUT_DIR="$SCRIPT_DIR/tb-results"
 JOB_NAME="abstract-$(date +%Y%m%d-%H%M%S)"
-TIMEOUT_MULT="${TIMEOUT_MULT:-1.5}"
+TIMEOUT_MULT="${TIMEOUT_MULT:-1.0}"
+ATTEMPTS="${ATTEMPTS:-1}"  # Use --attempts 5 for leaderboard submission
 USE_DAYTONA=true
 ENABLE_EMBEDDING=true  # ON by default
 EXTRA_ARGS=()
@@ -47,7 +48,7 @@ while [[ $# -gt 0 ]]; do
     --include)          EXTRA_ARGS+=("--include-task-name" "$2"); shift 2 ;;
     --exclude)          EXTRA_ARGS+=("--exclude-task-name" "$2"); shift 2 ;;
     --task)             EXTRA_ARGS+=("--include-task-name" "$2"); shift 2 ;;
-    --attempts)         EXTRA_ARGS+=("--n-attempts" "$2"); shift 2 ;;
+    --attempts)         ATTEMPTS="$2"; shift 2 ;;
     --debug)            EXTRA_ARGS+=("--debug"); shift ;;
     --help|-h)
       echo "Usage: $0 [OPTIONS]"
@@ -122,6 +123,7 @@ echo -e "  ${DIM}Concurrent:${RESET}  $CONCURRENT"
 echo -e "  ${DIM}Env:${RESET}         $($USE_DAYTONA && echo 'Daytona' || echo 'Docker')"
 echo -e "  ${DIM}Timeout:${RESET}     ${TIMEOUT_MULT}x"
 echo -e "  ${DIM}Embedding:${RESET}   $($ENABLE_EMBEDDING && echo 'ON (USearch + Gemini)' || echo 'off')"
+echo -e "  ${DIM}Attempts:${RESET}    ${ATTEMPTS} per task"
 echo -e "  ${DIM}Retries:${RESET}     2 (on agent crash)"
 echo -e "  ${DIM}Job:${RESET}         $JOB_NAME"
 echo -e "${DIM}───────────────────────────────────────────────────${RESET}"
@@ -146,6 +148,7 @@ PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}" uv run harbor run \
     --jobs-dir "$OUTPUT_DIR" \
     --job-name "$JOB_NAME" \
     --timeout-multiplier "$TIMEOUT_MULT" \
+    -k "$ATTEMPTS" \
     --max-retries 2 \
     --retry-include "NonZeroAgentExitCodeError" \
     --env-file "$ENV_FILE" \
