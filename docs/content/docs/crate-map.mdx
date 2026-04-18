@@ -32,7 +32,7 @@ Zero-dependency core types: `Message`, `Role`, `ContentBlock`, `Usage`, `StopRea
 
 ## cersei-tools
 
-`Tool` trait, 34 built-in tools organized into sets, `PermissionPolicy` trait, bash command classifier, shell state persistence, `CostTracker`, skill discovery.
+`Tool` trait, 34 built-in tools organized into sets, `PermissionPolicy` trait, bash command classifier, shell state persistence, `CostTracker`, skill discovery. Depends on `cersei-embeddings` for `CodeSearch`'s hybrid BM25 + vector mode.
 
 **Tool count by category:**
 - Filesystem: 6 (Read, Write, Edit, Glob, Grep, NotebookEdit)
@@ -47,6 +47,10 @@ Zero-dependency core types: `Message`, `Role`, `ContentBlock`, `Usage`, `StopRea
 ## cersei-tools-derive
 
 Proc macro: `#[derive(Tool)]`. Auto-generates `Tool` impl from `ToolExecute` trait + JSON schema from input types.
+
+## cersei-embeddings
+
+Provider-agnostic `EmbeddingProvider` trait with built-in Gemini and OpenAI backends, a `usearch`-backed `VectorIndex`, and an ergonomic `EmbeddingStore<P>` for the add-text / search-by-text flow. Standalone — has no dependency on other `cersei-*` crates. See [embeddings docs](/docs/embeddings-overview).
 
 ## cersei-agent
 

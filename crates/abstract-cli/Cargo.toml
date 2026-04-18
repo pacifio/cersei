@@ -22,6 +22,7 @@ cersei = { path = "../cersei" }
 cersei-types = { path = "../cersei-types" }
 cersei-provider = { path = "../cersei-provider" }
 cersei-tools = { path = "../cersei-tools" }
+cersei-embeddings = { path = "../cersei-embeddings" }
 cersei-lsp = { path = "../cersei-lsp" }
 which = { workspace = true }
 cersei-agent = { path = "../cersei-agent" }

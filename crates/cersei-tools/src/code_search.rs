@@ -2,20 +2,21 @@
 //!
 //! Two modes:
 //! 1. BM25 only (default): tantivy full-text search. No API calls.
-//! 2. BM25 + Vector (--embedding-api): BM25 candidates merged with USearch
-//!    HNSW vector k-NN search using Gemini/OpenAI embeddings.
+//! 2. BM25 + Vector: BM25 candidates merged with HNSW vector k-NN search
+//!    backed by the `cersei-embeddings` crate (Gemini / OpenAI / custom).
 
-use crate::{Tool, ToolResult, ToolContext, PermissionLevel, ToolCategory};
+use crate::{PermissionLevel, Tool, ToolCategory, ToolContext, ToolResult};
 use async_trait::async_trait;
+use cersei_embeddings::{EmbeddingProvider, Metric, VectorIndex};
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{doc, Index, IndexReader, ReloadPolicy, TantivyDocument};
-use once_cell::sync::Lazy;
 
 // ─── Config ────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ const CHUNK_OVERLAP: usize = 10;
 const BM25_CANDIDATES: usize = 20;
 const VECTOR_CANDIDATES: usize = 20;
 const DEFAULT_RESULTS: usize = 10;
+const CHUNK_EMBED_CHARS: usize = 500;
 
 const INDEXED_EXTENSIONS: &[&str] = &[
     "bash", "c", "cc", "cpp", "cs", "css", "go", "h", "hh", "hpp",
@@ -55,8 +57,8 @@ struct CachedIndex {
     content_field: Field,
     lines_field: Field,
     // Vector (optional)
-    vector_index: Option<usearch::Index>,
-    chunks: Vec<ChunkMeta>, // chunk_id (usearch key) → metadata
+    vector_index: Option<VectorIndex>,
+    chunks: Vec<ChunkMeta>, // chunk_id (vector key) → metadata
 }
 
 static INDEX_CACHE: Lazy<Mutex<Option<CachedIndex>>> = Lazy::new(|| Mutex::new(None));
@@ -123,27 +125,6 @@ fn build_bm25_index(chunks: &[ChunkMeta]) -> Result<(Index, IndexReader, Field, 
     Ok((index, reader, path_field, content_field, lines_field))
 }
 
-/// Build USearch vector index from pre-computed embeddings.
-fn build_vector_index(embeddings: &[Vec<f32>], dim: usize) -> Result<usearch::Index, String> {
-    let options = usearch::IndexOptions {
-        dimensions: dim,
-        metric: usearch::MetricKind::Cos,
-        quantization: usearch::ScalarKind::F32,
-        connectivity: 0,
-        expansion_add: 0,
-        expansion_search: 0,
-        multi: false,
-    };
-    let index = usearch::Index::new(&options).map_err(|e| format!("USearch init: {e}"))?;
-    index.reserve(embeddings.len()).map_err(|e| format!("USearch reserve: {e}"))?;
-
-    for (i, emb) in embeddings.iter().enumerate() {
-        index.add(i as u64, emb).map_err(|e| format!("USearch add: {e}"))?;
-    }
-
-    Ok(index)
-}
-
 fn collect_chunks(working_dir: &Path) -> Vec<ChunkMeta> {
     let mut all_chunks = Vec::new();
     for entry in walkdir::WalkDir::new(working_dir)
@@ -174,9 +155,9 @@ fn build_index(working_dir: &Path, embeddings: Option<Vec<Vec<f32>>>) -> Result<
 
     let (bm25_index, reader, path_field, content_field, lines_field) = build_bm25_index(&chunks)?;
 
-    let vector_index = if let Some(ref embs) = embeddings {
+    let vector_index = if let Some(embs) = embeddings {
         if !embs.is_empty() && !embs[0].is_empty() {
-            match build_vector_index(embs, embs[0].len()) {
+            match VectorIndex::from_vectors(&embs, Metric::Cosine) {
                 Ok(idx) => Some(idx),
                 Err(e) => {
                     tracing::warn!("Vector index failed, BM25 only: {e}");
@@ -236,15 +217,11 @@ fn bm25_search(cached: &CachedIndex, query: &str, limit: usize) -> Result<Vec<Se
 
 fn vector_search(cached: &CachedIndex, query_embedding: &[f32], limit: usize) -> Result<Vec<SearchResult>, String> {
     let vi = cached.vector_index.as_ref().ok_or("No vector index")?;
-    let matches = vi.search(query_embedding, limit).map_err(|e| format!("Vector search: {e}"))?;
+    let hits = vi.search(query_embedding, limit).map_err(|e| format!("Vector search: {e}"))?;
 
     let mut results = Vec::new();
-    for i in 0..matches.keys.len() {
-        let key = matches.keys[i] as usize;
-        let distance = matches.distances[i];
-        // Cosine distance → similarity: sim = 1 - distance
-        let similarity = 1.0 - distance;
-
+    for hit in hits {
+        let key = hit.key as usize;
         if key < cached.chunks.len() {
             let chunk = &cached.chunks[key];
             results.push(SearchResult {
@@ -253,8 +230,8 @@ fn vector_search(cached: &CachedIndex, query_embedding: &[f32], limit: usize) ->
                 start_line: chunk.start_line,
                 end_line: chunk.end_line,
                 bm25_score: 0.0,
-                vector_score: similarity,
-                final_score: similarity * 100.0,
+                vector_score: hit.similarity,
+                final_score: hit.similarity * 100.0,
             });
         }
     }
@@ -293,86 +270,30 @@ fn merge_results(bm25: Vec<SearchResult>, vector: Vec<SearchResult>, limit: usiz
     results
 }
 
-// ─── Embedding API ─────────────────────────────────────────────────────────
-
-async fn gemini_embeddings(texts: &[String], api_key: &str) -> Result<Vec<Vec<f32>>, String> {
-    let client = reqwest::Client::new();
-    // Batch in groups of 100 (Gemini limit)
-    let mut all_embeddings = Vec::new();
-    for batch in texts.chunks(100) {
-        let requests: Vec<serde_json::Value> = batch.iter().map(|t| {
-            serde_json::json!({
-                "model": "models/text-embedding-004",
-                "content": { "parts": [{ "text": &t[..t.len().min(2000)] }] }
-            })
-        }).collect();
-
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key={api_key}"
-        );
-
-        let resp = client.post(&url)
-            .header("Content-Type", "application/json")
-            .json(&serde_json::json!({ "requests": requests }))
-            .send().await
-            .map_err(|e| format!("Gemini embedding error: {e}"))?;
-
-        if !resp.status().is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(format!("Gemini embedding failed: {body}"));
-        }
-
-        #[derive(Deserialize)]
-        struct Resp { embeddings: Vec<Emb> }
-        #[derive(Deserialize)]
-        struct Emb { values: Vec<f32> }
-
-        let result: Resp = resp.json().await.map_err(|e| format!("Parse: {e}"))?;
-        all_embeddings.extend(result.embeddings.into_iter().map(|e| e.values));
-    }
-    Ok(all_embeddings)
-}
-
-async fn openai_embeddings(texts: &[String], api_key: &str) -> Result<Vec<Vec<f32>>, String> {
-    let client = reqwest::Client::new();
-    let resp = client.post("https://api.openai.com/v1/embeddings")
-        .header("Authorization", format!("Bearer {api_key}"))
-        .json(&serde_json::json!({
-            "model": "text-embedding-3-small",
-            "input": texts.iter().map(|t| &t[..t.len().min(2000)]).collect::<Vec<_>>(),
-        }))
-        .send().await
-        .map_err(|e| format!("OpenAI embedding error: {e}"))?;
-
-    if !resp.status().is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        return Err(format!("OpenAI embedding failed: {body}"));
-    }
-
-    #[derive(Deserialize)]
-    struct Resp { data: Vec<Item> }
-    #[derive(Deserialize)]
-    struct Item { embedding: Vec<f32> }
-
-    let result: Resp = resp.json().await.map_err(|e| format!("Parse: {e}"))?;
-    Ok(result.data.into_iter().map(|d| d.embedding).collect())
-}
-
 // ─── Tool implementation ───────────────────────────────────────────────────
 
 pub struct CodeSearchTool {
-    pub embedding_provider: Option<String>,
-    pub embedding_api_key: Option<String>,
+    embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
 }
 
 impl CodeSearchTool {
+    /// BM25-only search. No network, no API key required.
     pub fn new() -> Self {
-        Self { embedding_provider: None, embedding_api_key: None }
+        Self { embedding_provider: None }
     }
 
-    pub fn with_embeddings(provider: String, api_key: String) -> Self {
-        Self { embedding_provider: Some(provider), embedding_api_key: Some(api_key) }
+    /// Enable hybrid BM25 + vector search using the given embedding provider.
+    ///
+    /// Use [`cersei_embeddings::auto_from_model`] to construct a provider
+    /// from an LLM model string, or build one explicitly with
+    /// [`cersei_embeddings::GeminiEmbeddings`] / [`cersei_embeddings::OpenAiEmbeddings`].
+    pub fn with_embeddings(provider: Arc<dyn EmbeddingProvider>) -> Self {
+        Self { embedding_provider: Some(provider) }
     }
+}
+
+impl Default for CodeSearchTool {
+    fn default() -> Self { Self::new() }
 }
 
 #[async_trait]
@@ -425,26 +346,24 @@ impl Tool for CodeSearchTool {
         if needs_build {
             // Collect chunks first
             let chunks = collect_chunks(&search_dir);
-            let chunk_texts: Vec<String> = chunks.iter()
-                .map(|c| c.content.chars().take(500).collect())
+            let chunk_texts: Vec<String> = chunks
+                .iter()
+                .map(|c| c.content.chars().take(CHUNK_EMBED_CHARS).collect())
                 .collect();
 
-            // Optionally embed all chunks
-            let embeddings = if let (Some(provider), Some(key)) = (&self.embedding_provider, &self.embedding_api_key) {
-                if !key.is_empty() && !chunk_texts.is_empty() {
-                    let result = match provider.as_str() {
-                        "google" | "gemini" => gemini_embeddings(&chunk_texts, key).await,
-                        "openai" => openai_embeddings(&chunk_texts, key).await,
-                        _ => Err("Unknown provider".into()),
-                    };
-                    match result {
+            // Optionally embed all chunks via the configured provider
+            let embeddings = if let Some(provider) = &self.embedding_provider {
+                if chunk_texts.is_empty() {
+                    None
+                } else {
+                    match provider.embed_batch(&chunk_texts).await {
                         Ok(embs) => Some(embs),
                         Err(e) => {
                             tracing::warn!("Embedding failed, BM25 only: {e}");
                             None
                         }
                     }
-                } else { None }
+                }
             } else { None };
 
             match build_index(&search_dir, embeddings) {
@@ -469,21 +388,19 @@ impl Tool for CodeSearchTool {
 
         // Vector search needs async embedding call, then re-acquires lock briefly
         let results = if has_vector {
-            if let (Some(provider), Some(key)) = (&self.embedding_provider, &self.embedding_api_key) {
-                let query_emb = match provider.as_str() {
-                    "google" | "gemini" => gemini_embeddings(&[input.query.clone()], key).await,
-                    "openai" => openai_embeddings(&[input.query.clone()], key).await,
-                    _ => Err("Unknown provider".into()),
-                };
-                match query_emb {
-                    Ok(embs) if !embs.is_empty() => {
+            if let Some(provider) = &self.embedding_provider {
+                match provider.embed(&input.query).await {
+                    Ok(query_emb) => {
                         let cache = INDEX_CACHE.lock().unwrap();
                         let cached = cache.as_ref().unwrap();
-                        let vec_results = vector_search(cached, &embs[0], VECTOR_CANDIDATES).unwrap_or_default();
+                        let vec_results = vector_search(cached, &query_emb, VECTOR_CANDIDATES).unwrap_or_default();
                         drop(cache);
                         merge_results(bm25_results, vec_results, limit)
                     }
-                    _ => { let mut r = bm25_results; r.truncate(limit); r }
+                    Err(e) => {
+                        tracing::warn!("Query embedding failed, BM25 only: {e}");
+                        let mut r = bm25_results; r.truncate(limit); r
+                    }
                 }
             } else {
                 let mut r = bm25_results; r.truncate(limit); r

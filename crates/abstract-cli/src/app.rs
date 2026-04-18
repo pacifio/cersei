@@ -204,22 +204,14 @@ pub fn build_agent(
 
     // If --embedding-api is enabled, upgrade CodeSearch with embedding reranking
     if config.embedding_api {
-        // Detect embedding provider from model string
-        let (embed_provider, embed_key) = if resolved_model.contains("openai") || resolved_model.starts_with("gpt") || resolved_model.starts_with("o1") || resolved_model.starts_with("o3") {
-            ("openai".to_string(), std::env::var("OPENAI_API_KEY").unwrap_or_default())
-        } else if resolved_model.contains("gemini") || resolved_model.contains("google") {
-            ("google".to_string(), std::env::var("GOOGLE_API_KEY")
-                .or_else(|_| std::env::var("GEMINI_API_KEY")).unwrap_or_default())
-        } else {
-            ("openai".to_string(), std::env::var("OPENAI_API_KEY").unwrap_or_default())
-        };
-
-        if !embed_key.is_empty() {
-            // Replace the default CodeSearchTool with the embedding-enabled one
-            tools.retain(|t| t.name() != "CodeSearch");
-            tools.push(Box::new(cersei_tools::code_search::CodeSearchTool::with_embeddings(
-                embed_provider, embed_key
-            )));
+        match cersei_embeddings::auto_from_model(&resolved_model) {
+            Ok(provider) => {
+                tools.retain(|t| t.name() != "CodeSearch");
+                tools.push(Box::new(cersei_tools::code_search::CodeSearchTool::with_embeddings(
+                    Arc::from(provider),
+                )));
+            }
+            Err(e) => tracing::warn!("Embedding provider unavailable, BM25 only: {e}"),
         }
     }
 

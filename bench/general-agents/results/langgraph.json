@@ -1,0 +1,41 @@
+{
+  "framework": "langgraph",
+  "version": "1.1.8",
+  "host": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "arm",
+    "ram_gb": 16,
+    "cgroup_memory_gb": null
+  },
+  "axis_1_instantiation_us": {
+    "p50": 5536.167,
+    "p95": 8956.25,
+    "p99": 11824.459,
+    "mean": 5947.283745,
+    "samples": 1000
+  },
+  "axis_2_per_agent_bytes": {
+    "mean_bytes": 30910,
+    "samples": 500,
+    "allocator": "tracemalloc (size_diff)"
+  },
+  "axis_3_max_concurrent": [
+    {
+      "n": 100,
+      "p50_ms": 201.228167,
+      "p99_ms": 276.351125,
+      "rss_mb": 193.546875,
+      "wall_ms": 361.306209
+    },
+    {
+      "n": 500,
+      "p50_ms": 1149.0845,
+      "p99_ms": 2234.588375,
+      "rss_mb": 193.546875,
+      "wall_ms": 2246.510625
+    }
+  ],
+  "axis_4_graph_recall_us": null,
+  "axis_5_semantic_search_us": null
+}

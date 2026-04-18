@@ -27,3 +27,25 @@ parking_lot = { workspace = true }
 chrono = { workspace = true }
 anyhow = { workspace = true }
 tempfile = { workspace = true }
+
+[features]
+# Benchmark features — opt-in for general_agent_bench example.
+jemalloc-bench = ["dep:tikv-jemallocator", "dep:tikv-jemalloc-ctl"]
+graph-bench    = ["cersei-memory/graph"]
+bench-full     = ["jemalloc-bench", "graph-bench"]
+
+[dependencies.tikv-jemallocator]
+version  = "0.6"
+optional = true
+
+[dependencies.tikv-jemalloc-ctl]
+version  = "0.6"
+features = ["stats"]
+optional = true
+
+[dev-dependencies]
+cersei-embeddings = { workspace = true }
+
+[[example]]
+name = "general_agent_bench"
+path = "benchmarks/general_agent_bench.rs"

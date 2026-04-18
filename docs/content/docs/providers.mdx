@@ -141,12 +141,14 @@ Gemini models via the OpenAI-compatible endpoint.
 | API Base | `https://generativelanguage.googleapis.com/v1beta/openai` |
 | Env Var | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
 | Format | OpenAI-compatible |
-| Default Model | `gemini-2.0-flash` |
+| Default Model | `gemini-3.1-pro-preview` |
 
 **Models:**
 
 | Model | Context Window |
 |-------|---------------|
+| `gemini-3.1-pro-preview` | 2M |
+| `gemini-3.0-flash` | 1M |
 | `gemini-2.0-flash` | 1M |
 | `gemini-2.0-pro` | 1M |
 | `gemini-1.5-pro` | 2M |
@@ -395,7 +397,7 @@ The Abstract CLI supports short aliases:
 | `sonnet` | `anthropic/claude-sonnet-4-6` |
 | `haiku` | `anthropic/claude-haiku-4-5` |
 | `4o`, `gpt4o` | `openai/gpt-4o` |
-| `gemini` | `google/gemini-2.0-flash` |
+| `gemini` | `google/gemini-3.1-pro-preview` |
 | `llama` | `groq/llama-3.1-70b-versatile` |
 | `deepseek` | `deepseek/deepseek-chat` |
 | `grok` | `xai/grok-2` |

@@ -1,0 +1,41 @@
+{
+  "framework": "pydantic_ai",
+  "version": "1.22.0",
+  "host": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "arm",
+    "ram_gb": 16,
+    "cgroup_memory_gb": null
+  },
+  "axis_1_instantiation_us": {
+    "p50": 219.125,
+    "p95": 353.875,
+    "p99": 422.625,
+    "mean": 254.197279,
+    "samples": 1000
+  },
+  "axis_2_per_agent_bytes": {
+    "mean_bytes": 8892,
+    "samples": 500,
+    "allocator": "tracemalloc (size_diff)"
+  },
+  "axis_3_max_concurrent": [
+    {
+      "n": 100,
+      "p50_ms": 15.146375,
+      "p99_ms": 27.319209,
+      "rss_mb": 122.03125,
+      "wall_ms": 28.933625
+    },
+    {
+      "n": 500,
+      "p50_ms": 122.228333,
+      "p99_ms": 123.838542,
+      "rss_mb": 123.1875,
+      "wall_ms": 125.029958
+    }
+  ],
+  "axis_4_graph_recall_us": null,
+  "axis_5_semantic_search_us": null
+}

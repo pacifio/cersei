@@ -15,6 +15,12 @@ const C = {
   codex: "#a78bfa",
   claude: "#fb923c",
   tool: "#22d3ee",
+  // Python agent frameworks
+  cersei: "#22d3ee",
+  agno: "#10b981",
+  pydantic: "#f472b6",
+  crewai: "#eab308",
+  langgraph: "#f97316",
 }
 
 const GRID = "#1a1a1a"
@@ -276,3 +282,186 @@ export function GraphComparisonChart() {
     </ChartContainer>
   )
 }
+
+// ─── General-Agent Framework: Instantiation ────────────────────────────────
+//
+// Cersei figure is measured by
+// crates/cersei-agent/benchmarks/general_agent_bench.rs.
+// Python figures are from https://docs.agno.com/performance (vendor-reported,
+// Apple M4 Oct 2025). Reproduce end-to-end via bench/general-agents/run.sh.
+
+const L5 = [
+  { label: "Cersei",     color: C.cersei },
+  { label: "Agno",       color: C.agno },
+  { label: "PydanticAI", color: C.pydantic },
+  { label: "CrewAI",     color: C.crewai },
+  { label: "LangGraph",  color: C.langgraph },
+]
+
+function AgentInstantiationInner() {
+  const { width } = useChart()
+  // μs per Agent.build() — all measured on Apple M1 Pro via the bench suite.
+  const data = [
+    { n: "Cersei",     v: 7.12 },      // cersei 0.1.6-patch.2
+    { n: "Agno",       v: 6.50 },      // agno 2.5.17
+    { n: "PydanticAI", v: 219.12 },    // pydantic-ai 1.22.0
+    { n: "LangGraph",  v: 5536.17 },   // langgraph 1.1.8
+    { n: "CrewAI",     v: 28508.83 },  // crewai 1.14.2
+  ]
+  return (
+    <AreaChart data={data} width={width} height={H} margin={M}>
+      <defs><Grad id="gai" color={C.cersei} /></defs>
+      <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+      <XAxis dataKey="n" tick={TICK} tickLine={false} axisLine={false} />
+      <YAxis
+        tick={TICK} tickLine={false} axisLine={false} width={48}
+        scale="log" domain={[1, 50000]}
+        tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}ms` : `${v}μs`}
+      />
+      <Tooltip
+        content={({ active, payload, label }: any) => {
+          if (!active || !payload?.length) return null
+          const v = payload[0].value as number
+          const f = v >= 1000 ? `${(v / 1000).toFixed(2)}ms` : `${v.toFixed(2)}μs`
+          return <div className="rounded-md border border-neutral-800 bg-black px-2.5 py-1.5 text-[10px] shadow-2xl"><div className="text-neutral-300">{label}</div><div className="font-mono text-neutral-200">{f}</div></div>
+        }}
+      />
+      <Area type="monotone" dataKey="v" stroke={C.cersei} fill="url(#gai)" strokeWidth={2} dot={{ fill: C.cersei, r: 3 }} />
+    </AreaChart>
+  )
+}
+
+export function AgentInstantiationChart() {
+  return (
+    <ChartContainer config={{ v: { color: C.cersei } }} className="w-full my-3 rounded-lg border border-neutral-800 bg-black px-2 pt-2 pb-1" height={H + 24}>
+      <AgentInstantiationInner />
+      <Legend items={[{ label: "All measured on Apple M1 Pro via bench/general-agents/run.sh", color: C.cersei }]} />
+    </ChartContainer>
+  )
+}
+
+// ─── General-Agent Framework: Per-agent memory ─────────────────────────────
+
+function PerAgentMemoryInner() {
+  const { width } = useChart()
+  // bytes per agent — all measured on Apple M1 Pro.
+  // Cersei: jemalloc stats::allocated delta / N.
+  // Python: tracemalloc size_diff / N.
+  const data = [
+    { n: "Cersei",     v: 704 },       // cersei 0.1.6-patch.2
+    { n: "Agno",       v: 5938 },      // agno 2.5.17
+    { n: "PydanticAI", v: 8892 },      // pydantic-ai 1.22.0
+    { n: "CrewAI",     v: 18157 },     // crewai 1.14.2
+    { n: "LangGraph",  v: 30910 },     // langgraph 1.1.8
+  ]
+  return (
+    <AreaChart data={data} width={width} height={H} margin={M}>
+      <defs><Grad id="gmem" color={C.cersei} /></defs>
+      <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+      <XAxis dataKey="n" tick={TICK} tickLine={false} axisLine={false} />
+      <YAxis
+        tick={TICK} tickLine={false} axisLine={false} width={48}
+        scale="log" domain={[100, 200000]}
+        tickFormatter={(v: number) => v >= 1024 ? `${(v / 1024).toFixed(0)}KB` : `${v}B`}
+      />
+      <Tooltip
+        content={({ active, payload, label }: any) => {
+          if (!active || !payload?.length) return null
+          const v = payload[0].value as number
+          const f = v >= 1024 ? `${(v / 1024).toFixed(2)} KiB` : `${v} B`
+          return <div className="rounded-md border border-neutral-800 bg-black px-2.5 py-1.5 text-[10px] shadow-2xl"><div className="text-neutral-300">{label}</div><div className="font-mono text-neutral-200">{f}</div></div>
+        }}
+      />
+      <Area type="monotone" dataKey="v" stroke={C.cersei} fill="url(#gmem)" strokeWidth={2} dot={{ fill: C.cersei, r: 3 }} />
+    </AreaChart>
+  )
+}
+
+export function PerAgentMemoryChart() {
+  return (
+    <ChartContainer config={{ v: { color: C.cersei } }} className="w-full my-3 rounded-lg border border-neutral-800 bg-black px-2 pt-2 pb-1" height={H + 24}>
+      <PerAgentMemoryInner />
+      <Legend items={[{ label: "All measured on Apple M1 Pro. Cersei via jemalloc; Python via tracemalloc.", color: C.cersei }]} />
+    </ChartContainer>
+  )
+}
+
+// ─── General-Agent Framework: Max concurrent (RSS vs agent count) ──────────
+//
+// Cersei line is measured. Python lines will land once bench/general-agents/run.sh
+// has been executed in a matched environment.
+
+function MaxConcurrentInner() {
+  const { width } = useChart()
+  // Total RSS in MB after building N agents concurrently and holding them
+  // live. All measured on Apple M1 Pro. Python frameworks sampled at [100,
+  // 500] — pushing further on CrewAI in particular would take 10+ minutes
+  // per step.
+  const data = [
+    { n: 100,   cersei: 8.3,  agno: 79.3,  pydantic_ai: 122.0, langgraph: 193.5, crewai: 1739.3 },
+    { n: 500,   cersei: 8.5,  agno: 82.0,  pydantic_ai: 123.2, langgraph: 193.5, crewai: 1739.3 },
+    { n: 1000,  cersei: 9.3 },
+    { n: 5000,  cersei: 14.0 },
+    { n: 10000, cersei: 22.4 },
+  ]
+  return (
+    <AreaChart data={data} width={width} height={H} margin={M}>
+      <defs>
+        <Grad id="gmc1" color={C.cersei} />
+        <Grad id="gmc2" color={C.agno} />
+        <Grad id="gmc3" color={C.pydantic} />
+        <Grad id="gmc4" color={C.langgraph} />
+        <Grad id="gmc5" color={C.crewai} />
+      </defs>
+      <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+      <XAxis
+        dataKey="n" tick={TICK} tickLine={false} axisLine={false}
+        scale="log" domain={[100, 10000]} type="number"
+        ticks={[100, 500, 1000, 5000, 10000]}
+        tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`}
+      />
+      <YAxis
+        tick={TICK} tickLine={false} axisLine={false} width={48}
+        scale="log" domain={[5, 2000]}
+        tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}GB` : `${v}MB`}
+      />
+      <Tooltip
+        content={({ active, payload, label }: any) => {
+          if (!active || !payload?.length) return null
+          return (
+            <div className="rounded-md border border-neutral-800 bg-black px-2.5 py-1.5 text-[10px] shadow-2xl">
+              <div className="mb-0.5 font-medium text-neutral-300">{label} live agents</div>
+              {payload.map((p: any, i: number) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: p.stroke }} />
+                  <span className="text-neutral-500">{p.name}</span>
+                  <span className="ml-auto font-mono text-neutral-200">
+                    {p.value >= 1000 ? `${(p.value / 1000).toFixed(2)} GB` : `${p.value.toFixed(1)} MB`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )
+        }}
+      />
+      <Area type="monotone" dataKey="crewai"      stroke={C.crewai}    fill="url(#gmc5)" strokeWidth={1.5} dot={{ fill: C.crewai, r: 2 }}    name="CrewAI" connectNulls />
+      <Area type="monotone" dataKey="langgraph"   stroke={C.langgraph} fill="url(#gmc4)" strokeWidth={1.5} dot={{ fill: C.langgraph, r: 2 }} name="LangGraph" connectNulls />
+      <Area type="monotone" dataKey="pydantic_ai" stroke={C.pydantic}  fill="url(#gmc3)" strokeWidth={1.5} dot={{ fill: C.pydantic, r: 2 }}  name="PydanticAI" connectNulls />
+      <Area type="monotone" dataKey="agno"        stroke={C.agno}      fill="url(#gmc2)" strokeWidth={1.5} dot={{ fill: C.agno, r: 2 }}      name="Agno" connectNulls />
+      <Area type="monotone" dataKey="cersei"      stroke={C.cersei}    fill="url(#gmc1)" strokeWidth={2}   dot={{ fill: C.cersei, r: 3 }}    name="Cersei" connectNulls />
+    </AreaChart>
+  )
+}
+
+export function MaxConcurrentChart() {
+  return (
+    <ChartContainer config={{
+      cersei: { color: C.cersei }, agno: { color: C.agno }, pydantic_ai: { color: C.pydantic },
+      langgraph: { color: C.langgraph }, crewai: { color: C.crewai },
+    }} className="w-full my-3 rounded-lg border border-neutral-800 bg-black px-2 pt-2 pb-1" height={H + 24}>
+      <MaxConcurrentInner />
+      <Legend items={L5} />
+    </ChartContainer>
+  )
+}
+

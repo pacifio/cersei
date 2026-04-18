@@ -7,6 +7,9 @@ import {
   ThroughputChart,
   ToolDispatchChart,
   GraphComparisonChart,
+  AgentInstantiationChart,
+  PerAgentMemoryChart,
+  MaxConcurrentChart,
 } from './benchmark-charts';
 
 export function getMDXComponents(components?: MDXComponents) {
@@ -18,6 +21,9 @@ export function getMDXComponents(components?: MDXComponents) {
     ThroughputChart,
     ToolDispatchChart,
     GraphComparisonChart,
+    AgentInstantiationChart,
+    PerAgentMemoryChart,
+    MaxConcurrentChart,
     ...components,
   } satisfies MDXComponents;
 }

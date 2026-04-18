@@ -190,6 +190,10 @@ async fn main() -> anyhow::Result<()> {
             .init();
     }
 
+    // Make saved credentials visible as env vars so downstream registry lookups
+    // find them. Explicit env vars still win.
+    login::export_saved_keys_to_env();
+
     // Load config with CLI overrides
     let mut config = config::load();
     apply_cli_overrides(&cli, &mut config);
@@ -316,7 +320,7 @@ fn resolve_model_alias(alias: &str) -> String {
         "sonnet" => "anthropic/claude-sonnet-4-6".into(),
         "haiku" => "anthropic/claude-haiku-4-5".into(),
         "gpt4o" | "4o" => "openai/gpt-4o".into(),
-        "gemini" => "google/gemini-2.0-flash".into(),
+        "gemini" => "google/gemini-3.1-pro-preview".into(),
         "llama" => "groq/llama-3.1-70b-versatile".into(),
         "deepseek" => "deepseek/deepseek-chat".into(),
         "grok" => "xai/grok-2".into(),

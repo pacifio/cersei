@@ -1,0 +1,41 @@
+{
+  "framework": "crewai",
+  "version": "1.14.2",
+  "host": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "arm",
+    "ram_gb": 16,
+    "cgroup_memory_gb": null
+  },
+  "axis_1_instantiation_us": {
+    "p50": 28508.834,
+    "p95": 30011.667,
+    "p99": 32663.583,
+    "mean": 28793.537231,
+    "samples": 1000
+  },
+  "axis_2_per_agent_bytes": {
+    "mean_bytes": 18157,
+    "samples": 500,
+    "allocator": "tracemalloc (size_diff)"
+  },
+  "axis_3_max_concurrent": [
+    {
+      "n": 100,
+      "p50_ms": 6665.896083,
+      "p99_ms": 10858.5515,
+      "rss_mb": 1739.265625,
+      "wall_ms": 11628.549167
+    },
+    {
+      "n": 500,
+      "p50_ms": 24970.888334,
+      "p99_ms": 50641.35925,
+      "rss_mb": 1739.265625,
+      "wall_ms": 50697.43675
+    }
+  ],
+  "axis_4_graph_recall_us": null,
+  "axis_5_semantic_search_us": null
+}

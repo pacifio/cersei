@@ -8,6 +8,7 @@
 //!   - `abstract login status`    — Show current auth status
 //!   - `abstract logout`          — Remove saved credentials
 
+use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -56,6 +57,11 @@ pub struct Credentials {
     pub anthropic_oauth: Option<OAuthTokenData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_provider: Option<String>,
+    /// API keys for any registered provider, keyed by provider id
+    /// (`"google"`, `"groq"`, `"deepseek"`, …). Populated by
+    /// `abstract login <provider>`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub provider_keys: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -484,15 +490,67 @@ async fn refresh_oauth_token(oauth: &OAuthTokenData) -> anyhow::Result<OAuthToke
 pub async fn run_login(provider: Option<&str>) -> anyhow::Result<()> {
     match provider {
         Some("claude") | Some("anthropic") => login_anthropic_oauth().await,
-        Some("openai") => login_api_key_for("openai"),
         Some("key") => login_api_key(),
         Some("status") => show_status(),
         Some(other) => {
+            // Any registered provider from the registry (google, groq, deepseek, …).
+            if let Some(entry) = cersei_provider::registry::lookup(other) {
+                if !entry.requires_key() {
+                    eprintln!(
+                        "\x1b[36m{}\x1b[0m is a local provider — no API key required.",
+                        entry.name
+                    );
+                    eprintln!(
+                        "\x1b[90mPoint at it with: abstract --model {}/<model>\x1b[0m",
+                        entry.id
+                    );
+                    return Ok(());
+                }
+                return login_api_key_for(entry.id);
+            }
+            let known: Vec<&str> = cersei_provider::registry::all()
+                .iter()
+                .map(|e| e.id)
+                .collect();
             anyhow::bail!(
-                "Unknown provider: '{other}'\n\nUsage:\n  abstract login           Interactive chooser\n  abstract login claude    Anthropic OAuth (opens browser)\n  abstract login openai    Enter OpenAI API key\n  abstract login key       Enter any API key\n  abstract login status    Show auth status"
+                "Unknown provider: '{other}'\n\nKnown providers: {}\n\nUsage:\n  abstract login              Interactive chooser\n  abstract login claude       Anthropic OAuth (opens browser)\n  abstract login <provider>   Enter API key for any registered provider\n  abstract login key          Enter any API key (auto-detects provider)\n  abstract login status       Show auth status",
+                known.join(", ")
             );
         }
         None => login_interactive().await,
+    }
+}
+
+/// Export saved provider keys into environment variables so the cersei-provider
+/// registry's `api_key_from_env()` lookups find them during this process run.
+///
+/// Only sets a var if it is currently unset or empty — an explicit env var
+/// always wins over a saved credential.
+pub fn export_saved_keys_to_env() {
+    let creds = Credentials::load();
+
+    // Legacy fields first
+    if let Some(key) = &creds.anthropic_api_key {
+        set_if_empty("ANTHROPIC_API_KEY", key);
+    }
+    if let Some(key) = &creds.openai_api_key {
+        set_if_empty("OPENAI_API_KEY", key);
+    }
+
+    // Generic map: use the provider's first env_key as the target var.
+    for (provider_id, key) in &creds.provider_keys {
+        if let Some(entry) = cersei_provider::registry::lookup(provider_id) {
+            if let Some(env_var) = entry.env_keys.first() {
+                set_if_empty(env_var, key);
+            }
+        }
+    }
+}
+
+fn set_if_empty(var: &str, value: &str) {
+    let existing = std::env::var(var).ok().filter(|v| !v.is_empty());
+    if existing.is_none() {
+        std::env::set_var(var, value);
     }
 }
 
@@ -514,8 +572,11 @@ fn show_status() -> anyhow::Result<()> {
     // Show all providers from the registry
     for entry in cersei_provider::registry::all() {
         let status = if !entry.requires_key() {
-            // Ollama — no key needed
-            "\x1b[32mavailable (local)\x1b[0m".to_string()
+            if entry.is_reachable() {
+                "\x1b[32mavailable (local)\x1b[0m".to_string()
+            } else {
+                "\x1b[90mnot running\x1b[0m".to_string()
+            }
         } else if let Some(key) = entry.api_key_from_env() {
             let env_name = entry.env_keys.iter()
                 .find(|v| std::env::var(v).ok().filter(|k| !k.is_empty()).is_some())
@@ -771,12 +832,19 @@ fn login_api_key() -> anyhow::Result<()> {
 }
 
 fn login_api_key_for(provider: &str) -> anyhow::Result<()> {
+    let entry = cersei_provider::registry::lookup(provider)
+        .ok_or_else(|| anyhow::anyhow!("Unknown provider: {provider}"))?;
+
     let hint = match provider {
-        "anthropic" => "sk-ant-...",
-        "openai" => "sk-...",
-        _ => "API key",
+        "anthropic" => "sk-ant-...".to_string(),
+        "openai" => "sk-...".to_string(),
+        _ => entry
+            .env_keys
+            .first()
+            .map(|k| format!("read from ${k}"))
+            .unwrap_or_else(|| "API key".into()),
     };
-    eprint!("  Enter {provider} API key ({hint}): ");
+    eprint!("  Enter {} API key ({hint}): ", entry.name);
     io::stderr().flush()?;
     let key = read_line_trimmed()?;
     if key.is_empty() {
@@ -786,17 +854,19 @@ fn login_api_key_for(provider: &str) -> anyhow::Result<()> {
     let mut creds = Credentials::load();
     match provider {
         "anthropic" => {
-            creds.anthropic_api_key = Some(key);
-            creds.default_provider = Some("anthropic".into());
+            creds.anthropic_api_key = Some(key.clone());
         }
         "openai" => {
-            creds.openai_api_key = Some(key);
-            creds.default_provider = Some("openai".into());
+            creds.openai_api_key = Some(key.clone());
         }
-        _ => anyhow::bail!("Unknown provider: {provider}"),
+        _ => {}
     }
+    // Store in the generic map too so every provider goes through one code path
+    // for env-var injection at startup.
+    creds.provider_keys.insert(provider.to_string(), key);
+    creds.default_provider = Some(provider.to_string());
     creds.save()?;
-    eprintln!("\n\x1b[32m{} API key saved.\x1b[0m", capitalize(provider));
+    eprintln!("\n\x1b[32m{} API key saved.\x1b[0m", entry.name);
     Ok(())
 }
 

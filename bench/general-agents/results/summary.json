@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "frameworks": [
+    "agno",
+    "cersei",
+    "crewai",
+    "langgraph",
+    "pydantic_ai"
+  ],
+  "reports": [
+    {
+      "framework": "agno",
+      "version": "2.5.17",
+      "host": {
+        "os": "darwin",
+        "arch": "arm64",
+        "cpu": "arm",
+        "ram_gb": 16,
+        "cgroup_memory_gb": null
+      },
+      "axis_1_instantiation_us": {
+        "p50": 6.5,
+        "p95": 6.666,
+        "p99": 6.792,
+        "mean": 6.506112,
+        "samples": 1000
+      },
+      "axis_2_per_agent_bytes": {
+        "mean_bytes": 5938,
+        "samples": 500,
+        "allocator": "tracemalloc (size_diff)"
+      },
+      "axis_3_max_concurrent": [
+        {
+          "n": 100,
+          "p50_ms": 1.894917,
+          "p99_ms": 3.52375,
+          "rss_mb": 79.34375,
+          "wall_ms": 7.722542
+        },
+        {
+          "n": 500,
+          "p50_ms": 8.636,
+          "p99_ms": 10.450875,
+          "rss_mb": 81.984375,
+          "wall_ms": 13.503084
+        }
+      ],
+      "axis_4_graph_recall_us": null,
+      "axis_5_semantic_search_us": null
+    },
+    {
+      "framework": "cersei",
+      "version": "0.1.6-patch.2",
+      "host": {
+        "os": "macos",
+        "arch": "aarch64",
+        "cpu": "",
+        "ram_gb": 0,
+        "cgroup_memory_gb": null
+      },
+      "axis_1_instantiation_us": {
+        "p50": 7.125,
+        "p95": 11.5,
+        "p99": 11.917,
+        "mean": 8.461612999999998,
+        "samples": 1000
+      },
+      "axis_2_per_agent_bytes": {
+        "mean_bytes": 704,
+        "samples": 1000,
+        "allocator": "jemalloc (stats::allocated)"
+      },
+      "axis_3_max_concurrent": [
+        {
+          "n": 100,
+          "p50_ms": 0.054167,
+          "p99_ms": 0.210709,
+          "rss_mb": 8.328125,
+          "wall_ms": 0.952791
+        },
+        {
+          "n": 500,
+          "p50_ms": 0.054417,
+          "p99_ms": 0.131375,
+          "rss_mb": 8.5,
+          "wall_ms": 4.40725
+        },
+        {
+          "n": 1000,
+          "p50_ms": 0.053083,
+          "p99_ms": 0.129375,
+          "rss_mb": 9.3125,
+          "wall_ms": 8.470042
+        },
+        {
+          "n": 5000,
+          "p50_ms": 0.055208,
+          "p99_ms": 0.14125,
+          "rss_mb": 14.015625,
+          "wall_ms": 42.319167
+        },
+        {
+          "n": 10000,
+          "p50_ms": 0.056458,
+          "p99_ms": 0.155041,
+          "rss_mb": 22.40625,
+          "wall_ms": 86.584125
+        }
+      ],
+      "axis_4_graph_recall_us": {
+        "at_10k": {
+          "p50": 93957.458,
+          "p95": 119858.75,
+          "p99": 138866.083,
+          "mean": 93693.18412900007,
+          "samples": 1000
+        },
+        "at_100k": {
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0,
+          "mean": 0.0,
+          "samples": 0
+        }
+      },
+      "axis_5_semantic_search_us": {
+        "at_10k": {
+          "p50": 50.667,
+          "p95": 131.958,
+          "p99": 354.292,
+          "mean": 68.92085940000003,
+          "samples": 5000
+        },
+        "at_100k": {
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0,
+          "mean": 0.0,
+          "samples": 0
+        }
+      }
+    },
+    {
+      "framework": "crewai",
+      "version": "1.14.2",
+      "host": {
+        "os": "darwin",
+        "arch": "arm64",
+        "cpu": "arm",
+        "ram_gb": 16,
+        "cgroup_memory_gb": null
+      },
+      "axis_1_instantiation_us": {
+        "p50": 28508.834,
+        "p95": 30011.667,
+        "p99": 32663.583,
+        "mean": 28793.537231,
+        "samples": 1000
+      },
+      "axis_2_per_agent_bytes": {
+        "mean_bytes": 18157,
+        "samples": 500,
+        "allocator": "tracemalloc (size_diff)"
+      },
+      "axis_3_max_concurrent": [
+        {
+          "n": 100,
+          "p50_ms": 6665.896083,
+          "p99_ms": 10858.5515,
+          "rss_mb": 1739.265625,
+          "wall_ms": 11628.549167
+        },
+        {
+          "n": 500,
+          "p50_ms": 24970.888334,
+          "p99_ms": 50641.35925,
+          "rss_mb": 1739.265625,
+          "wall_ms": 50697.43675
+        }
+      ],
+      "axis_4_graph_recall_us": null,
+      "axis_5_semantic_search_us": null
+    },
+    {
+      "framework": "langgraph",
+      "version": "1.1.8",
+      "host": {
+        "os": "darwin",
+        "arch": "arm64",
+        "cpu": "arm",
+        "ram_gb": 16,
+        "cgroup_memory_gb": null
+      },
+      "axis_1_instantiation_us": {
+        "p50": 5536.167,
+        "p95": 8956.25,
+        "p99": 11824.459,
+        "mean": 5947.283745,
+        "samples": 1000
+      },
+      "axis_2_per_agent_bytes": {
+        "mean_bytes": 30910,
+        "samples": 500,
+        "allocator": "tracemalloc (size_diff)"
+      },
+      "axis_3_max_concurrent": [
+        {
+          "n": 100,
+          "p50_ms": 201.228167,
+          "p99_ms": 276.351125,
+          "rss_mb": 193.546875,
+          "wall_ms": 361.306209
+        },
+        {
+          "n": 500,
+          "p50_ms": 1149.0845,
+          "p99_ms": 2234.588375,
+          "rss_mb": 193.546875,
+          "wall_ms": 2246.510625
+        }
+      ],
+      "axis_4_graph_recall_us": null,
+      "axis_5_semantic_search_us": null
+    },
+    {
+      "framework": "pydantic_ai",
+      "version": "1.22.0",
+      "host": {
+        "os": "darwin",
+        "arch": "arm64",
+        "cpu": "arm",
+        "ram_gb": 16,
+        "cgroup_memory_gb": null
+      },
+      "axis_1_instantiation_us": {
+        "p50": 219.125,
+        "p95": 353.875,
+        "p99": 422.625,
+        "mean": 254.197279,
+        "samples": 1000
+      },
+      "axis_2_per_agent_bytes": {
+        "mean_bytes": 8892,
+        "samples": 500,
+        "allocator": "tracemalloc (size_diff)"
+      },
+      "axis_3_max_concurrent": [
+        {
+          "n": 100,
+          "p50_ms": 15.146375,
+          "p99_ms": 27.319209,
+          "rss_mb": 122.03125,
+          "wall_ms": 28.933625
+        },
+        {
+          "n": 500,
+          "p50_ms": 122.228333,
+          "p99_ms": 123.838542,
+          "rss_mb": 123.1875,
+          "wall_ms": 125.029958
+        }
+      ],
+      "axis_4_graph_recall_us": null,
+      "axis_5_semantic_search_us": null
+    }
+  ]
+}

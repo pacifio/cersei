@@ -1,0 +1,233 @@
+---
+title: "Embeddings Cookbook"
+description: Recipes for building semantic search, RAG, and custom providers on top of cersei-embeddings.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+# Embeddings Cookbook
+
+Practical patterns built on `cersei-embeddings`.
+
+---
+
+## Semantic search over a folder of Markdown
+
+A self-contained program that indexes every `.md` file in a directory and answers queries semantically.
+
+```rust
+use cersei_embeddings::{EmbeddingStore, Metric, OpenAiEmbeddings};
+use walkdir::WalkDir;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let provider = OpenAiEmbeddings::from_env()?;
+    let store = EmbeddingStore::new(provider, Metric::Cosine)?;
+
+    // Collect every .md file under ./notes and remember the path for each key.
+    let mut paths: Vec<String> = Vec::new();
+    let mut items: Vec<(u64, String)> = Vec::new();
+
+    for entry in WalkDir::new("./notes").into_iter().filter_map(|e| e.ok()) {
+        if entry.path().extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        let text = std::fs::read_to_string(entry.path())?;
+        let key = paths.len() as u64;
+        paths.push(entry.path().display().to_string());
+        items.push((key, text));
+    }
+
+    store.add_batch(&items).await?;
+
+    let hits = store.search("how do I set up CI for rust?", 5).await?;
+    for hit in hits {
+        println!("{:.3}  {}", hit.similarity, paths[hit.key as usize]);
+    }
+    Ok(())
+}
+```
+
+---
+
+## Minimal RAG agent
+
+Combine `cersei-embeddings` (retrieval) with `cersei` (LLM) to ground the model's answer in the most relevant snippets.
+
+```rust
+use cersei::prelude::*;
+use cersei_embeddings::{EmbeddingStore, Metric, OpenAiEmbeddings};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // 1. Build a corpus store.
+    let store = EmbeddingStore::new(OpenAiEmbeddings::from_env()?, Metric::Cosine)?;
+    let docs = load_docs(); // Vec<(u64, String)>
+    store.add_batch(&docs).await?;
+
+    // 2. Retrieve the top-K snippets.
+    let question = "Why does the scheduler reject long-running jobs?";
+    let hits = store.search(question, 4).await?;
+    let context = hits
+        .iter()
+        .map(|h| docs[h.key as usize].1.clone())
+        .collect::<Vec<_>>()
+        .join("\n\n---\n\n");
+
+    // 3. Ask the LLM with retrieved context injected.
+    let prompt = format!(
+        "Context:\n{context}\n\nQuestion: {question}\n\nAnswer using only the context above."
+    );
+
+    let output = Agent::builder()
+        .provider(OpenAi::from_env()?)
+        .system_prompt("You are a precise technical assistant.")
+        .run_with(&prompt)
+        .await?;
+
+    println!("{}", output.text());
+    Ok(())
+}
+
+fn load_docs() -> Vec<(u64, String)> {
+    // your loader — reads files, DB rows, API responses, etc.
+    vec![]
+}
+```
+
+<Callout type="info">
+For a production RAG setup you'll want: (a) chunk your documents into ~200–500 token pieces before embedding, (b) persist the vector index to disk between runs, (c) track both the chunk text and source-document metadata so citations work.
+</Callout>
+
+---
+
+## Wrapping retrieval in a custom `Tool`
+
+If you want the agent itself to decide when to retrieve, expose the store as a Cersei `Tool`.
+
+```rust
+use async_trait::async_trait;
+use cersei::prelude::*;
+use cersei_embeddings::{EmbeddingStore, OpenAiEmbeddings};
+use std::sync::Arc;
+
+pub struct RetrieverTool {
+    store: Arc<EmbeddingStore<OpenAiEmbeddings>>,
+    docs:  Arc<Vec<(u64, String)>>,
+}
+
+#[async_trait]
+impl Tool for RetrieverTool {
+    fn name(&self) -> &str { "Retrieve" }
+
+    fn description(&self) -> &str {
+        "Retrieve the top 4 most relevant snippets from the internal corpus for a natural-language query."
+    }
+
+    fn input_schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": { "query": { "type": "string" } },
+            "required": ["query"]
+        })
+    }
+
+    async fn execute(&self, input: serde_json::Value, _ctx: &ToolContext) -> ToolResult {
+        let query = match input.get("query").and_then(|v| v.as_str()) {
+            Some(q) => q,
+            None => return ToolResult::error("missing query"),
+        };
+        let hits = match self.store.search(query, 4).await {
+            Ok(h) => h,
+            Err(e) => return ToolResult::error(format!("retrieve failed: {e}")),
+        };
+        let snippets = hits.iter()
+            .filter_map(|h| self.docs.get(h.key as usize).map(|(_, t)| t.clone()))
+            .collect::<Vec<_>>()
+            .join("\n---\n");
+        ToolResult::success(snippets)
+    }
+}
+```
+
+Plug it into your agent:
+
+```rust
+let retriever = RetrieverTool { store: store.clone(), docs: docs.clone() };
+let mut tools = cersei::tools::all();
+tools.push(Box::new(retriever));
+
+let agent = Agent::builder()
+    .provider(OpenAi::from_env()?)
+    .tools(tools)
+    .build()?;
+```
+
+---
+
+## Writing a custom provider
+
+Implement the trait for any other API — here is Cohere as an example.
+
+```rust
+use async_trait::async_trait;
+use cersei_embeddings::{EmbeddingError, EmbeddingProvider};
+use serde::Deserialize;
+
+pub struct CohereEmbeddings {
+    api_key: String,
+    model: String,
+    client: reqwest::Client,
+}
+
+impl CohereEmbeddings {
+    pub fn from_env() -> Result<Self, EmbeddingError> {
+        let api_key = std::env::var("COHERE_API_KEY")
+            .map_err(|_| EmbeddingError::Config("COHERE_API_KEY missing".into()))?;
+        Ok(Self {
+            api_key,
+            model: "embed-english-v3.0".into(),
+            client: reqwest::Client::new(),
+        })
+    }
+}
+
+#[async_trait]
+impl EmbeddingProvider for CohereEmbeddings {
+    fn name(&self) -> &str { "cohere" }
+    fn dimensions(&self) -> usize { 1024 }
+
+    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, EmbeddingError> {
+        let resp = self.client.post("https://api.cohere.com/v1/embed")
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .json(&serde_json::json!({
+                "model": self.model,
+                "texts": texts,
+                "input_type": "search_document",
+            }))
+            .send().await?;
+
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(EmbeddingError::Api(format!("cohere: {body}")));
+        }
+
+        #[derive(Deserialize)]
+        struct R { embeddings: Vec<Vec<f32>> }
+        let parsed: R = resp.json().await.map_err(|e| EmbeddingError::Parse(e.to_string()))?;
+        Ok(parsed.embeddings)
+    }
+}
+```
+
+The moment your type implements `EmbeddingProvider`, it composes with `VectorIndex` and `EmbeddingStore` just like the built-in providers.
+
+---
+
+## Tuning tips
+
+- **Metric choice.** Use `Cosine` for text (length-invariant) — the default in Abstract's `CodeSearch`. Use `L2` when magnitude matters. Use `InnerProduct` when you need raw dot-product scoring (e.g., your embeddings are already normalized and you want speed).
+- **Batch size.** Gemini caps at 100 per request (handled automatically). OpenAI has no hard per-request cap but accepts far more throughput when you keep each request under ~2048 inputs.
+- **Truncation.** The built-in providers truncate each text to 2000 chars by default. If your content is long, chunk before embedding rather than letting truncation silently drop material.
+- **Index reuse.** `VectorIndex` is cheap to query but expensive to build. For Abstract's `CodeSearch` this is handled by an in-memory cache keyed on working directory. For your own app, save the vectors to disk (e.g., via `bincode`) and reload on startup.

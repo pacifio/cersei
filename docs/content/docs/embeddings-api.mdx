@@ -1,0 +1,300 @@
+---
+title: "Embeddings API"
+description: Full API reference for the cersei-embeddings crate — trait, providers, index, store, and factory.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+
+# cersei-embeddings API
+
+Complete public surface. Every item here is re-exported from the crate root.
+
+---
+
+## `EmbeddingProvider`
+
+The single trait every embedding backend implements.
+
+```rust
+#[async_trait]
+pub trait EmbeddingProvider: Send + Sync {
+    fn name(&self) -> &str;
+    fn dimensions(&self) -> usize;
+    async fn embed(&self, text: &str) -> Result<Vec<f32>, EmbeddingError>;
+    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, EmbeddingError>;
+}
+```
+
+| Method | Description |
+|---|---|
+| `name()` | Short identifier (`"openai"`, `"gemini"`, …) — handy for logging. |
+| `dimensions()` | Vector width. Used by `VectorIndex` to size the HNSW graph. |
+| `embed(text)` | Embed one string. Default impl calls `embed_batch(&[text])`. |
+| `embed_batch(texts)` | Embed many. Implementors handle provider-specific batch limits. |
+
+<Callout type="info">
+Implementing your own provider takes ~30 lines. See the [cookbook](/docs/embeddings-cookbook#writing-a-custom-provider).
+</Callout>
+
+---
+
+## `GeminiEmbeddings`
+
+Google Gemini embeddings. Default model `text-embedding-004` (768 dimensions), 100-per-batch chunking to respect the Gemini API limit, per-text character truncation at 2000.
+
+```rust
+use cersei_embeddings::GeminiEmbeddings;
+
+// Explicit key
+let provider = GeminiEmbeddings::new("AIza...");
+
+// From GOOGLE_API_KEY or GEMINI_API_KEY
+let provider = GeminiEmbeddings::from_env()?;
+
+// Override model (remember to set dimensions if it differs from 768)
+let provider = GeminiEmbeddings::from_env()?
+    .with_model("text-embedding-004")
+    .with_truncate_chars(4000);
+```
+
+<TypeTable
+  type={{
+    new: {
+      type: 'fn(api_key) -> Self',
+      description: 'Construct with an explicit API key and default model.',
+    },
+    from_env: {
+      type: 'fn() -> Result<Self>',
+      description: 'Read GOOGLE_API_KEY or GEMINI_API_KEY.',
+    },
+    with_model: {
+      type: 'fn(self, model) -> Self',
+      description: 'Override the embedding model.',
+    },
+    with_dimensions: {
+      type: 'fn(self, dims) -> Self',
+      description: 'Override the declared vector dimensionality.',
+    },
+    with_truncate_chars: {
+      type: 'fn(self, chars) -> Self',
+      description: 'Per-text character truncation (default 2000).',
+    },
+  }}
+/>
+
+---
+
+## `OpenAiEmbeddings`
+
+OpenAI (and OpenAI-compatible) embeddings. Default model `text-embedding-3-small` (1536 dimensions), base URL `https://api.openai.com/v1`, per-text truncation at 2000.
+
+```rust
+use cersei_embeddings::OpenAiEmbeddings;
+
+// From OPENAI_API_KEY
+let provider = OpenAiEmbeddings::from_env()?;
+
+// Azure OpenAI / Ollama / any compatible endpoint
+let provider = OpenAiEmbeddings::new("sk-...")
+    .with_base_url("http://localhost:11434/v1")
+    .with_model("nomic-embed-text")
+    .with_dimensions(768);
+```
+
+<TypeTable
+  type={{
+    new: {
+      type: 'fn(api_key) -> Self',
+      description: 'Construct with an explicit API key.',
+    },
+    from_env: {
+      type: 'fn() -> Result<Self>',
+      description: 'Read OPENAI_API_KEY.',
+    },
+    with_model: {
+      type: 'fn(self, model) -> Self',
+      description: 'Override the embedding model.',
+    },
+    with_dimensions: {
+      type: 'fn(self, dims) -> Self',
+      description: 'Override the declared vector dimensionality.',
+    },
+    with_truncate_chars: {
+      type: 'fn(self, chars) -> Self',
+      description: 'Per-text character truncation (default 2000).',
+    },
+    with_base_url: {
+      type: 'fn(self, url) -> Self',
+      description: 'Point at Azure, Ollama, or any OpenAI-compatible endpoint.',
+    },
+  }}
+/>
+
+---
+
+## `VectorIndex`
+
+Thin `usearch::Index` wrapper. HNSW approximate nearest-neighbor search with a configurable metric.
+
+```rust
+use cersei_embeddings::{VectorIndex, Metric};
+
+let index = VectorIndex::new(1536, Metric::Cosine)?;
+index.reserve(1_000)?;
+index.add(42, &my_embedding)?;
+
+let hits = index.search(&query_embedding, 10)?;
+for hit in hits {
+    println!("key={} sim={:.3} dist={:.3}", hit.key, hit.similarity, hit.distance);
+}
+```
+
+### One-shot construction from a batch of pre-computed embeddings
+
+```rust
+let vectors: Vec<Vec<f32>> = /* ... */;
+let index = VectorIndex::from_vectors(&vectors, Metric::Cosine)?;
+// Keys are 0..vectors.len()
+```
+
+<TypeTable
+  type={{
+    new: {
+      type: 'fn(dimensions, metric) -> Result<Self>',
+      description: 'Build an empty index. Call reserve() before bulk inserts.',
+    },
+    from_vectors: {
+      type: 'fn(&[Vec<f32>], Metric) -> Result<Self>',
+      description: 'Build + populate in one call. Keys are 0..N.',
+    },
+    reserve: {
+      type: 'fn(&self, n) -> Result<()>',
+      description: 'Pre-allocate capacity for n vectors.',
+    },
+    add: {
+      type: 'fn(&self, key: u64, vector: &[f32]) -> Result<()>',
+      description: 'Insert a vector under the given key.',
+    },
+    search: {
+      type: 'fn(&self, query, k) -> Result<Vec<SearchHit>>',
+      description: 'k-NN search. Returns up to k hits ordered by the index.',
+    },
+    len: {
+      type: 'fn(&self) -> usize',
+      description: 'Number of vectors currently stored.',
+    },
+    dimensions: {
+      type: 'fn(&self) -> usize',
+      description: 'The configured vector dimensionality.',
+    },
+    metric: {
+      type: 'fn(&self) -> Metric',
+      description: 'The configured similarity metric.',
+    },
+  }}
+/>
+
+### `Metric`
+
+```rust
+pub enum Metric { Cosine, L2, InnerProduct }
+```
+
+| Metric | `usearch` kind | `similarity` formula |
+|---|---|---|
+| `Cosine` | `Cos` | `1.0 - distance` |
+| `L2` | `L2sq` | `1.0 / (1.0 + distance)` |
+| `InnerProduct` | `IP` | `distance` (already a similarity) |
+
+### `SearchHit`
+
+```rust
+pub struct SearchHit {
+    pub key: u64,
+    pub distance: f32,
+    pub similarity: f32,
+}
+```
+
+---
+
+## `EmbeddingStore<P>`
+
+Provider + index bundled together. Use it when the "add text → search by text" flow is all you need.
+
+```rust
+use cersei_embeddings::{EmbeddingStore, OpenAiEmbeddings, Metric};
+
+let store = EmbeddingStore::new(OpenAiEmbeddings::from_env()?, Metric::Cosine)?;
+
+store.add_batch(&[
+    (1, "doc one text".into()),
+    (2, "doc two text".into()),
+]).await?;
+
+let hits = store.search("query text", 5).await?;
+```
+
+<TypeTable
+  type={{
+    new: {
+      type: 'fn(provider, metric) -> Result<Self>',
+      description: 'Build an empty store. Index size is inferred from provider.dimensions().',
+    },
+    add_batch: {
+      type: 'async fn(&[(u64, String)]) -> Result<()>',
+      description: 'Embed each item and insert into the index under the given key.',
+    },
+    search: {
+      type: 'async fn(&self, query: &str, k: usize) -> Result<Vec<SearchHit>>',
+      description: 'Embed the query and run a k-NN search.',
+    },
+    provider: {
+      type: 'fn(&self) -> &P',
+      description: 'Borrow the underlying provider.',
+    },
+    index: {
+      type: 'fn(&self) -> &VectorIndex',
+      description: 'Borrow the underlying index.',
+    },
+  }}
+/>
+
+---
+
+## `auto_from_model`
+
+Construct a provider by inferring the family from an LLM model string.
+
+```rust
+let provider: Box<dyn EmbeddingProvider> =
+    cersei_embeddings::auto_from_model("openai/gpt-4o")?;
+```
+
+Detection rules (first match wins):
+
+| Model string contains or starts with | Provider | Env var(s) |
+|---|---|---|
+| `gpt`, `o1`, `o3`, or `openai` | `OpenAiEmbeddings` | `OPENAI_API_KEY` |
+| `gemini` or `google` | `GeminiEmbeddings` | `GOOGLE_API_KEY` → `GEMINI_API_KEY` |
+| anything else | `OpenAiEmbeddings` (default) | `OPENAI_API_KEY` |
+
+Returns `EmbeddingError::Config` if the relevant key is missing or empty.
+
+---
+
+## `EmbeddingError`
+
+```rust
+pub enum EmbeddingError {
+    Http(reqwest::Error),   // transport failure
+    Api(String),            // non-2xx from the API
+    Parse(String),          // malformed response
+    Index(String),          // usearch operation failed
+    Config(String),         // missing / invalid configuration
+}
+```
+
+Implements `std::error::Error` via `thiserror` and `From<reqwest::Error>` for `?` ergonomics.

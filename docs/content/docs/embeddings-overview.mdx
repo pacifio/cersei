@@ -1,0 +1,100 @@
+---
+title: "Embeddings Overview"
+description: Provider-agnostic text embeddings with a pluggable vector index, packaged as the cersei-embeddings crate.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+# cersei-embeddings
+
+`cersei-embeddings` is a standalone crate that pairs a pluggable **`EmbeddingProvider`** trait with a **`usearch`-backed HNSW vector index**. It is the foundation that powers `CodeSearch`'s hybrid BM25 + vector mode in Abstract, and it is published as a self-contained SDK so you can build your own RAG agents, semantic-search layers, or clustering tools without pulling in the rest of `cersei-tools`.
+
+<Callout type="info">
+The crate is a **leaf dependency** — it has no dependency on `cersei-types`, `cersei-provider`, or any other Cersei crate. Use it with or without the rest of the SDK.
+</Callout>
+
+## When to reach for it
+
+- **Semantic search** over a corpus of documents, code, or notes.
+- **RAG** pipelines that need to ground an LLM response in the most relevant snippets.
+- **Deduplication / clustering** by nearest-neighbor distance.
+- **Custom reranking** layered on top of BM25, keyword search, or any baseline retriever.
+
+If you just want BM25-only code search inside an agent, you don't need this crate — use `CodeSearchTool::new()` from `cersei-tools`. Reach for `cersei-embeddings` the moment you want query-intent understanding or cross-file semantic similarity.
+
+## What ships in the box
+
+| Piece | Role |
+|---|---|
+| `EmbeddingProvider` | Trait every backend implements (`embed`, `embed_batch`, `dimensions`). |
+| `GeminiEmbeddings` | Google `text-embedding-004` (768-d) with 100-per-batch chunking. |
+| `OpenAiEmbeddings` | OpenAI `text-embedding-3-small` (1536-d), base URL overridable for Azure / Ollama. |
+| `VectorIndex` | `usearch` HNSW wrapper — `new`, `reserve`, `add`, `search`, `len`. |
+| `EmbeddingStore<P>` | Provider + index bundled together for the common case. |
+| `auto_from_model` | Factory that picks the right provider from an LLM model string. |
+| `Metric` | `Cosine` / `L2` / `InnerProduct`. |
+| `SearchHit` | `{ key, distance, similarity }`. |
+
+## Add it to your project
+
+```toml
+[dependencies]
+cersei-embeddings = "0.1.6-patch.2"
+```
+
+## 5-line quick start
+
+<Tabs items={['OpenAI', 'Gemini', 'Auto-detect']}>
+<Tab value="OpenAI">
+```rust
+use cersei_embeddings::{OpenAiEmbeddings, EmbeddingStore, Metric};
+
+let provider = OpenAiEmbeddings::from_env()?;
+let store = EmbeddingStore::new(provider, Metric::Cosine)?;
+
+store.add_batch(&[
+    (1, "Rust is a systems programming language".into()),
+    (2, "Pasta is best served al dente".into()),
+]).await?;
+
+let hits = store.search("compiled languages", 2).await?;
+assert_eq!(hits[0].key, 1);
+```
+</Tab>
+<Tab value="Gemini">
+```rust
+use cersei_embeddings::{GeminiEmbeddings, EmbeddingStore, Metric};
+
+let provider = GeminiEmbeddings::from_env()?;
+let store = EmbeddingStore::new(provider, Metric::Cosine)?;
+
+store.add_batch(&[
+    (1, "Rust is a systems programming language".into()),
+    (2, "Pasta is best served al dente".into()),
+]).await?;
+
+let hits = store.search("compiled languages", 2).await?;
+```
+</Tab>
+<Tab value="Auto-detect">
+```rust
+use cersei_embeddings::{auto_from_model, EmbeddingStore, Metric};
+
+// Pick the provider based on an LLM model string.
+let provider = auto_from_model("openai/gpt-4o")?;
+// Works with Box<dyn EmbeddingProvider> too:
+let dim = provider.dimensions();
+println!("{} ({}-d)", provider.name(), dim);
+```
+</Tab>
+</Tabs>
+
+## How Abstract uses it
+
+`CodeSearchTool` in `cersei-tools` depends on `cersei-embeddings`. When the `--embedding-api` flag is on, Abstract calls `auto_from_model(resolved_model)` and hands the resulting provider to `CodeSearchTool::with_embeddings(Arc<dyn EmbeddingProvider>)`. The tool keeps BM25 in charge for exact-term recall and blends in the vector results at 40% weight for semantic recall.
+
+## Keep reading
+
+- [API Reference](/docs/embeddings-api) — every public type and method.
+- [Cookbook](/docs/embeddings-cookbook) — RAG agent, custom provider, semantic markdown search.

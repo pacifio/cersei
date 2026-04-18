@@ -1,0 +1,18 @@
+[package]
+name = "cersei-embeddings"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Provider-agnostic text embeddings with a pluggable vector index for the Cersei SDK"
+
+[dependencies]
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+usearch = { version = "2.16", default-features = false }

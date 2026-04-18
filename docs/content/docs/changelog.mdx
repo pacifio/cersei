@@ -32,6 +32,33 @@ export function Tag({ type }) {
   );
 }
 
+<Version version="0.1.6-patch.2" date="2026-04-18">
+
+<Tag type="added" /> **New crate: `cersei-embeddings`.** Standalone, provider-agnostic text embeddings with a `usearch`-backed vector index. Ships with `GeminiEmbeddings` (`text-embedding-004`, 768-d) and `OpenAiEmbeddings` (`text-embedding-3-small`, 1536-d, base-URL overridable). Zero dependency on other `cersei-*` crates. Docs: [Overview](https://cersei.pacifio.dev/docs/embeddings-overview) · [API Reference](https://cersei.pacifio.dev/docs/embeddings-api) · [Cookbook](https://cersei.pacifio.dev/docs/embeddings-cookbook).
+
+<Tag type="added" /> **`EmbeddingProvider` trait + `VectorIndex` + `EmbeddingStore<P>`.** Implement the trait once, compose with index and store for free. Built-in Cosine / L2 / InnerProduct metrics with automatic similarity conversion. `auto_from_model(&str)` factory picks OpenAI or Gemini from an LLM model string.
+
+<Tag type="added" /> **General-Agent Framework Benchmark.** First-party end-to-end comparison against the Python agent stack — Agno 2.5.17, PydanticAI 1.22.0, LangGraph 1.1.8, CrewAI 1.14.2 — every number measured on Apple M1 Pro via the same harness suite. Methodology mirrors Agno's own cookbook (real agent constructors, no LLM invocation, no stub models). Three new chart components (`AgentInstantiationChart`, `PerAgentMemoryChart`, `MaxConcurrentChart`).
+  - **Headline** — Cersei **704 B per agent** (8× smaller than Agno, 44× smaller than LangGraph). Builds 500 agents concurrently in **4.4 ms on 8.5 MB**; CrewAI needs **50,697 ms on 1,739 MB** for the same N. That's **11,500× faster wall time, 204× less memory**. Cersei sweeps to **10,000 concurrent agents on 22 MB RSS total**.
+  - **Browse the numbers** — [Landing page section](https://cersei.pacifio.dev/docs#vs-general-agent-frameworks) · [Deep dive with all five axes](https://cersei.pacifio.dev/docs/bench-vs-agents) · [Comparisons page](https://cersei.pacifio.dev/docs/comparisons#cersei-vs-general-agent-frameworks-agno-pydanticai-langgraph-crewai).
+  - **Reproduce it** — Rust harness at `crates/cersei-agent/benchmarks/general_agent_bench.rs` (opt-in via `bench-full` feature); `uv`-managed Python harnesses + `./run.sh` at [`bench/general-agents/`](https://github.com/pacifio/cersei/tree/main/bench/general-agents).
+
+<Tag type="changed" /> **`cersei-tools::code_search`** delegates to `cersei-embeddings`. Inline Gemini / OpenAI embedding HTTP and raw `usearch::Index` handling removed from the tool. `CodeSearchTool::with_embeddings` now takes `Arc<dyn EmbeddingProvider>`.
+
+<Tag type="changed" /> **`abstract-cli`** uses `cersei_embeddings::auto_from_model` instead of inline model-string detection. `--embedding-api` end-user behaviour unchanged.
+
+<Tag type="fixed" /> **`cersei-lsp`** version now inherits from workspace (was hardcoded to `0.1.6`, drifted behind every other crate on version bumps).
+
+<Tag type="changed" /> **Google provider default model** upgraded from `gemini-2.0-flash` to `gemini-3.1-pro-preview` (2M context). Affects `abstract --model gemini`, `auto` when `GOOGLE_API_KEY` is the only key, and `Gemini::new()` / `Gemini::builder()` when `.model(...)` is omitted.
+
+<Tag type="changed" /> **`abstract login <provider>`** accepts any provider registered in the `cersei-provider` registry (Google, Groq, DeepSeek, xAI, Mistral, Together, Fireworks, Perplexity, Cerebras, OpenRouter, Cohere, SambaNova) — previously only `anthropic` and `openai` were wired up. Saved keys live in a generic `provider_keys` map in `~/.abstract/credentials.json` and export as the provider's first env var at startup. Local providers (Ollama) report "no login needed".
+
+<Tag type="fixed" /> **Auto-default silently picking Ollama.** Two changes: (1) `registry::available()` TCP-probes local providers (`env_keys` empty) with a 200ms check on their `api_base`, so `abstract login status` distinguishes `available (local)` from `not running`. (2) `from_model_string("auto")` skips local providers entirely and only considers keyed providers — Ollama must now be selected explicitly via `--model ollama/<model>`. No more silent fallback to `llama3.1` on machines where the user never opted into Ollama.
+
+<Tag type="fixed" /> **`abstract login google`** (and every other registered provider) no longer rejected with "Unknown provider".
+
+</Version>
+
 <Version version="0.1.6-patch.1" date="2026-04-13">
 
 <Tag type="added" /> **VibeProxy support.** Route requests through local proxy (VibeProxy or compatible) using existing AI subscriptions instead of API keys. `--proxy` and `--proxy-url` CLI flags. Auto-detection when no API keys set. `/proxy` command shows status and authenticated accounts. `[proxy]` config section.

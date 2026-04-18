@@ -1,9 +1,11 @@
 [package]
 name = "cersei-lsp"
-version = "0.1.6"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "LSP client for the Cersei coding agent SDK"
-license = "MIT"
 
 [dependencies]
 tokio = { workspace = true, features = ["process", "io-util", "sync", "time", "rt"] }

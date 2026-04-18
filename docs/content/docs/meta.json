@@ -22,6 +22,10 @@
     "primitives",
     "primitives-api",
     "primitives-cookbook",
+    "---Embeddings---",
+    "embeddings-overview",
+    "embeddings-api",
+    "embeddings-cookbook",
     "---Sessions & Tasks---",
     "sessions",
     "background-tasks",
@@ -51,6 +55,7 @@
     "bench-graph",
     "bench-abstract",
     "bench-vs-claude-code",
+    "bench-vs-agents",
     "---",
     "changelog"
   ]

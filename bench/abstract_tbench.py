@@ -21,11 +21,14 @@ import os
 import shlex
 from pathlib import Path
 
-from harbor.agents.installed.base import BaseInstalledAgent, EnvVar, with_prompt_template
-from harbor.environments.base import BaseEnvironment
-from harbor.models.agent.context import AgentContext
-from harbor.models.trial.paths import EnvironmentPaths
-
+from harbor.agents.installed.base import (  # type:ignore
+    BaseInstalledAgent,
+    EnvVar,
+    with_prompt_template,
+)
+from harbor.environments.base import BaseEnvironment  # type:ignore
+from harbor.models.agent.context import AgentContext  # type:ignore
+from harbor.models.trial.paths import EnvironmentPaths  # type:ignore
 
 # Pre-built static binaries (lives next to this file)
 _BENCH_DIR = Path(__file__).resolve().parent
@@ -48,16 +51,34 @@ class AbstractAgent(BaseInstalledAgent):
     ENV_VARS = [
         EnvVar("google_api_key", env="GOOGLE_API_KEY", env_fallback="GOOGLE_API_KEY"),
         EnvVar("gemini_api_key", env="GEMINI_API_KEY", env_fallback="GEMINI_API_KEY"),
-        EnvVar("anthropic_api_key", env="ANTHROPIC_API_KEY", env_fallback="ANTHROPIC_API_KEY"),
+        EnvVar(
+            "anthropic_api_key",
+            env="ANTHROPIC_API_KEY",
+            env_fallback="ANTHROPIC_API_KEY",
+        ),
         EnvVar("openai_api_key", env="OPENAI_API_KEY", env_fallback="OPENAI_API_KEY"),
         EnvVar("groq_api_key", env="GROQ_API_KEY", env_fallback="GROQ_API_KEY"),
-        EnvVar("deepseek_api_key", env="DEEPSEEK_API_KEY", env_fallback="DEEPSEEK_API_KEY"),
-        EnvVar("mistral_api_key", env="MISTRAL_API_KEY", env_fallback="MISTRAL_API_KEY"),
+        EnvVar(
+            "deepseek_api_key", env="DEEPSEEK_API_KEY", env_fallback="DEEPSEEK_API_KEY"
+        ),
+        EnvVar(
+            "mistral_api_key", env="MISTRAL_API_KEY", env_fallback="MISTRAL_API_KEY"
+        ),
         EnvVar("xai_api_key", env="XAI_API_KEY", env_fallback="XAI_API_KEY"),
-        EnvVar("together_api_key", env="TOGETHER_API_KEY", env_fallback="TOGETHER_API_KEY"),
-        EnvVar("fireworks_api_key", env="FIREWORKS_API_KEY", env_fallback="FIREWORKS_API_KEY"),
+        EnvVar(
+            "together_api_key", env="TOGETHER_API_KEY", env_fallback="TOGETHER_API_KEY"
+        ),
+        EnvVar(
+            "fireworks_api_key",
+            env="FIREWORKS_API_KEY",
+            env_fallback="FIREWORKS_API_KEY",
+        ),
         EnvVar("cohere_api_key", env="COHERE_API_KEY", env_fallback="COHERE_API_KEY"),
-        EnvVar("openrouter_api_key", env="OPENROUTER_API_KEY", env_fallback="OPENROUTER_API_KEY"),
+        EnvVar(
+            "openrouter_api_key",
+            env="OPENROUTER_API_KEY",
+            env_fallback="OPENROUTER_API_KEY",
+        ),
     ]
 
     @staticmethod
@@ -120,7 +141,8 @@ class AbstractAgent(BaseInstalledAgent):
             patterns = patterns_file.read_text()
             # Filter out comments and empty lines, take first 20 patterns
             active_patterns = [
-                line.strip() for line in patterns.splitlines()
+                line.strip()
+                for line in patterns.splitlines()
                 if line.strip() and not line.strip().startswith("#")
             ][:20]
             if active_patterns:
@@ -150,6 +172,7 @@ class AbstractAgent(BaseInstalledAgent):
 
         try:
             import json
+
             for line in output_file.read_text().splitlines():
                 line = line.strip()
                 if not line:

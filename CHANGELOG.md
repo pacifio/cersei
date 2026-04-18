@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.1.6-patch.2] - 2026-04-18
+
+### Added
+
+- **New crate: `cersei-embeddings`.** Provider-agnostic text embeddings with a pluggable `usearch`-backed vector index, extracted from the inline embedding logic in `CodeSearch`. Ships with built-in `GeminiEmbeddings` (Google `text-embedding-004`, 768-d) and `OpenAiEmbeddings` (OpenAI `text-embedding-3-small`, 1536-d, base-URL overridable for Azure / Ollama).
+  - **`EmbeddingProvider` trait** — `embed`, `embed_batch`, `dimensions`, `name`. Implement once, compose with everything below.
+  - **`VectorIndex`** — thin `usearch` wrapper exposing `new`, `from_vectors`, `reserve`, `add`, `search`, `len`. Cosine / L2 / InnerProduct metrics with automatic similarity conversion.
+  - **`EmbeddingStore<P>`** — provider + index bundled for the add-text / search-by-text flow. `new`, `add_batch`, `search`.
+  - **`auto_from_model(&str)`** factory — picks OpenAI or Gemini based on an LLM model string and reads the appropriate env var.
+  - **Leaf dependency** — the crate has zero dependencies on other `cersei-*` crates, usable standalone for RAG, semantic search, clustering, and custom tools.
+  - **Docs** — [Overview](https://cersei.pacifio.dev/docs/embeddings-overview), [API Reference](https://cersei.pacifio.dev/docs/embeddings-api), [Cookbook](https://cersei.pacifio.dev/docs/embeddings-cookbook).
+- **General-Agent Framework Benchmark.** First-party, end-to-end measured showdown against the Python stack — Agno 2.5.17, PydanticAI 1.22.0, LangGraph 1.1.8, CrewAI 1.14.2. Everything measured on Apple M1 Pro via the same harness suite, methodology mirroring Agno's own `cookbook/09_evals/performance/` (real agent constructors, no LLM invocation, no stub models). Three new chart components (`AgentInstantiationChart`, `PerAgentMemoryChart`, `MaxConcurrentChart`) now render on three pages.
+  - **Headline numbers** — Cersei **704 B per agent** (8× smaller than Agno's 5.8 KiB, 44× smaller than LangGraph's 30 KiB). Cersei builds 500 agents concurrently in **4.4 ms / 8.5 MB** vs CrewAI's **50,697 ms / 1,739 MB** at the same N — **11,500× faster wall time, 204× less memory**. Cersei sweeps to 10,000 concurrent agents held live in 87 ms on 22 MB total RSS.
+  - **Details & charts** — [cersei.pacifio.dev/docs/bench-vs-agents](https://cersei.pacifio.dev/docs/bench-vs-agents) (dedicated deep-dive page with all five axes, reproduction instructions, and caveats).
+  - **General comparisons page** — [cersei.pacifio.dev/docs/comparisons](https://cersei.pacifio.dev/docs/comparisons#cersei-vs-general-agent-frameworks-agno-pydanticai-langgraph-crewai) (now includes side-by-side against all four Python frameworks + "when to choose which" guidance).
+  - **Landing page performance section** — [cersei.pacifio.dev/docs](https://cersei.pacifio.dev/docs#vs-general-agent-frameworks) (the new "vs General Agent Frameworks" sub-section under Performance at a Glance).
+  - **Harness source** — Rust: `crates/cersei-agent/benchmarks/general_agent_bench.rs` (opt-in via `bench-full` feature). `uv`-managed Python harnesses + `run.sh` at `bench/general-agents/` ([GitHub](https://github.com/pacifio/cersei/tree/main/bench/general-agents)). Reproduce end-to-end on your own machine with `./run.sh`.
+
+### Changed
+
+- **`cersei-tools::code_search`** refactored to delegate to `cersei-embeddings`. Inline `gemini_embeddings` / `openai_embeddings` / raw `usearch::Index` handling removed. `CodeSearchTool::with_embeddings` now takes `Arc<dyn EmbeddingProvider>` instead of `(provider_string, api_key_string)`.
+- **`abstract-cli`** constructs its embedding provider via `cersei_embeddings::auto_from_model(&resolved_model)` — the model → provider detection and env-var lookup moved into the new crate. End-user behaviour of `--embedding-api` is unchanged.
+- **`cersei-lsp`** `Cargo.toml` now uses `version.workspace = true` (was hardcoded to `0.1.6`) so workspace version bumps propagate.
+- **Google provider default model** upgraded from `gemini-2.0-flash` to `gemini-3.1-pro-preview` (2M context). Affects `abstract --model gemini`, the `auto` fallback when `GOOGLE_API_KEY` is the only configured key, and `Gemini::new()` / `Gemini::builder()` when `.model(...)` is omitted.
+- **`abstract login <provider>`** now accepts any provider registered in the `cersei-provider` registry (Google, Groq, DeepSeek, xAI, Mistral, Together, Fireworks, Perplexity, Cerebras, OpenRouter, Cohere, SambaNova, …), not just `anthropic` and `openai`. Saved keys are stored in a generic `provider_keys` map in `~/.abstract/credentials.json` and exported as the provider's first env var at startup so downstream registry lookups see them transparently. Local providers (Ollama) report "no login needed".
+
+### Fixed
+
+- **Auto-default no longer silently picks Ollama.** Two changes: (1) `cersei_provider::registry::available()` now TCP-probes local providers (those with no `env_keys`) via a 200ms check against their `api_base`, so `abstract login status` distinguishes `available (local)` from `not running`. (2) `from_model_string("auto")` now skips local providers entirely and only considers keyed providers (Anthropic, OpenAI, Google, Groq, …). Ollama and other local providers must be selected explicitly via `--model ollama/<model>`. When no API keys are set, the CLI errors out with a helpful message instead of silently defaulting to `llama3.1`.
+- **`abstract login google`** (and every other provider known to the registry) is no longer rejected as "Unknown provider".
+
 ## [0.1.6-patch.1] - 2026-04-13
 
 ### Added

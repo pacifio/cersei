@@ -55,6 +55,29 @@ impl ProviderEntry {
         !self.env_keys.is_empty()
     }
 
+    /// Whether a local provider (one with no `env_keys`, e.g. Ollama) is
+    /// actually reachable right now. Does a 200ms TCP probe against the
+    /// host:port parsed out of `api_base`. Returns `true` when the probe
+    /// succeeds, `false` otherwise. Providers that *do* require a key
+    /// return `true` unconditionally (their availability is gated on the
+    /// env var, not connectivity).
+    pub fn is_reachable(&self) -> bool {
+        if self.requires_key() {
+            return true;
+        }
+        let host_port = extract_host_port(self.api_base);
+        let Some(host_port) = host_port else { return false };
+        use std::net::ToSocketAddrs;
+        let addrs: Vec<std::net::SocketAddr> = match host_port.to_socket_addrs() {
+            Ok(it) => it.collect(),
+            Err(_) => return false,
+        };
+        addrs.into_iter().any(|addr| {
+            std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(200))
+                .is_ok()
+        })
+    }
+
     /// Get the context window for a model, falling back to a default.
     pub fn context_window(&self, model: &str) -> u64 {
         self.models
@@ -136,7 +159,7 @@ pub static REGISTRY: &[ProviderEntry] = &[
         api_base: "https://generativelanguage.googleapis.com/v1beta",
         env_keys: &["GOOGLE_API_KEY", "GEMINI_API_KEY"],
         api_format: ApiFormat::Google,
-        default_model: "gemini-2.0-flash",
+        default_model: "gemini-3.1-pro-preview",
         models: &[
             ModelEntry { id: "gemini-3.1-pro-preview", context_window: 2_000_000, capabilities: FULL },
             ModelEntry { id: "gemini-3.0-flash", context_window: 1_000_000, capabilities: FULL },
@@ -293,10 +316,37 @@ pub fn all() -> &'static [ProviderEntry] {
     REGISTRY
 }
 
-/// Providers that have valid auth configured in the environment.
+/// Providers that have valid auth configured in the environment **and** — for
+/// local providers without an API key (e.g. Ollama) — are actually reachable
+/// via a quick TCP probe.
+///
+/// The probe prevents `from_model_string("auto")` from silently picking Ollama
+/// when the daemon is not running, which was causing the CLI to default to
+/// `llama3.1` on machines without any LLM installed.
 pub fn available() -> Vec<&'static ProviderEntry> {
     REGISTRY
         .iter()
-        .filter(|e| !e.requires_key() || e.api_key_from_env().is_some())
+        .filter(|e| {
+            if e.requires_key() {
+                e.api_key_from_env().is_some()
+            } else {
+                e.is_reachable()
+            }
+        })
         .collect()
+}
+
+/// Extract a `host:port` string from an http(s) URL for TCP probing.
+fn extract_host_port(api_base: &str) -> Option<String> {
+    let trimmed = api_base
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
+    let authority = trimmed.split('/').next()?;
+    if authority.contains(':') {
+        Some(authority.to_string())
+    } else {
+        // default ports based on scheme
+        let port = if api_base.starts_with("https://") { 443 } else { 80 };
+        Some(format!("{authority}:{port}"))
+    }
 }

@@ -42,7 +42,7 @@ notify = { version = "7", optional = true }
 portable-pty = { version = "0.8", optional = true }
 base64 = "0.22"
 tantivy = "0.22"
-usearch = { version = "2.16", default-features = false }
+cersei-embeddings = { workspace = true }
 
 [features]
 default = ["file-watch"]

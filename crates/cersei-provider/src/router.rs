@@ -20,19 +20,27 @@ use cersei_types::*;
 ///
 /// Returns `(provider, model_name)` where `model_name` has the provider prefix stripped.
 pub fn from_model_string(model: &str) -> Result<(Box<dyn Provider>, String)> {
-    // "auto" — pick the first available provider's default model
+    // "auto" — pick the first available *keyed* provider's default model.
+    //
+    // Local providers (Ollama, etc.) are skipped here on purpose: they need
+    // explicit opt-in via `--model ollama/<model>` so the CLI never silently
+    // starts talking to a daemon the user didn't ask for.
     if model == "auto" {
         let available = registry::available();
-        let entry = available.first().ok_or_else(|| {
-            let all_keys: Vec<String> = registry::all()
-                .iter()
-                .flat_map(|e| e.env_keys.iter().map(|k| k.to_string()))
-                .collect();
-            CerseiError::Auth(format!(
-                "No API keys found. Set one of: {}",
-                all_keys.join(", ")
-            ))
-        })?;
+        let entry = available
+            .iter()
+            .find(|e| e.requires_key())
+            .copied()
+            .ok_or_else(|| {
+                let all_keys: Vec<String> = registry::all()
+                    .iter()
+                    .flat_map(|e| e.env_keys.iter().map(|k| k.to_string()))
+                    .collect();
+                CerseiError::Auth(format!(
+                    "No API keys found. Set one of: {}\n\nOr point at a local provider explicitly, e.g. --model ollama/llama3.1",
+                    all_keys.join(", ")
+                ))
+            })?;
         let model_name = entry.default_model;
         let provider = build_provider(entry, model_name)?;
         return Ok((provider, model_name.to_string()));

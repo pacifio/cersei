@@ -1,0 +1,42 @@
+[project]
+name = "cersei-general-agent-bench"
+version = "0.1.0"
+description = "General agent framework benchmark harnesses (Agno, LangGraph, PydanticAI, CrewAI)"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+# Each framework pulls its own LLM client SDK — these match what Agno's own
+# `cookbook/09_evals/performance/` imports. No network calls are made; the
+# SDKs only need to be importable.
+agno        = ["agno>=2.5", "openai>=1.0"]
+langgraph   = ["langgraph>=0.2", "langchain-core>=0.3", "langchain-openai>=0.2"]
+pydantic_ai = ["pydantic-ai>=0.0.14", "openai>=1.0"]
+crewai      = ["crewai>=0.70", "litellm>=1.0"]
+all         = [
+    "agno>=2.5",
+    "openai>=1.0",
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    "pydantic-ai>=0.0.14",
+    "crewai>=0.70",
+    "litellm>=1.0",
+]
+
+# ── uv configuration ──────────────────────────────────────────────────────
+# Each harness installs its own framework as an extra, and uv creates a
+# dedicated venv per extra group — so frameworks never see each other's deps.
+#
+# Usage:
+#   uv run --extra agno        python agno.py
+#   uv run --extra langgraph   python langgraph.py
+#   uv run --extra pydantic_ai python pydantic_ai.py
+#   uv run --extra crewai      python crewai.py
+
+[tool.uv]
+# Sync-on-run picks up any dependency changes automatically.
+managed = true
+
+[tool.setuptools]
+py-modules = ["_common"]

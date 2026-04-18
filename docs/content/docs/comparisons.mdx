@@ -5,6 +5,8 @@ description: How Cersei compares to other agent SDKs for building coding agents.
 
 # Cersei vs Other Agent SDKs
 
+Looking for the **general-purpose agent framework** comparison (Agno, LangGraph, CrewAI, PydanticAI)? The five-axis showdown — instantiation, per-agent memory, max concurrent agents, graph memory recall under load, semantic search under load — is at **[Cersei vs Agno / LangGraph / CrewAI / PydanticAI](/docs/bench-vs-agents)**. This page covers the coding-agent-focused comparison against Claude Code and Codex.
+
 ## Cersei vs Claude Code SDK
 
 Claude Code's Agent SDK (part of the `@anthropic-ai/claude-code` package) provides a way to embed Claude Code's agent capabilities in your application. Here's how it compares to Cersei:
@@ -133,3 +135,46 @@ Cersei requires more setup but gives you control over every aspect. Claude Code 
 | Cost tracking | Per-model pricing | Basic | No | Via callbacks |
 | Bash safety | tree-sitter AST | No | No | No |
 | File undo/snapshots | Yes | Yes | No | No |
+
+---
+
+## Cersei vs General Agent Frameworks (Agno, PydanticAI, LangGraph, CrewAI)
+
+Every number here is measured end-to-end on Apple M1 Pro via [`bench/general-agents/`](https://github.com/pacifio/cersei/tree/main/bench/general-agents). See [bench-vs-agents](/docs/bench-vs-agents) for methodology, caveats, and reproduction steps.
+
+### Instantiation — μs per Agent.build()
+
+<AgentInstantiationChart />
+
+### Per-Agent Memory
+
+<PerAgentMemoryChart />
+
+### Capacity — RSS vs concurrent live agents
+
+<MaxConcurrentChart />
+
+### At a glance
+
+| | Cersei | Agno | PydanticAI | LangGraph | CrewAI |
+|---|------:|-----:|-----------:|----------:|-------:|
+| Version | 0.1.6-patch.2 | 2.5.17 | 1.22.0 | 1.1.8 | 1.14.2 |
+| Instantiation p50 | **7.12 μs** | 6.50 μs | 219 μs | 5 536 μs | 28 509 μs |
+| Per-agent memory | **704 B** | 5.8 KiB | 8.7 KiB | 30.2 KiB | 17.7 KiB |
+| Wall to build 500 | **4.4 ms** | 13.5 ms | 125 ms | 2 246 ms | 50 697 ms |
+| RSS @ 500 agents | **8.5 MB** | 82 MB | 123 MB | 193 MB | 1 739 MB |
+| Graph memory in-process | **Yes** (Grafeo) | No | No | No | No |
+| Semantic search in-process | **Yes** (usearch) | No | No | No | No |
+
+### When to choose Cersei over the Python stack
+
+- **You need to run thousands of concurrent agents on one host.** Memory per agent decides your ceiling. Cersei is 8–44× tighter than anything in Python.
+- **You want graph memory or semantic search in-process.** The Python frameworks do not ship either. Bolting on a vector DB means network hops, serialization, and a second runtime to operate.
+- **You are paying for the GIL**. Any real concurrency story in Python either runs multiple processes (big memory tax) or wraps blocking work in asyncio (CPU-bound sections still serialize). Cersei + tokio uses every core natively.
+- **You want a single static binary at the edge.** Abstract is a 15 MB Rust binary. Agno/PydanticAI/LangGraph/CrewAI ship ~50+ Python deps and a runtime.
+
+### When to prefer Agno or PydanticAI
+
+- **You're already deep in a Python ML stack** and the 8–12× memory hit is acceptable for your fleet size.
+- **You need type-driven structured output with Pydantic validators at the core** — PydanticAI is purpose-built for that.
+- **Your team can't take on Rust.** Cersei exposes a C-ABI-free SDK that must be linked from Rust or called via a bin; there is no first-class Python binding yet.

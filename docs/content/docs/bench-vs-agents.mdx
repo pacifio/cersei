@@ -1,0 +1,183 @@
+---
+title: Cersei vs Agno / LangGraph / CrewAI / PydanticAI
+description: Five-axis benchmark of Cersei against the Python agent frameworks — instantiation, per-agent memory, max concurrent agents, graph-memory recall, semantic search.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+# General Agent Framework Benchmark
+
+Cersei started as a Rust SDK for **coding agents**. With graph memory, in-process semantic search via [`cersei-embeddings`](/docs/embeddings-overview), sub-agent orchestration, hooks, and a full permission system, it now competes directly with the general-purpose Python agent frameworks — Agno, LangGraph, CrewAI, PydanticAI.
+
+The thing those frameworks' benchmarks don't measure is the production bottleneck that actually matters once you leave a notebook: **how many live agent instances can you hold on one host before p99 latency or memory blows up.** That is where Rust + native structs + zero-overhead `Arc` sharing should decide the fight, and this page is the scoreboard.
+
+<Callout type="info">
+**Methodology** Every harness constructs the real agent — `Agent(model=OpenAIChat(id="gpt-4o"), tools=[...])` for Agno, `create_react_agent(ChatOpenAI(model="gpt-4o"), ...)` for LangGraph, and so on — with **no network call** (model constructors are lazy in every framework measured here). We deliberately do NOT invoke a turn. Agno's own cookbook at `cookbook/09_evals/performance/` takes the same position: the inference cost is identical across frameworks and measuring it muddies what we actually care about — the framework's own overhead. The axis-3 ramp measures *pure concurrent construction capacity*: how many agents can be built and held live before RSS or latency blows up. Full reproduction script at [`bench/general-agents/run.sh`](https://github.com/pacifio/cersei/tree/main/bench/general-agents).
+</Callout>
+
+---
+
+## Axis 1 — Instantiation Time
+
+μs to construct one ready-to-use Agent with one tool attached, measured over 1000 samples (after 100 warmup).
+
+<AgentInstantiationChart />
+
+All five numbers below were measured on Apple M1 Pro via the same harness suite at `bench/general-agents/`.
+
+| Framework | Version | Instantiation p50 | Ratio vs Cersei |
+|-----------|---------|------------------:|----------------:|
+| **Cersei** | 0.1.6-patch.2 | **7.12 μs** | 1× |
+| Agno | 2.5.17 | 6.50 μs | 0.9× |
+| PydanticAI | 1.22.0 | 219.12 μs | 31× |
+| LangGraph | 1.1.8 | 5 536.17 μs | **777×** |
+| CrewAI | 1.14.2 | 28 508.83 μs | **4 004×** |
+
+Cersei lands in the same order of magnitude as Agno despite carrying a batteries-included agent (memory manager, graph backend, hook chain, permission policy, cost tracker, cancel token, broadcast channel). Agno's class is genuinely lean; everything else is slower by a lot. Cersei is **31× faster than PydanticAI, 777× faster than LangGraph, 4,000× faster than CrewAI**.
+
+<Callout>
+The `Agent::builder().build()` call path is pure struct + `Arc` allocation — no network, no token counting, no provider auth. First LLM request pays the provider init cost once; it is not charged to instantiation.
+</Callout>
+
+---
+
+## Axis 2 — Per-Agent Memory
+
+Bytes per agent, held over 1000 live instantiations. Cersei uses `jemalloc::stats::allocated` (delta / N); the Python frameworks use `tracemalloc`. This is the most honest cross-language comparison we can run — both count real bytes allocated by the framework.
+
+<PerAgentMemoryChart />
+
+| Framework | Per-agent memory | Ratio vs Cersei |
+|-----------|-----------------:|----------------:|
+| **Cersei** | **704 B** | 1× |
+| Agno | 5.8 KiB (5 938 B) | 8.4× |
+| PydanticAI | 8.7 KiB (8 892 B) | 12.6× |
+| CrewAI | 17.7 KiB (18 157 B) | 25.8× |
+| LangGraph | 30.2 KiB (30 910 B) | 44× |
+
+This is the headline win. **One Cersei agent fits 8× smaller than the leanest Python framework and 44× smaller than LangGraph.** On a 4 GB process that difference is "tens of thousands of concurrent agents" vs "a few thousand before the GC starts thrashing".
+
+---
+
+## Axis 3 — Max Concurrent Agents
+
+The production question: how many agents can you build and hold live on one host before RSS or per-construction latency falls apart?
+
+Cersei ramp (measured, Apple M1 Pro, host process, no cgroup cap). Each row spawns N `tokio::spawn` tasks, each builds one agent, all N are held in a `Vec` until the step completes — then RSS is read:
+
+<MaxConcurrentChart />
+
+| N live agents | p50 per-build | p99 per-build | RSS (total) | Wall to build all N |
+|--------------:|--------------:|--------------:|------------:|--------------------:|
+| 100   | 0.05 ms | 0.21 ms | 8.3 MB | 1.0 ms |
+| 500   | 0.05 ms | 0.13 ms | 8.5 MB | 4.4 ms |
+| 1 000 | 0.05 ms | 0.13 ms | 9.3 MB | 8.5 ms |
+| 5 000 | 0.06 ms | 0.14 ms | 14.0 MB | 42.3 ms |
+| **10 000** | **0.06 ms** | **0.16 ms** | **22.4 MB** | **86.6 ms** |
+
+Ten thousand concurrent Cersei agents, all constructed and held live, in **87 ms wall-clock on 22 MB of RSS total**. That is ~1.4 KB incremental RSS per live agent (so tight only because the provider, permission policy, and cost tracker are shared via `Arc`), with p99 per-build construction latency staying *under 200 μs at 10k concurrency*.
+
+### And the Python frameworks at the same concurrency
+
+Each Python framework was sampled at N=100 and N=500 on the same box. Pushing further on CrewAI in particular would take 10+ minutes per step, so we stop where the slope is obvious:
+
+| Framework | @ N=100 — RSS / wall | @ N=500 — RSS / wall |
+|-----------|---------------------:|---------------------:|
+| **Cersei** | **8.3 MB / 1.0 ms** | **8.5 MB / 4.4 ms** |
+| Agno | 79.3 MB / 7.7 ms | 82.0 MB / 13.5 ms |
+| PydanticAI | 122.0 MB / 28.9 ms | 123.2 MB / 125.0 ms |
+| LangGraph | 193.5 MB / 361.3 ms | 193.5 MB / 2 246.5 ms |
+| CrewAI | 1 739.3 MB / 11 628.5 ms | 1 739.3 MB / **50 697.4 ms** |
+
+Reading that CrewAI row: **building 500 CrewAI agents takes 50 seconds wall-clock and blows to 1.7 GB RSS**. Cersei builds the same 500 in **4.4 ms on 8.5 MB**. That's **11,500× the wall time and 204× the RSS** for the same capacity. This is why "can I just spawn one agent per customer session" is not a question you can actually say yes to in Python agent frameworks today.
+
+Reproduce this table yourself:
+
+```bash
+cd bench/general-agents
+./run.sh
+cat results/summary.json
+```
+
+---
+
+## Axis 4 — Graph Memory Recall Under Load *(Cersei-only)*
+
+The Python frameworks don't ship an in-process graph database at all. Cersei does — Grafeo, schema-versioned, file-backed — and exposes it through [`cersei-memory::MemoryManager`](/docs/api-memory).
+
+Under **10 concurrent readers × 100 recalls each, 10 000 nodes** (macOS, Apple M1 Pro):
+
+| Metric | Value |
+|-|-:|
+| p50 | 94 ms |
+| p95 | 120 ms |
+| p99 | 139 ms |
+
+<Callout type="warn">
+Under higher concurrency (100+ simultaneous readers) recall serializes behind Grafeo's read path, inflating p50. Single-reader recall is ~98 μs — see [the graph-memory benchmark](/docs/bench-graph) for that baseline. Tuning the concurrent-read path is tracked as work-in-progress; we publish what we measure.
+</Callout>
+
+---
+
+## Axis 5 — Semantic Search Under Load *(Cersei-only)*
+
+Same comparison: the Python agent frameworks don't ship HNSW semantic search in-process. Cersei does, via [`cersei-embeddings`](/docs/embeddings-overview).
+
+Under **50 concurrent agents × 100 queries each, 10 000 embedded chunks** (cosine, 64-d vectors):
+
+| Metric | Value |
+|-|-:|
+| p50 | **51 μs** |
+| p95 | 132 μs |
+| p99 | 354 μs |
+
+Semantic search scales cleanly under concurrency because `usearch` uses lock-free HNSW internally — fifty concurrent agents each issuing 100 queries complete with sub-millisecond p95.
+
+---
+
+## Reproduce the numbers
+
+Python deps are managed with [`uv`](https://docs.astral.sh/uv/) — install via
+`curl -LsSf https://astral.sh/uv/install.sh | sh`. Each Python framework lives
+in its own venv extra via `pyproject.toml` so Agno's deps never collide with
+LangGraph's.
+
+```bash
+# Cersei (host)
+cargo run --release -p cersei-agent --example general_agent_bench --features bench-full
+
+# Everything, host processes via uv (default)
+cd bench/general-agents
+./run.sh
+
+# Per-framework
+./run.sh --only cersei
+./run.sh --only agno
+uv run --extra pydantic_ai python bench_pydantic_ai.py
+
+# Opt-in: Docker with a cgroup cap (for the max-concurrent-under-4GB axis)
+./run.sh --docker
+BENCH_MEM_CAP=16g ./run.sh --docker
+```
+
+Every measurement lands as JSON in `bench/general-agents/results/<framework>.json` matching a shared schema. `aggregate.py` merges them into `summary.json`.
+
+Axis selection and scale tunables:
+
+```bash
+# Skip the slow graph/semantic axes during iteration
+CERSEI_BENCH_AXES=1,2,3 cargo run --release ...
+
+# Push graph/semantic scales up to 100k
+CERSEI_BENCH_GRAPH_MAX=100000 CERSEI_BENCH_SEMANTIC_MAX=100000 cargo run --release ...
+```
+
+---
+
+## Related
+
+- [Comparisons](/docs/comparisons) — Cersei vs Claude Code vs Codex (the original 3-way, coding-agent-focused).
+- [Library Benchmarks](/docs/bench-library) — in-process tool dispatch, session I/O, auto-dream gates.
+- [Graph Memory Benchmarks](/docs/bench-graph) — Grafeo single-reader numbers.
+- [Embeddings Overview](/docs/embeddings-overview) — the in-process semantic search crate this benchmark leans on.

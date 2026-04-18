@@ -25,7 +25,7 @@ impl Gemini {
         Self {
             api_key: api_key.into(),
             base_url: GEMINI_API_BASE.to_string(),
-            default_model: "gemini-2.0-flash".to_string(),
+            default_model: "gemini-3.1-pro-preview".to_string(),
             client: reqwest::Client::new(),
         }
     }
@@ -503,7 +503,7 @@ impl GeminiBuilder {
         Ok(Gemini {
             api_key,
             base_url: self.base_url.unwrap_or_else(|| GEMINI_API_BASE.to_string()),
-            default_model: self.model.unwrap_or_else(|| "gemini-2.0-flash".to_string()),
+            default_model: self.model.unwrap_or_else(|| "gemini-3.1-pro-preview".to_string()),
             client: reqwest::Client::new(),
         })
     }

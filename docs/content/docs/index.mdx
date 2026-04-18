@@ -125,6 +125,52 @@ Full benchmark methodology, per-test breakdowns, and reproduction steps: [Benchm
 
 ---
 
+## vs General Agent Frameworks
+
+Cersei also competes directly with the Python agent stack — **Agno, PydanticAI, LangGraph, CrewAI**. Every number below is measured on the same Apple M1 Pro via the harness at [`bench/general-agents/`](https://github.com/pacifio/cersei/tree/main/bench/general-agents). Methodology mirrors Agno's own [performance cookbook](https://docs.agno.com/performance): real agent constructors, no LLM invocation, no stub models. [Full methodology →](/docs/bench-vs-agents)
+
+### Agent Instantiation
+
+μs to construct one ready-to-use agent with one tool attached (1000 samples, log scale):
+
+<AgentInstantiationChart />
+
+| Framework | p50 | vs Cersei |
+|-----------|----:|----------:|
+| **Cersei** 0.1.6-patch.2 | **7.12 μs** | 1× |
+| Agno 2.5.17 | 6.50 μs | 0.9× |
+| PydanticAI 1.22.0 | 219 μs | 31× |
+| LangGraph 1.1.8 | 5 536 μs | **777×** |
+| CrewAI 1.14.2 | 28 509 μs | **4 004×** |
+
+### Per-Agent Memory
+
+Bytes per agent held live. Cersei uses `jemalloc::stats::allocated`; Python uses `tracemalloc` — both count real bytes allocated by framework code:
+
+<PerAgentMemoryChart />
+
+| Framework | Per-agent | vs Cersei |
+|-----------|----------:|----------:|
+| **Cersei** | **704 B** | 1× |
+| Agno | 5.8 KiB | 8.4× |
+| PydanticAI | 8.7 KiB | 12.6× |
+| CrewAI | 17.7 KiB | 25.8× |
+| LangGraph | 30.2 KiB | **44×** |
+
+### Max Concurrent Agents — The Capacity Story
+
+How many live agents can you build and hold on one host? Cersei sweeps to 10k; Python frameworks sampled at N=100 and N=500. Log scale on both axes:
+
+<MaxConcurrentChart />
+
+At **N=500**: Cersei holds them in **8.5 MB / 4.4 ms**. CrewAI needs **1 739 MB / 50 697 ms** — 204× more memory, 11 500× more wall time, for the same number of agents. Cersei's ramp continues cleanly to 10k agents in **22 MB of total RSS**.
+
+<Callout type="info">
+**Why this matters in production.** Agent workloads scale by holding one active instance per customer session, per parallel worker, per retry queue item. Memory per agent sets your ceiling. On a 4 GB process: Cersei ≈ 5 million agents (at 704 B each) vs LangGraph ≈ 130 k. That's not a rounding difference — it's a fundamentally different cost structure.
+</Callout>
+
+---
+
 ## What's Inside
 
 <Cards>
@@ -275,7 +321,13 @@ For graph memory:
 cersei-memory = { git = "https://github.com/pacifio/cersei", features = ["graph"] }
 ```
 
-For the Abstract CLI (complete coding agent):
+For the Abstract CLI (complete coding agent) — one-line install on macOS or Linux (detects OS, installs Rust if needed, builds from source, drops the binary on your PATH):
+
+```bash
+curl -fsSL https://cersei.pacifio.dev/install-abstract.sh | bash
+```
+
+Or install directly via cargo if you already have a Rust toolchain:
 
 ```bash
 cargo install --git https://github.com/pacifio/cersei abstract-cli

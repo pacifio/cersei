@@ -1,0 +1,41 @@
+{
+  "framework": "agno",
+  "version": "2.5.17",
+  "host": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "arm",
+    "ram_gb": 16,
+    "cgroup_memory_gb": null
+  },
+  "axis_1_instantiation_us": {
+    "p50": 6.5,
+    "p95": 6.666,
+    "p99": 6.792,
+    "mean": 6.506112,
+    "samples": 1000
+  },
+  "axis_2_per_agent_bytes": {
+    "mean_bytes": 5938,
+    "samples": 500,
+    "allocator": "tracemalloc (size_diff)"
+  },
+  "axis_3_max_concurrent": [
+    {
+      "n": 100,
+      "p50_ms": 1.894917,
+      "p99_ms": 3.52375,
+      "rss_mb": 79.34375,
+      "wall_ms": 7.722542
+    },
+    {
+      "n": 500,
+      "p50_ms": 8.636,
+      "p99_ms": 10.450875,
+      "rss_mb": 81.984375,
+      "wall_ms": 13.503084
+    }
+  ],
+  "axis_4_graph_recall_us": null,
+  "axis_5_semantic_search_us": null
+}
