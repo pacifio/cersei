@@ -20,8 +20,8 @@ use tokio::sync::mpsc;
 pub use anthropic::Anthropic;
 pub use gemini::Gemini;
 pub use openai::OpenAi;
-pub use stream::StreamAccumulator;
 pub use router::from_model_string;
+pub use stream::StreamAccumulator;
 
 // ─── Provider trait ──────────────────────────────────────────────────────────
 
@@ -55,12 +55,24 @@ pub trait Provider: Send + Sync {
 // Blanket impl: Box<dyn Provider> is itself a Provider.
 #[async_trait]
 impl Provider for Box<dyn Provider> {
-    fn name(&self) -> &str { (**self).name() }
-    fn context_window(&self, model: &str) -> u64 { (**self).context_window(model) }
-    fn capabilities(&self, model: &str) -> ProviderCapabilities { (**self).capabilities(model) }
-    async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> { (**self).complete(request).await }
-    async fn complete_blocking(&self, request: CompletionRequest) -> Result<CompletionResponse> { (**self).complete_blocking(request).await }
-    async fn count_tokens(&self, messages: &[Message], model: &str) -> Result<u64> { (**self).count_tokens(messages, model).await }
+    fn name(&self) -> &str {
+        (**self).name()
+    }
+    fn context_window(&self, model: &str) -> u64 {
+        (**self).context_window(model)
+    }
+    fn capabilities(&self, model: &str) -> ProviderCapabilities {
+        (**self).capabilities(model)
+    }
+    async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
+        (**self).complete(request).await
+    }
+    async fn complete_blocking(&self, request: CompletionRequest) -> Result<CompletionResponse> {
+        (**self).complete_blocking(request).await
+    }
+    async fn count_tokens(&self, messages: &[Message], model: &str) -> Result<u64> {
+        (**self).count_tokens(messages, model).await
+    }
 }
 
 // ─── Authentication ──────────────────────────────────────────────────────────
@@ -150,7 +162,9 @@ impl ProviderOptions {
     }
 
     pub fn get<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Option<T> {
-        self.entries.get(key).and_then(|v| serde_json::from_value(v.clone()).ok())
+        self.entries
+            .get(key)
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 
     pub fn has(&self, key: &str) -> bool {

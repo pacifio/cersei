@@ -1,7 +1,7 @@
 //! Agent events: the full event enum, AgentStream, and control messages.
 
-use cersei_tools::PermissionLevel;
 use cersei_tools::permissions::{PermissionDecision, PermissionRequest};
+use cersei_tools::PermissionLevel;
 use cersei_types::*;
 use std::time::Duration;
 use tokio::sync::mpsc;

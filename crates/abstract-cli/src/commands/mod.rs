@@ -3,6 +3,7 @@
 mod clear;
 mod commit;
 mod compact;
+mod compression;
 mod config_cmd;
 mod cost;
 mod diff;
@@ -13,6 +14,8 @@ mod resume;
 mod review;
 
 use crate::config::AppConfig;
+use cersei::Agent;
+use std::sync::Arc;
 
 pub struct CommandRegistry;
 
@@ -21,7 +24,14 @@ impl CommandRegistry {
         Self
     }
 
-    pub async fn execute(&mut self, cmd: &str, args: &str, config: &AppConfig, session_id: &str) {
+    pub async fn execute(
+        &mut self,
+        cmd: &str,
+        args: &str,
+        config: &AppConfig,
+        session_id: &str,
+        agent: Option<&Arc<Agent>>,
+    ) {
         let result = match cmd {
             "help" | "h" | "?" => help::run(),
             "sessions" | "ls" => crate::sessions::list(config),
@@ -35,6 +45,7 @@ impl CommandRegistry {
             "config" | "cfg" => config_cmd::run(args, config),
             "diff" => diff::run(config),
             "resume" => resume::run(args, config),
+            "compression" | "compress" => compression::run(args, agent),
             _ => {
                 eprintln!("\x1b[33mUnknown command: /{cmd}\x1b[0m");
                 eprintln!("Type /help to see available commands.");

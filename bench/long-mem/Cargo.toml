@@ -1,0 +1,29 @@
+[package]
+name = "longmem-bench"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Head-to-head LongMemEval benchmark for the Cersei memory stack"
+publish = false
+
+[[bin]]
+name = "longmem-bench"
+path = "src/main.rs"
+
+[dependencies]
+cersei-types      = { workspace = true }
+cersei-provider   = { workspace = true }
+cersei-embeddings = { workspace = true }
+cersei-memory     = { workspace = true, features = ["embed", "graph"] }
+
+tokio             = { workspace = true }
+async-trait       = { workspace = true }
+anyhow            = { workspace = true }
+serde             = { workspace = true }
+serde_json        = { workspace = true }
+tracing           = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono            = { workspace = true }
+clap              = { version = "4", features = ["derive"] }
+tempfile          = { workspace = true }

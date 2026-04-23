@@ -23,14 +23,16 @@ pub enum VersionCheck {
     /// Graph needs migration from `from` to `to`.
     NeedsMigration { from: u32, to: u32 },
     /// Graph is ahead of this code (opened by newer code previously).
-    CodeBehind { graph_version: u32, code_version: u32 },
+    CodeBehind {
+        graph_version: u32,
+        code_version: u32,
+    },
 }
 
 // ─── GQL queries for version management ────────────────────────────────────
 
 mod queries {
-    pub const READ_VERSION: &str =
-        "MATCH (v:SchemaVersion) RETURN v.version";
+    pub const READ_VERSION: &str = "MATCH (v:SchemaVersion) RETURN v.version";
 
     pub fn insert_version(version: u32, now: &str, code_ver: &str) -> String {
         format!(
@@ -45,8 +47,7 @@ mod queries {
     ///
     /// Since Grafeo may not support `WHERE ... IS NULL` or `SET` in a single query,
     /// we do this in Rust by iterating. See `migrate_v1_to_v2`.
-    pub const MATCH_ALL_MEMORIES: &str =
-        "MATCH (m:Memory) RETURN m.id, m.created_at";
+    pub const MATCH_ALL_MEMORIES: &str = "MATCH (m:Memory) RETURN m.id, m.created_at";
 }
 
 // ─── Version check ─────────────────────────────────────────────────────────
@@ -60,7 +61,8 @@ pub fn check_version(db: &GrafeoDB) -> VersionCheck {
         Ok(result) => {
             if let Some(row) = result.iter().next() {
                 // Try to extract version as i64 then cast
-                let graph_ver = row.first()
+                let graph_ver = row
+                    .first()
                     .and_then(|v| format!("{}", v).parse::<u32>().ok())
                     .unwrap_or(0);
 
@@ -115,9 +117,11 @@ pub fn run_migrations(db: &GrafeoDB, from: u32, to: u32) -> cersei_types::Result
             0 => migrate_v0_to_v1(db)?,
             1 => migrate_v1_to_v2(db)?,
             _ => {
-                return Err(cersei_types::CerseiError::Config(
-                    format!("Unknown migration: v{} → v{}", current, current + 1),
-                ));
+                return Err(cersei_types::CerseiError::Config(format!(
+                    "Unknown migration: v{} → v{}",
+                    current,
+                    current + 1
+                )));
             }
         }
         current += 1;
@@ -147,10 +151,11 @@ fn stamp_version(db: &GrafeoDB, version: u32) -> cersei_types::Result<()> {
     // Delete old version node if exists, then insert fresh one.
     // This is simpler than trying to UPDATE which Grafeo may not support.
     let _ = session.execute("MATCH (v:SchemaVersion) DELETE v");
-    session.execute(&queries::insert_version(version, &now, code_ver))
-        .map_err(|e| cersei_types::CerseiError::Config(
-            format!("Failed to stamp schema version: {}", e),
-        ))?;
+    session
+        .execute(&queries::insert_version(version, &now, code_ver))
+        .map_err(|e| {
+            cersei_types::CerseiError::Config(format!("Failed to stamp schema version: {}", e))
+        })?;
 
     Ok(())
 }
@@ -263,7 +268,13 @@ mod tests {
     fn test_check_version_fresh_graph() {
         let db = GrafeoDB::new_in_memory();
         let check = check_version(&db);
-        assert_eq!(check, VersionCheck::NeedsMigration { from: 0, to: CURRENT_SCHEMA_VERSION });
+        assert_eq!(
+            check,
+            VersionCheck::NeedsMigration {
+                from: 0,
+                to: CURRENT_SCHEMA_VERSION
+            }
+        );
     }
 
     #[cfg(feature = "graph")]

@@ -40,7 +40,9 @@ pub enum EditError {
     /// The old text was not found in the file.
     NotFound,
     /// The old text appears multiple times and replace_all is false.
-    AmbiguousMatch { count: usize },
+    AmbiguousMatch {
+        count: usize,
+    },
 }
 
 impl std::fmt::Display for EditError {
@@ -49,7 +51,10 @@ impl std::fmt::Display for EditError {
             Self::Io(e) => write!(f, "I/O error: {e}"),
             Self::NotFound => write!(f, "old text not found in file"),
             Self::AmbiguousMatch { count } => {
-                write!(f, "old text found {count} times (use replace_all=true to replace all)")
+                write!(
+                    f,
+                    "old text found {count} times (use replace_all=true to replace all)"
+                )
             }
         }
     }
@@ -273,7 +278,10 @@ mod tests {
         write_file(&path, "aaa bbb aaa").await.unwrap();
 
         let result = edit_file(&path, "aaa", "ccc", false).await;
-        assert!(matches!(result, Err(EditError::AmbiguousMatch { count: 2 })));
+        assert!(matches!(
+            result,
+            Err(EditError::AmbiguousMatch { count: 2 })
+        ));
 
         // replace_all works
         let result = edit_file(&path, "aaa", "ccc", true).await.unwrap();

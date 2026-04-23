@@ -17,11 +17,11 @@ use cersei::Agent;
 use cersei_memory::manager::MemoryManager;
 use crossterm::{
     event::{
-        DisableBracketedPaste, EnableBracketedPaste,
-        KeyboardEnhancementFlags, PushKeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+        DisableBracketedPaste, EnableBracketedPaste, KeyboardEnhancementFlags,
+        PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
     },
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::prelude::*;
 use std::io::{self, stdout};
@@ -38,8 +38,8 @@ pub fn setup_terminal() -> io::Result<Terminal> {
 
     // Enable kitty keyboard protocol for Shift+Enter detection.
     // Only if the terminal actually supports it (avoids broken state on resize).
-    let supports_keyboard_enhancement = crossterm::terminal::supports_keyboard_enhancement()
-        .unwrap_or(false);
+    let supports_keyboard_enhancement =
+        crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false);
     if supports_keyboard_enhancement {
         let _ = execute!(
             stdout,
@@ -70,7 +70,12 @@ pub fn install_panic_hook() {
     let original = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = disable_raw_mode();
-        let _ = execute!(stdout(), PopKeyboardEnhancementFlags, LeaveAlternateScreen, DisableBracketedPaste);
+        let _ = execute!(
+            stdout(),
+            PopKeyboardEnhancementFlags,
+            LeaveAlternateScreen,
+            DisableBracketedPaste
+        );
         original(info);
     }));
 }

@@ -1,0 +1,24 @@
+schema_version = 1
+
+[filters.npm-install]
+description = "Collapse `npm install` progress banners."
+match_command = '^(npm|npx)\s+(install|ci|i)\b'
+strip_ansi = true
+strip_lines_matching = [
+    '^npm WARN deprecated',
+    '^npm notice',
+    '^added \d+ packages',
+    '^changed \d+ packages',
+    '^\s*$',
+]
+max_lines = 120
+
+[filters.zz-npm-generic]
+description = "Generic npm/npx catch-all."
+match_command = '^(npm|npx)\b'
+strip_ansi = true
+strip_lines_matching = [
+    '^npm notice',
+    '^\s*$',
+]
+max_lines = 200

@@ -8,9 +8,8 @@ use serde::{Deserialize, Serialize};
 
 // ─── Task registry ───────────────────────────────────────────────────────────
 
-static TASK_REGISTRY: once_cell::sync::Lazy<
-    dashmap::DashMap<String, TaskEntry>,
-> = once_cell::sync::Lazy::new(dashmap::DashMap::new);
+static TASK_REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<String, TaskEntry>> =
+    once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskEntry {
@@ -51,10 +50,18 @@ pub struct TaskCreateTool;
 
 #[async_trait]
 impl Tool for TaskCreateTool {
-    fn name(&self) -> &str { "TaskCreate" }
-    fn description(&self) -> &str { "Create a new task for tracking sub-agent work." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Orchestration }
+    fn name(&self) -> &str {
+        "TaskCreate"
+    }
+    fn description(&self) -> &str {
+        "Create a new task for tracking sub-agent work."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Orchestration
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -70,7 +77,10 @@ impl Tool for TaskCreateTool {
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
         #[allow(dead_code)]
-        struct Input { description: String, prompt: Option<String> }
+        struct Input {
+            description: String,
+            prompt: Option<String>,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -99,10 +109,18 @@ pub struct TaskGetTool;
 
 #[async_trait]
 impl Tool for TaskGetTool {
-    fn name(&self) -> &str { "TaskGet" }
-    fn description(&self) -> &str { "Get the status and output of a task by ID." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Orchestration }
+    fn name(&self) -> &str {
+        "TaskGet"
+    }
+    fn description(&self) -> &str {
+        "Get the status and output of a task by ID."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Orchestration
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -116,7 +134,9 @@ impl Tool for TaskGetTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { id: String }
+        struct Input {
+            id: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -142,10 +162,18 @@ pub struct TaskUpdateTool;
 
 #[async_trait]
 impl Tool for TaskUpdateTool {
-    fn name(&self) -> &str { "TaskUpdate" }
-    fn description(&self) -> &str { "Update a task's status and/or output." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Orchestration }
+    fn name(&self) -> &str {
+        "TaskUpdate"
+    }
+    fn description(&self) -> &str {
+        "Update a task's status and/or output."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Orchestration
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -161,7 +189,11 @@ impl Tool for TaskUpdateTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { id: String, status: Option<TaskStatus>, output: Option<String> }
+        struct Input {
+            id: String,
+            status: Option<TaskStatus>,
+            output: Option<String>,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -190,10 +222,18 @@ pub struct TaskListTool;
 
 #[async_trait]
 impl Tool for TaskListTool {
-    fn name(&self) -> &str { "TaskList" }
-    fn description(&self) -> &str { "List all tasks with their status." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Orchestration }
+    fn name(&self) -> &str {
+        "TaskList"
+    }
+    fn description(&self) -> &str {
+        "List all tasks with their status."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Orchestration
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({"type": "object", "properties": {}, "required": []})
@@ -221,10 +261,18 @@ pub struct TaskStopTool;
 
 #[async_trait]
 impl Tool for TaskStopTool {
-    fn name(&self) -> &str { "TaskStop" }
-    fn description(&self) -> &str { "Stop/cancel a running task." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Orchestration }
+    fn name(&self) -> &str {
+        "TaskStop"
+    }
+    fn description(&self) -> &str {
+        "Stop/cancel a running task."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Orchestration
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -238,7 +286,9 @@ impl Tool for TaskStopTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { id: String }
+        struct Input {
+            id: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -262,10 +312,18 @@ pub struct TaskOutputTool;
 
 #[async_trait]
 impl Tool for TaskOutputTool {
-    fn name(&self) -> &str { "TaskOutput" }
-    fn description(&self) -> &str { "Get the full output of a completed task." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Orchestration }
+    fn name(&self) -> &str {
+        "TaskOutput"
+    }
+    fn description(&self) -> &str {
+        "Get the full output of a completed task."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Orchestration
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -279,7 +337,9 @@ impl Tool for TaskOutputTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { id: String }
+        struct Input {
+            id: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -317,11 +377,16 @@ mod tests {
     #[tokio::test]
     async fn test_task_full_lifecycle() {
         clear_tasks();
-        let ctx = ToolContext { session_id: format!("task-lifecycle-{}", uuid::Uuid::new_v4()), ..test_ctx() };
+        let ctx = ToolContext {
+            session_id: format!("task-lifecycle-{}", uuid::Uuid::new_v4()),
+            ..test_ctx()
+        };
 
         // Create
         let create = TaskCreateTool;
-        let r = create.execute(serde_json::json!({"description": "Run tests"}), &ctx).await;
+        let r = create
+            .execute(serde_json::json!({"description": "Run tests"}), &ctx)
+            .await;
         assert!(!r.is_error);
         // Extract ID from "Task 'XXXXXXXX' created: ..."
         let id = r.content.split('\'').nth(1).unwrap().to_string();
@@ -333,15 +398,22 @@ mod tests {
 
         // Update to running
         let update = TaskUpdateTool;
-        update.execute(serde_json::json!({"id": &id, "status": "running"}), &ctx).await;
+        update
+            .execute(serde_json::json!({"id": &id, "status": "running"}), &ctx)
+            .await;
         assert_eq!(get_task(&id).unwrap().status, TaskStatus::Running);
 
         // Update with output
-        update.execute(serde_json::json!({
-            "id": &id,
-            "status": "completed",
-            "output": "All 42 tests passed"
-        }), &ctx).await;
+        update
+            .execute(
+                serde_json::json!({
+                    "id": &id,
+                    "status": "completed",
+                    "output": "All 42 tests passed"
+                }),
+                &ctx,
+            )
+            .await;
         let task = get_task(&id).unwrap();
         assert_eq!(task.status, TaskStatus::Completed);
         assert_eq!(task.output.as_deref(), Some("All 42 tests passed"));
@@ -359,10 +431,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_task_stop() {
-        let ctx = ToolContext { session_id: format!("stop-{}", uuid::Uuid::new_v4()), ..test_ctx() };
+        let ctx = ToolContext {
+            session_id: format!("stop-{}", uuid::Uuid::new_v4()),
+            ..test_ctx()
+        };
 
         let create = TaskCreateTool;
-        let r = create.execute(serde_json::json!({"description": "Long task"}), &ctx).await;
+        let r = create
+            .execute(serde_json::json!({"description": "Long task"}), &ctx)
+            .await;
         let id = r.content.split('\'').nth(1).unwrap().to_string();
 
         let stop = TaskStopTool;

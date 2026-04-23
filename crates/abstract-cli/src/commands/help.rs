@@ -12,6 +12,9 @@ pub fn run() -> anyhow::Result<()> {
     eprintln!("  /config [key val]   Show or set config");
     eprintln!("  /diff               Show git diff");
     eprintln!("  /resume [id]        Resume a previous session");
+    eprintln!(
+        "  /compression <lvl>  Toggle tool-output compression (off | on | minimal | aggressive)"
+    );
     eprintln!("  /exit, /quit, /q    Exit");
     eprintln!();
     eprintln!("\x1b[36;1mCLI:\x1b[0m");

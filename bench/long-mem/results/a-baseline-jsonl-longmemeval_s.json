@@ -1,0 +1,47 @@
+{
+  "config": "a-baseline-jsonl",
+  "dataset": "longmemeval_s",
+  "judge_model": "gpt-4o-mini",
+  "total_questions": 500,
+  "correct_answers": 267,
+  "overall_accuracy": 0.5476101,
+  "accuracy_by_type": {
+    "single-session-user": {
+      "correct": 48,
+      "total": 64,
+      "accuracy": 0.75
+    },
+    "single-session-preference": {
+      "correct": 5,
+      "total": 30,
+      "accuracy": 0.16666667
+    },
+    "temporal-reasoning": {
+      "correct": 41,
+      "total": 127,
+      "accuracy": 0.32283464
+    },
+    "knowledge-update": {
+      "correct": 52,
+      "total": 72,
+      "accuracy": 0.7222222
+    },
+    "multi-session": {
+      "correct": 50,
+      "total": 121,
+      "accuracy": 0.41322315
+    },
+    "single-session-assistant": {
+      "correct": 51,
+      "total": 56,
+      "accuracy": 0.91071427
+    }
+  },
+  "abstention_total": 30,
+  "abstention_correct": 20,
+  "abstention_accuracy": 0.6666667,
+  "avg_elapsed_ms": 11374,
+  "total_input_tokens": 52150403,
+  "total_output_tokens": 36693,
+  "total_judge_tokens": 102000
+}

@@ -44,8 +44,7 @@ impl LspManager {
 
         // Build extension map
         for ext in config.extension_to_language.keys() {
-            self.extension_map
-                .insert(ext.clone(), config.name.clone());
+            self.extension_map.insert(ext.clone(), config.name.clone());
         }
         for pattern in &config.file_patterns {
             if let Some(ext) = pattern.strip_prefix('*') {
@@ -150,25 +149,49 @@ impl LspManager {
     }
 
     /// Hover at position.
-    pub async fn hover(&mut self, path: &Path, line: u32, character: u32) -> LspResult<Option<String>> {
+    pub async fn hover(
+        &mut self,
+        path: &Path,
+        line: u32,
+        character: u32,
+    ) -> LspResult<Option<String>> {
         self.open_file(path).await?;
-        let server = self.server_name_for_file(path).map(String::from).ok_or(LspError::NotStarted)?;
+        let server = self
+            .server_name_for_file(path)
+            .map(String::from)
+            .ok_or(LspError::NotStarted)?;
         let client = self.clients.get(&server).ok_or(LspError::NotStarted)?;
         client.hover(path, line, character).await
     }
 
     /// Go to definition.
-    pub async fn definition(&mut self, path: &Path, line: u32, character: u32) -> LspResult<Vec<String>> {
+    pub async fn definition(
+        &mut self,
+        path: &Path,
+        line: u32,
+        character: u32,
+    ) -> LspResult<Vec<String>> {
         self.open_file(path).await?;
-        let server = self.server_name_for_file(path).map(String::from).ok_or(LspError::NotStarted)?;
+        let server = self
+            .server_name_for_file(path)
+            .map(String::from)
+            .ok_or(LspError::NotStarted)?;
         let client = self.clients.get(&server).ok_or(LspError::NotStarted)?;
         client.definition(path, line, character).await
     }
 
     /// Find references.
-    pub async fn references(&mut self, path: &Path, line: u32, character: u32) -> LspResult<Vec<String>> {
+    pub async fn references(
+        &mut self,
+        path: &Path,
+        line: u32,
+        character: u32,
+    ) -> LspResult<Vec<String>> {
         self.open_file(path).await?;
-        let server = self.server_name_for_file(path).map(String::from).ok_or(LspError::NotStarted)?;
+        let server = self
+            .server_name_for_file(path)
+            .map(String::from)
+            .ok_or(LspError::NotStarted)?;
         let client = self.clients.get(&server).ok_or(LspError::NotStarted)?;
         client.references(path, line, character).await
     }
@@ -176,7 +199,10 @@ impl LspManager {
     /// Document symbols (outline).
     pub async fn document_symbols(&mut self, path: &Path) -> LspResult<Vec<SymbolInfo>> {
         self.open_file(path).await?;
-        let server = self.server_name_for_file(path).map(String::from).ok_or(LspError::NotStarted)?;
+        let server = self
+            .server_name_for_file(path)
+            .map(String::from)
+            .ok_or(LspError::NotStarted)?;
         let client = self.clients.get(&server).ok_or(LspError::NotStarted)?;
         client.document_symbols(path).await
     }
@@ -187,7 +213,10 @@ impl LspManager {
         // Wait briefly for async diagnostics to arrive
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
-        let server = self.server_name_for_file(path).map(String::from).ok_or(LspError::NotStarted)?;
+        let server = self
+            .server_name_for_file(path)
+            .map(String::from)
+            .ok_or(LspError::NotStarted)?;
         let client = self.clients.get(&server).ok_or(LspError::NotStarted)?;
         Ok(client.get_diagnostics(path))
     }
@@ -229,9 +258,7 @@ static GLOBAL_MANAGER: std::sync::OnceLock<Arc<Mutex<LspManager>>> = std::sync::
 
 /// Get or create the global LSP manager.
 pub fn global_lsp_manager(working_dir: &Path) -> Arc<Mutex<LspManager>> {
-    Arc::clone(GLOBAL_MANAGER.get_or_init(|| {
-        Arc::new(Mutex::new(LspManager::new(working_dir)))
-    }))
+    Arc::clone(GLOBAL_MANAGER.get_or_init(|| Arc::new(Mutex::new(LspManager::new(working_dir)))))
 }
 
 #[cfg(test)]

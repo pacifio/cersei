@@ -10,8 +10,8 @@
 //! ```
 
 use cersei::prelude::*;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 // ─── Cost Guard Hook ─────────────────────────────────────────────────────────
 
@@ -131,10 +131,7 @@ impl Hook for ToolBlocker {
     async fn on_event(&self, ctx: &HookContext) -> HookAction {
         if let Some(tool_name) = &ctx.tool_name {
             if self.blocked.iter().any(|b| b == tool_name) {
-                eprintln!(
-                    "\x1b[31m[blocker] Blocked tool: {}\x1b[0m",
-                    tool_name
-                );
+                eprintln!("\x1b[31m[blocker] Blocked tool: {}\x1b[0m", tool_name);
                 return HookAction::Block(format!("Tool '{}' is blocked by policy", tool_name));
             }
         }

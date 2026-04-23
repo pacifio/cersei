@@ -22,8 +22,12 @@ struct EchoProvider;
 
 #[async_trait]
 impl Provider for EchoProvider {
-    fn name(&self) -> &str { "echo" }
-    fn context_window(&self, _model: &str) -> u64 { 4096 }
+    fn name(&self) -> &str {
+        "echo"
+    }
+    fn context_window(&self, _model: &str) -> u64 {
+        4096
+    }
 
     fn capabilities(&self, _model: &str) -> ProviderCapabilities {
         ProviderCapabilities {
@@ -55,35 +59,43 @@ impl Provider for EchoProvider {
         // Emit as a streaming response
         let (tx, rx) = mpsc::channel(16);
         tokio::spawn(async move {
-            let _ = tx.send(StreamEvent::MessageStart {
-                id: "echo-1".into(),
-                model: "echo".into(),
-            }).await;
-            let _ = tx.send(StreamEvent::ContentBlockStart {
-                index: 0,
-                block_type: "text".into(),
-                id: None,
-                name: None,
-            }).await;
+            let _ = tx
+                .send(StreamEvent::MessageStart {
+                    id: "echo-1".into(),
+                    model: "echo".into(),
+                })
+                .await;
+            let _ = tx
+                .send(StreamEvent::ContentBlockStart {
+                    index: 0,
+                    block_type: "text".into(),
+                    id: None,
+                    name: None,
+                })
+                .await;
 
             // Stream word by word for demonstration
             for word in response_text.split_inclusive(' ') {
-                let _ = tx.send(StreamEvent::TextDelta {
-                    index: 0,
-                    text: word.to_string(),
-                }).await;
+                let _ = tx
+                    .send(StreamEvent::TextDelta {
+                        index: 0,
+                        text: word.to_string(),
+                    })
+                    .await;
                 tokio::time::sleep(std::time::Duration::from_millis(20)).await;
             }
 
             let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
-            let _ = tx.send(StreamEvent::MessageDelta {
-                stop_reason: Some(StopReason::EndTurn),
-                usage: Some(Usage {
-                    input_tokens: last_msg.len() as u64 / 4,
-                    output_tokens: response_text.len() as u64 / 4,
-                    ..Default::default()
-                }),
-            }).await;
+            let _ = tx
+                .send(StreamEvent::MessageDelta {
+                    stop_reason: Some(StopReason::EndTurn),
+                    usage: Some(Usage {
+                        input_tokens: last_msg.len() as u64 / 4,
+                        output_tokens: response_text.len() as u64 / 4,
+                        ..Default::default()
+                    }),
+                })
+                .await;
             let _ = tx.send(StreamEvent::MessageStop).await;
         });
 
@@ -106,8 +118,10 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     println!("{}", output.text());
-    println!("\nTurns: {}, Tokens: {}in/{}out",
-        output.turns, output.usage.input_tokens, output.usage.output_tokens);
+    println!(
+        "\nTurns: {}, Tokens: {}in/{}out",
+        output.turns, output.usage.input_tokens, output.usage.output_tokens
+    );
 
     // ── OpenAI-compatible provider (Ollama, etc.) ─────────────────────
     println!("\n\x1b[36m── OpenAI-Compatible Provider ──\x1b[0m\n");

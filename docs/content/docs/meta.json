@@ -26,6 +26,9 @@
     "embeddings-overview",
     "embeddings-api",
     "embeddings-cookbook",
+    "---Compression---",
+    "compression-overview",
+    "compression-benchmarks",
     "---Sessions & Tasks---",
     "sessions",
     "background-tasks",
@@ -56,6 +59,7 @@
     "bench-abstract",
     "bench-vs-claude-code",
     "bench-vs-agents",
+    "bench-memory",
     "---",
     "changelog"
   ]

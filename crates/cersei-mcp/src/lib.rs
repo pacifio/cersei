@@ -28,7 +28,9 @@ pub struct McpServerConfig {
     pub server_type: String,
 }
 
-fn default_type() -> String { "stdio".to_string() }
+fn default_type() -> String {
+    "stdio".to_string()
+}
 
 impl McpServerConfig {
     pub fn stdio(name: impl Into<String>, command: impl Into<String>, args: &[&str]) -> Self {
@@ -88,9 +90,17 @@ pub struct McpResource {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum McpContent {
-    Text { text: String },
-    Image { data: String, #[serde(rename = "mimeType")] mime_type: String },
-    Resource { resource: McpResource },
+    Text {
+        text: String,
+    },
+    Image {
+        data: String,
+        #[serde(rename = "mimeType")]
+        mime_type: String,
+    },
+    Resource {
+        resource: McpResource,
+    },
 }
 
 // ─── Server status ───────────────────────────────────────────────────────────
@@ -120,14 +130,17 @@ impl McpClient {
         let config_expanded = expand_server_config(&config);
 
         if config_expanded.server_type == "stdio" {
-            let command = config_expanded.command.as_deref()
+            let command = config_expanded
+                .command
+                .as_deref()
                 .ok_or_else(|| CerseiError::Mcp("stdio server requires 'command'".into()))?;
 
             let mut transport = transport::StdioTransport::spawn(
                 command,
                 &config_expanded.args,
                 &config_expanded.env,
-            ).await?;
+            )
+            .await?;
 
             // Initialize handshake
             let init_params = serde_json::json!({
@@ -192,7 +205,9 @@ impl McpClient {
         tool_name: &str,
         arguments: Option<serde_json::Value>,
     ) -> Result<String> {
-        let transport = self.transport.as_mut()
+        let transport = self
+            .transport
+            .as_mut()
             .ok_or_else(|| CerseiError::Mcp("Not connected".into()))?;
 
         let params = serde_json::json!({
@@ -208,7 +223,10 @@ impl McpClient {
             .and_then(|c| serde_json::from_value(c.clone()).ok())
             .unwrap_or_default();
 
-        let is_error = result.get("isError").and_then(|v| v.as_bool()).unwrap_or(false);
+        let is_error = result
+            .get("isError")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         let text: String = content
             .iter()
@@ -228,13 +246,16 @@ impl McpClient {
 
     /// Read a resource from this MCP server.
     pub async fn read_resource(&mut self, uri: &str) -> Result<String> {
-        let transport = self.transport.as_mut()
+        let transport = self
+            .transport
+            .as_mut()
             .ok_or_else(|| CerseiError::Mcp("Not connected".into()))?;
 
         let params = serde_json::json!({ "uri": uri });
         let result = transport.request("resources/read", Some(params)).await?;
 
-        let contents = result.get("contents")
+        let contents = result
+            .get("contents")
             .and_then(|c| c.as_array())
             .map(|arr| {
                 arr.iter()
@@ -304,16 +325,16 @@ impl McpManager {
             }
         }
 
-        Err(CerseiError::Mcp(format!("No MCP server has tool '{}'", tool_name)))
+        Err(CerseiError::Mcp(format!(
+            "No MCP server has tool '{}'",
+            tool_name
+        )))
     }
 
     /// List all resources across all servers.
     pub async fn list_resources(&self) -> Vec<McpResource> {
         let clients = self.clients.lock().await;
-        clients
-            .values()
-            .flat_map(|c| c.resources.clone())
-            .collect()
+        clients.values().flat_map(|c| c.resources.clone()).collect()
     }
 
     /// Read a resource by URI (routes to the correct server).
@@ -326,7 +347,10 @@ impl McpManager {
             }
         }
 
-        Err(CerseiError::Mcp(format!("No MCP server has resource '{}'", uri)))
+        Err(CerseiError::Mcp(format!(
+            "No MCP server has resource '{}'",
+            uri
+        )))
     }
 
     /// Get the status of all connected servers.
@@ -378,7 +402,8 @@ pub fn expand_env_vars(input: &str) -> String {
                             },
                         };
 
-                        result = format!("{}{}{}", &result[..start], replacement, &result[end + 1..]);
+                        result =
+                            format!("{}{}{}", &result[..start], replacement, &result[end + 1..]);
                         search_from = start + replacement.len();
                     }
                 }
@@ -394,7 +419,11 @@ pub fn expand_server_config(config: &McpServerConfig) -> McpServerConfig {
         name: config.name.clone(),
         command: config.command.as_deref().map(expand_env_vars),
         args: config.args.iter().map(|a| expand_env_vars(a)).collect(),
-        env: config.env.iter().map(|(k, v)| (k.clone(), expand_env_vars(v))).collect(),
+        env: config
+            .env
+            .iter()
+            .map(|(k, v)| (k.clone(), expand_env_vars(v)))
+            .collect(),
         url: config.url.as_deref().map(expand_env_vars),
         server_type: config.server_type.clone(),
     }

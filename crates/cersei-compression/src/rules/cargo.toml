@@ -1,0 +1,47 @@
+schema_version = 1
+
+[filters.cargo-build]
+description = "Strip `cargo build` progress/compiling noise, keep warnings + errors."
+match_command = '^cargo\s+(build|check|run|clippy)'
+strip_ansi = true
+strip_lines_matching = [
+    '^\s*Compiling\s',
+    '^\s*Downloading\s',
+    '^\s*Downloaded\s',
+    '^\s*Checking\s',
+    '^\s*Updating\s',
+    '^\s*Finished\s',
+    '^\s*Building\s',
+    '^\s*Fresh\s',
+    '^\s*Running\s`',
+    '^\s*$',
+]
+max_lines = 200
+
+[filters.cargo-test]
+description = "Keep test-result rollups + failures for `cargo test`."
+match_command = '^cargo\s+test'
+strip_ansi = true
+strip_lines_matching = [
+    '^\s*Compiling\s',
+    '^\s*Finished\s',
+    '^\s*Running\s',
+    '^\s*Doc-tests\s',
+    '^running 0 tests',
+    '^\s*$',
+]
+max_lines = 250
+
+[filters.zz-cargo-generic]
+description = "Generic cargo catch-all."
+match_command = '^cargo\b'
+strip_ansi = true
+strip_lines_matching = [
+    '^\s*Compiling\s',
+    '^\s*Downloading\s',
+    '^\s*Downloaded\s',
+    '^\s*Updating\s',
+    '^\s*Finished\s',
+    '^\s*$',
+]
+max_lines = 200

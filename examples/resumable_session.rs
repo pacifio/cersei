@@ -7,8 +7,8 @@
 //! ANTHROPIC_API_KEY=sk-ant-... cargo run --example resumable_session
 //! ```
 
-use cersei::prelude::*;
 use cersei::memory::JsonlMemory;
+use cersei::prelude::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -31,7 +31,9 @@ async fn main() -> anyhow::Result<()> {
         .working_dir(".")
         .build()?;
 
-    let output = agent.run("My name is Alice and I'm working on project Cersei. Remember this.").await?;
+    let output = agent
+        .run("My name is Alice and I'm working on project Cersei. Remember this.")
+        .await?;
     println!("{}", output.text());
     println!("(saved {} messages)", agent.messages().len());
 
@@ -49,9 +51,14 @@ async fn main() -> anyhow::Result<()> {
         .working_dir(".")
         .build()?;
 
-    let output2 = agent2.run("What's my name and what project am I working on?").await?;
+    let output2 = agent2
+        .run("What's my name and what project am I working on?")
+        .await?;
     println!("{}", output2.text());
-    println!("(loaded {} messages from previous session)", agent2.messages().len());
+    println!(
+        "(loaded {} messages from previous session)",
+        agent2.messages().len()
+    );
 
     // ── List sessions ────────────────────────────────────────────────────
     let sessions = memory.sessions().await?;

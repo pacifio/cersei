@@ -43,8 +43,12 @@ impl<P: EmbeddingProvider> EmbeddingStore<P> {
     }
 
     /// Borrow the underlying provider.
-    pub fn provider(&self) -> &P { &self.provider }
+    pub fn provider(&self) -> &P {
+        &self.provider
+    }
 
     /// Borrow the underlying index (e.g., to inspect `len()`).
-    pub fn index(&self) -> &VectorIndex { &self.index }
+    pub fn index(&self) -> &VectorIndex {
+        &self.index
+    }
 }

@@ -1,23 +1,23 @@
 //! cersei-tools: Tool trait, built-in tool implementations, and permission system.
 
-pub mod tool_primitives;
+pub mod apply_patch;
 pub mod ask_user;
 pub mod bash;
-pub mod lsp_tool;
 pub mod bash_classifier;
+pub mod code_search;
 pub mod config_tool;
 pub mod cron;
-pub mod apply_patch;
+pub mod exa_search;
+pub mod file_edit;
 pub mod file_history;
+pub mod file_read;
 pub mod file_snapshot;
 pub mod file_watcher;
-pub mod git_utils;
-pub mod file_edit;
-pub mod file_read;
 pub mod file_write;
+pub mod git_utils;
 pub mod glob_tool;
 pub mod grep_tool;
-pub mod code_search;
+pub mod lsp_tool;
 pub mod notebook_edit;
 pub mod permissions;
 pub mod plan_mode;
@@ -30,8 +30,8 @@ pub mod sleep;
 pub mod synthetic_output;
 pub mod tasks;
 pub mod todo_write;
+pub mod tool_primitives;
 pub mod tool_search;
-pub mod exa_search;
 pub mod web_fetch;
 pub mod web_search;
 pub mod worktree;
@@ -165,8 +165,7 @@ pub struct Extensions {
 
 impl Extensions {
     pub fn insert<T: Send + Sync + 'static>(&self, val: T) {
-        self.data
-            .insert(std::any::TypeId::of::<T>(), Arc::new(val));
+        self.data.insert(std::any::TypeId::of::<T>(), Arc::new(val));
     }
 
     pub fn get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {

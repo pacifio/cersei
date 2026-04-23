@@ -61,7 +61,9 @@ impl SnapshotManager {
     /// Undo all changes from a specific tool call ID.
     pub fn undo_tool_call(&mut self, tool_call_id: &str) -> Vec<PathBuf> {
         let mut reverted = Vec::new();
-        let matching: Vec<usize> = self.snapshots.iter()
+        let matching: Vec<usize> = self
+            .snapshots
+            .iter()
             .enumerate()
             .filter(|(_, s)| s.tool_call_id == tool_call_id)
             .map(|(i, _)| i)
@@ -87,7 +89,8 @@ impl SnapshotManager {
         // Group by file, restore each to its ORIGINAL state (first snapshot's before)
         let mut first_states: HashMap<PathBuf, String> = HashMap::new();
         for snapshot in &self.snapshots {
-            first_states.entry(snapshot.path.clone())
+            first_states
+                .entry(snapshot.path.clone())
                 .or_insert_with(|| snapshot.before.clone());
         }
 
@@ -118,7 +121,9 @@ impl SnapshotManager {
 
     /// List of unique files that have been modified.
     pub fn modified_files(&self) -> Vec<PathBuf> {
-        let mut files: Vec<PathBuf> = self.snapshots.iter()
+        let mut files: Vec<PathBuf> = self
+            .snapshots
+            .iter()
             .map(|s| s.path.clone())
             .collect::<std::collections::HashSet<_>>()
             .into_iter()

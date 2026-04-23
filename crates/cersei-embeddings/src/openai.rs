@@ -77,8 +77,12 @@ impl OpenAiEmbeddings {
 
 #[async_trait]
 impl EmbeddingProvider for OpenAiEmbeddings {
-    fn name(&self) -> &str { "openai" }
-    fn dimensions(&self) -> usize { self.dimensions }
+    fn name(&self) -> &str {
+        "openai"
+    }
+    fn dimensions(&self) -> usize {
+        self.dimensions
+    }
 
     async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, EmbeddingError> {
         if texts.is_empty() {
@@ -86,7 +90,23 @@ impl EmbeddingProvider for OpenAiEmbeddings {
         }
 
         let truncate = self.truncate_chars;
-        let inputs: Vec<&str> = texts.iter().map(|t| &t[..t.len().min(truncate)]).collect();
+        // Char-boundary-safe truncation. Raw byte slicing panics on
+        // multi-byte UTF-8 (Spanish diacritics, emoji, smart quotes).
+        let owned: Vec<String> = texts
+            .iter()
+            .map(|t| {
+                if t.len() <= truncate {
+                    t.clone()
+                } else {
+                    let mut end = truncate;
+                    while end > 0 && !t.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    t[..end].to_string()
+                }
+            })
+            .collect();
+        let inputs: Vec<&str> = owned.iter().map(|s| s.as_str()).collect();
 
         let url = format!("{}/embeddings", self.base_url.trim_end_matches('/'));
         let resp = self
@@ -102,7 +122,9 @@ impl EmbeddingProvider for OpenAiEmbeddings {
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
-            return Err(EmbeddingError::Api(format!("OpenAI embedding failed: {body}")));
+            return Err(EmbeddingError::Api(format!(
+                "OpenAI embedding failed: {body}"
+            )));
         }
 
         let parsed: Resp = resp
@@ -114,6 +136,10 @@ impl EmbeddingProvider for OpenAiEmbeddings {
 }
 
 #[derive(Deserialize)]
-struct Resp { data: Vec<Item> }
+struct Resp {
+    data: Vec<Item>,
+}
 #[derive(Deserialize)]
-struct Item { embedding: Vec<f32> }
+struct Item {
+    embedding: Vec<f32>,
+}

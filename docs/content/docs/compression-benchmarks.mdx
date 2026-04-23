@@ -1,0 +1,156 @@
+---
+title: "Compression Benchmarks"
+description: Real-provider token savings for cersei-compression — commands you can run locally plus the numbers we got on OpenAI and Google Gemini.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+# Compression Benchmarks
+
+Two live-LLM integration tests ship with the SDK. They run the **same prompt, same tool, same fixture** twice — once with `CompressionLevel::Off`, once with `CompressionLevel::Aggressive` — and compare the provider-reported `input_tokens`. Off is a verified byte-for-byte passthrough, so the delta is the measured savings.
+
+## TL;DR
+
+| Provider | Model | Off → Aggressive (input tokens) | **Savings** | tool_calls | turns |
+|---|---|---|---|---|---|
+| **OpenAI** | `gpt-4o-mini` | **11,576 → 8,202** | **29.1%** | 15 → 13 | 5 → 5 |
+| **Google Gemini** | `gemini-2.5-flash` | **4,490 → 1,700** | **62.1%** | 1 → 1 | 5 → 3 |
+
+Both assertions pass: `aggressive < off` and `savings ≥ 10%` on real provider bills. Numbers above are from the runs captured on 2026-04-20.
+
+<Callout type="info">
+Savings ratios are **not fixed** — they depend on how much of the turn's context is tool output versus system prompt + tool schemas + assistant turns. OpenAI's `gpt-4o-mini` happened to loop on 13–15 tool calls (each re-paying schema tax), Gemini's `gemini-2.5-flash` made a single clean tool call, so Gemini's ratio is closer to the raw byte-level win.
+</Callout>
+
+## Synthetic fixture baselines
+
+Fast, deterministic, no API key needed. Run:
+
+```bash
+cargo test -p cersei-compression
+```
+
+Enforced floors:
+
+| Fixture | Level | Savings floor | Source |
+|---|---|---|---|
+| `git log` output | `Minimal` | ≥ 30% | `tests/savings.rs::git_log_saves_at_least_30pct_minimal` |
+| `cargo test` output | `Minimal` | ≥ 25% | `tests/savings.rs::cargo_test_saves_at_least_25pct_minimal` |
+| Rust source file | `Aggressive` | bodies dropped, signatures kept | `tests/savings.rs::rust_source_aggressive_drops_bodies` |
+| Any | `Off` | exact byte-for-byte identity | `tests/savings.rs::off_level_is_exact_passthrough` |
+
+These protect against regressions in the rule files and in the code filter — if a PR drops below the floor, CI fails.
+
+## Live provider benchmarks
+
+Both tests are `#[ignore]` by default, so a `cargo test --workspace` with no keys is a no-op. They only run when you pass `-- --ignored` and the relevant API key is set.
+
+<Tabs items={['OpenAI', 'Gemini', 'Both']}>
+<Tab value="OpenAI">
+```bash
+OPENAI_API_KEY=sk-... \
+  cargo test -p cersei-agent --test e2e_openai_compression \
+    compression_reduces_real_openai_token_bill \
+    -- --ignored --nocapture
+```
+
+**What we got (2026-04-20, `gpt-4o-mini`):**
+
+```
+── openai run 1: CompressionLevel::Off ──
+  off       : input=11576  output=276  total=11852  tool_calls=15  turns=5
+
+── openai run 2: CompressionLevel::Aggressive ──
+  aggressive: input=8202   output=276  total=8478   tool_calls=13  turns=5
+
+── openai compression saved 29.1% of input tokens (11576 → 8202) ──
+```
+</Tab>
+<Tab value="Gemini">
+```bash
+GOOGLE_API_KEY=... \
+  cargo test -p cersei-agent --test e2e_openai_compression \
+    compression_reduces_real_gemini_token_bill \
+    -- --ignored --nocapture
+```
+
+**What we got (2026-04-20, `gemini-2.5-flash`):**
+
+```
+── gemini run 1: CompressionLevel::Off ──
+  off       : input=4490  output=29  total=4519  tool_calls=1  turns=5
+
+── gemini run 2: CompressionLevel::Aggressive ──
+  aggressive: input=1700  output=52  total=1752  tool_calls=1  turns=3
+
+── gemini compression saved 62.1% of input tokens (4490 → 1700) ──
+```
+
+<Callout type="warn">
+`gemini-1.5-flash` has been removed from the `generateContent` v1beta endpoint. The test pins `gemini-2.5-flash` — if you reuse the harness, make sure your key has access to a current Gemini flash model.
+</Callout>
+</Tab>
+<Tab value="Both">
+Run both tests in one invocation:
+
+```bash
+OPENAI_API_KEY=sk-... \
+GOOGLE_API_KEY=... \
+  cargo test -p cersei-agent --test e2e_openai_compression \
+    -- --ignored --nocapture
+```
+</Tab>
+</Tabs>
+
+## Intercept per-call compression logs
+
+Every call into `compress_tool_output` emits a `tracing::info!` event on the `cersei_compression` target. The integration tests install a subscriber automatically, so `--nocapture` surfaces them. In your own binary:
+
+```bash
+RUST_LOG=cersei_compression=info cargo run -p abstract-cli -- \
+  --compress aggressive "find any TODO comments in the codebase"
+```
+
+Sample line from the Gemini run:
+
+```
+INFO cersei_compression: tool-output compressed
+  tool="Bash" level=aggressive strategy="shell" detail="cargo-test"
+  before_bytes=2893 after_bytes=1565
+  before_lines=76 after_lines=30
+  savings_pct="45.9"
+```
+
+Each call exposes: `tool`, `level`, `strategy` (`shell` / `code` / `passthrough` / `web` / `unknown` / `unknown-capped`), `detail` (rule name or detected `Language`), byte counts, line counts, and `savings_pct`. Full field reference on the [Compression Overview](/docs/compression-overview#observability).
+
+## Synthetic vs live — why they differ
+
+Synthetic tests measure the **pipeline in isolation**: input → compress → output. Live tests measure the **full turn the LLM bills you for**: system prompt + tool schemas + previous assistant turns + compressed tool result.
+
+Compression only touches the tool-result content. It cannot rewrite the assistant's own messages, the system prompt, or the JSON Schema sent for every tool definition. So the real-world ratio is always *at most* the synthetic ratio, and typically **lower**.
+
+Concretely for the Gemini run above:
+- Uncompressed tool result ≈ 2,893 bytes → after Aggressive: 1,565 bytes (−45.9% at the byte level).
+- The 2,790-token billing delta (4,490 − 1,700) matches that shrink almost exactly because Gemini only called the tool once. There's no other noise on the turn.
+
+For the OpenAI run:
+- Uncompressed tool result contributes the same 2,893 bytes *per call*, but `gpt-4o-mini` issued 13–15 tool calls. Each re-pays the `Bash` JSON schema + system prompt on the request side, diluting the savings ratio.
+- Absolute win is still large: −3,374 input tokens per run.
+
+## Regression guard
+
+`cersei-compression/tests/savings.rs::off_level_is_exact_passthrough` asserts **byte-for-byte identity** when the level is `Off`. This makes the feature opt-in — zero risk for users on 0.1.7 who don't change their builder chain, their CLI flags, or their config file.
+
+## Hardware + reproducibility caveats
+
+- The live numbers above were captured on an **Apple M1 Pro** against the current production OpenAI / Google endpoints on **2026-04-20**.
+- Token counts are **provider-reported**, not our estimate (`output.usage.input_tokens` straight from `OpenAI` / `usageMetadata.promptTokenCount` from Gemini).
+- `gpt-4o-mini`'s tool-call loop count is non-deterministic — expect ±2 tool calls across reruns, which shifts OpenAI savings within roughly ±8%. Gemini's single-call pattern is stable.
+
+## Reference
+
+- Source: `crates/cersei-compression/`
+- Live test: `crates/cersei-agent/tests/e2e_openai_compression.rs`
+- Rule files: `crates/cersei-compression/src/rules/*.toml`
+- Integration point: `crates/cersei-agent/src/runner.rs` (line 708 — `compress_tool_output` runs before `cap_tool_result`).

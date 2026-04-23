@@ -11,8 +11,8 @@
 //! cargo run --example usage_report --release
 //! ```
 
-use cersei::prelude::*;
 use cersei::events::AgentEvent;
+use cersei::prelude::*;
 use cersei::provider::{CompletionStream, ProviderCapabilities, ProviderOptions};
 use cersei::reporters::{AgentMetrics, MetricsReporter, Reporter};
 use std::collections::HashMap;
@@ -23,8 +23,8 @@ use tokio::sync::mpsc;
 // ─── Claude pricing (as of 2025) ────────────────────────────────────────────
 
 // Claude Sonnet 4.6 pricing
-const SONNET_INPUT_PER_MTOK: f64 = 3.00;   // $3/M input tokens
-const SONNET_OUTPUT_PER_MTOK: f64 = 15.00;  // $15/M output tokens
+const SONNET_INPUT_PER_MTOK: f64 = 3.00; // $3/M input tokens
+const SONNET_OUTPUT_PER_MTOK: f64 = 15.00; // $15/M output tokens
 const SONNET_CACHE_WRITE_PER_MTOK: f64 = 3.75;
 const SONNET_CACHE_READ_PER_MTOK: f64 = 0.30;
 
@@ -69,12 +69,20 @@ impl SimulatedClaude {
 
 #[async_trait]
 impl Provider for SimulatedClaude {
-    fn name(&self) -> &str { "simulated-claude" }
-    fn context_window(&self, _model: &str) -> u64 { 200_000 }
+    fn name(&self) -> &str {
+        "simulated-claude"
+    }
+    fn context_window(&self, _model: &str) -> u64 {
+        200_000
+    }
     fn capabilities(&self, _model: &str) -> ProviderCapabilities {
         ProviderCapabilities {
-            streaming: true, tool_use: true, vision: true,
-            thinking: true, system_prompt: true, caching: true,
+            streaming: true,
+            tool_use: true,
+            vision: true,
+            thinking: true,
+            system_prompt: true,
+            caching: true,
         }
     }
 
@@ -93,76 +101,162 @@ impl Provider for SimulatedClaude {
             // Small delay to simulate network latency
             tokio::time::sleep(Duration::from_millis(50)).await;
 
-            let _ = tx.send(StreamEvent::MessageStart {
-                id: format!("msg_{}", uuid::Uuid::new_v4()),
-                model: model.clone(),
-            }).await;
+            let _ = tx
+                .send(StreamEvent::MessageStart {
+                    id: format!("msg_{}", uuid::Uuid::new_v4()),
+                    model: model.clone(),
+                })
+                .await;
 
             match turn {
                 0 => {
                     // Turn 1: model reads a file (tool call)
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "thinking".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::ThinkingDelta { index: 0, thinking: "Let me look at the project structure first...".into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 0,
+                            block_type: "thinking".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::ThinkingDelta {
+                            index: 0,
+                            thinking: "Let me look at the project structure first...".into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
 
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 1, block_type: "text".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::TextDelta { index: 1, text: "I'll start by examining the project structure.".into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 1,
+                            block_type: "text".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::TextDelta {
+                            index: 1,
+                            text: "I'll start by examining the project structure.".into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 1 }).await;
 
                     // Tool use: Glob
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 2, block_type: "tool_use".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::InputJsonDelta { index: 2, partial_json: r#"{"pattern": "**/*.rs"}"#.into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 2,
+                            block_type: "tool_use".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::InputJsonDelta {
+                            index: 2,
+                            partial_json: r#"{"pattern": "**/*.rs"}"#.into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 2 }).await;
 
                     let output_tokens = 185;
                     let cost = compute_cost(&model, base_input, output_tokens);
-                    let _ = tx.send(StreamEvent::MessageDelta {
-                        stop_reason: Some(StopReason::ToolUse),
-                        usage: Some(Usage {
-                            input_tokens: base_input - cache_read,
-                            output_tokens,
-                            total_tokens: base_input + output_tokens,
-                            cost_usd: Some(cost),
-                            provider_usage: serde_json::json!({
-                                "cache_creation_input_tokens": 800,
-                                "cache_read_input_tokens": cache_read,
+                    let _ = tx
+                        .send(StreamEvent::MessageDelta {
+                            stop_reason: Some(StopReason::ToolUse),
+                            usage: Some(Usage {
+                                input_tokens: base_input - cache_read,
+                                output_tokens,
+                                total_tokens: base_input + output_tokens,
+                                cost_usd: Some(cost),
+                                provider_usage: serde_json::json!({
+                                    "cache_creation_input_tokens": 800,
+                                    "cache_read_input_tokens": cache_read,
+                                }),
                             }),
-                        }),
-                    }).await;
+                        })
+                        .await;
                 }
                 1 => {
                     // Turn 2: model reads a specific file (another tool call)
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "text".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::TextDelta { index: 0, text: "Let me read the main source file.".into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 0,
+                            block_type: "text".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::TextDelta {
+                            index: 0,
+                            text: "Let me read the main source file.".into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
 
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 1, block_type: "tool_use".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::InputJsonDelta { index: 1, partial_json: r#"{"file_path": "src/main.rs"}"#.into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 1,
+                            block_type: "tool_use".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::InputJsonDelta {
+                            index: 1,
+                            partial_json: r#"{"file_path": "src/main.rs"}"#.into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 1 }).await;
 
                     let output_tokens = 142;
                     let cost = compute_cost(&model, base_input, output_tokens);
-                    let _ = tx.send(StreamEvent::MessageDelta {
-                        stop_reason: Some(StopReason::ToolUse),
-                        usage: Some(Usage {
-                            input_tokens: base_input - cache_read,
-                            output_tokens,
-                            total_tokens: base_input + output_tokens,
-                            cost_usd: Some(cost),
-                            provider_usage: serde_json::json!({
-                                "cache_creation_input_tokens": 0,
-                                "cache_read_input_tokens": cache_read,
+                    let _ = tx
+                        .send(StreamEvent::MessageDelta {
+                            stop_reason: Some(StopReason::ToolUse),
+                            usage: Some(Usage {
+                                input_tokens: base_input - cache_read,
+                                output_tokens,
+                                total_tokens: base_input + output_tokens,
+                                cost_usd: Some(cost),
+                                provider_usage: serde_json::json!({
+                                    "cache_creation_input_tokens": 0,
+                                    "cache_read_input_tokens": cache_read,
+                                }),
                             }),
-                        }),
-                    }).await;
+                        })
+                        .await;
                 }
                 _ => {
                     // Turn 3: final response (end_turn)
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "thinking".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::ThinkingDelta { index: 0, thinking: "I've analyzed the project. Let me summarize my findings...".into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 0,
+                            block_type: "thinking".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::ThinkingDelta {
+                            index: 0,
+                            thinking: "I've analyzed the project. Let me summarize my findings..."
+                                .into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
 
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 1, block_type: "text".into(), id: None, name: None }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 1,
+                            block_type: "text".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
                     let response = "Based on my analysis of the project:\n\n\
                         - **Structure**: 9 crates in a Cargo workspace\n\
                         - **Total files**: 24 Rust source files\n\
@@ -179,19 +273,21 @@ impl Provider for SimulatedClaude {
 
                     let output_tokens = 387;
                     let cost = compute_cost(&model, base_input, output_tokens);
-                    let _ = tx.send(StreamEvent::MessageDelta {
-                        stop_reason: Some(StopReason::EndTurn),
-                        usage: Some(Usage {
-                            input_tokens: base_input - cache_read,
-                            output_tokens,
-                            total_tokens: base_input + output_tokens,
-                            cost_usd: Some(cost),
-                            provider_usage: serde_json::json!({
-                                "cache_creation_input_tokens": 0,
-                                "cache_read_input_tokens": cache_read,
+                    let _ = tx
+                        .send(StreamEvent::MessageDelta {
+                            stop_reason: Some(StopReason::EndTurn),
+                            usage: Some(Usage {
+                                input_tokens: base_input - cache_read,
+                                output_tokens,
+                                total_tokens: base_input + output_tokens,
+                                cost_usd: Some(cost),
+                                provider_usage: serde_json::json!({
+                                    "cache_creation_input_tokens": 0,
+                                    "cache_read_input_tokens": cache_read,
+                                }),
                             }),
-                        }),
-                    }).await;
+                        })
+                        .await;
                 }
             }
 
@@ -240,7 +336,12 @@ impl UsageTracker {
 impl Reporter for UsageTracker {
     async fn on_event(&self, event: &AgentEvent) {
         match event {
-            AgentEvent::TurnComplete { turn, stop_reason, usage, .. } => {
+            AgentEvent::TurnComplete {
+                turn,
+                stop_reason,
+                usage,
+                ..
+            } => {
                 self.turns.lock().push(TurnUsage {
                     turn: *turn,
                     input_tokens: usage.input_tokens,
@@ -249,7 +350,12 @@ impl Reporter for UsageTracker {
                     stop_reason: format!("{:?}", stop_reason),
                 });
             }
-            AgentEvent::ToolEnd { name, duration, is_error, .. } => {
+            AgentEvent::ToolEnd {
+                name,
+                duration,
+                is_error,
+                ..
+            } => {
                 let turn = self.turns.lock().len() as u32 + 1;
                 self.tool_calls.lock().push(ToolCallInfo {
                     turn,
@@ -267,7 +373,11 @@ impl Reporter for UsageTracker {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let models = ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5-20251001"];
+    let models = [
+        "claude-sonnet-4-6",
+        "claude-opus-4-6",
+        "claude-haiku-4-5-20251001",
+    ];
     let active_model = models[0]; // Sonnet for this run
 
     let tracker = UsageTracker::new();
@@ -289,15 +399,17 @@ async fn main() -> anyhow::Result<()> {
         })
         .build()?;
 
-    let output = agent.run("Analyze this project's structure and give me a summary.").await?;
+    let output = agent
+        .run("Analyze this project's structure and give me a summary.")
+        .await?;
     let elapsed = start.elapsed();
 
     println!("\n");
 
     // ── Header ───────────────────────────────────────────────────────────
-    println!("{}",   "=".repeat(64));
+    println!("{}", "=".repeat(64));
     println!("  CERSEI USAGE REPORT");
-    println!("{}",   "=".repeat(64));
+    println!("{}", "=".repeat(64));
     println!();
 
     // ── Model info ───────────────────────────────────────────────────────
@@ -316,27 +428,39 @@ async fn main() -> anyhow::Result<()> {
     println!("  -----------");
     println!("  Input tokens:    {:>8}", output.usage.input_tokens);
     println!("  Output tokens:   {:>8}", output.usage.output_tokens);
-    println!("  Total tokens:    {:>8}", output.usage.input_tokens + output.usage.output_tokens);
-    println!("  Cost (USD):      ${:.6}", output.usage.cost_usd.unwrap_or(0.0));
+    println!(
+        "  Total tokens:    {:>8}",
+        output.usage.input_tokens + output.usage.output_tokens
+    );
+    println!(
+        "  Cost (USD):      ${:.6}",
+        output.usage.cost_usd.unwrap_or(0.0)
+    );
     println!();
 
     // ── Per-turn breakdown ───────────────────────────────────────────────
     let turns = tracker.turns.lock().clone();
     println!("  Per-Turn Breakdown");
     println!("  ------------------");
-    println!("  {:<6} {:>10} {:>10} {:>10} {:<12}",
-        "Turn", "Input", "Output", "Cost", "Stop");
+    println!(
+        "  {:<6} {:>10} {:>10} {:>10} {:<12}",
+        "Turn", "Input", "Output", "Cost", "Stop"
+    );
     println!("  {}", "-".repeat(54));
     for t in &turns {
-        println!("  {:<6} {:>10} {:>10} ${:>9.6} {:<12}",
-            t.turn, t.input_tokens, t.output_tokens, t.cost_usd, t.stop_reason);
+        println!(
+            "  {:<6} {:>10} {:>10} ${:>9.6} {:<12}",
+            t.turn, t.input_tokens, t.output_tokens, t.cost_usd, t.stop_reason
+        );
     }
     let total_cost: f64 = turns.iter().map(|t| t.cost_usd).sum();
     let total_in: u64 = turns.iter().map(|t| t.input_tokens).sum();
     let total_out: u64 = turns.iter().map(|t| t.output_tokens).sum();
     println!("  {}", "-".repeat(54));
-    println!("  {:<6} {:>10} {:>10} ${:>9.6}",
-        "TOTAL", total_in, total_out, total_cost);
+    println!(
+        "  {:<6} {:>10} {:>10} ${:>9.6}",
+        "TOTAL", total_in, total_out, total_cost
+    );
     println!();
 
     // ── Tool call breakdown ──────────────────────────────────────────────
@@ -344,13 +468,19 @@ async fn main() -> anyhow::Result<()> {
     if !tool_calls.is_empty() {
         println!("  Tool Calls");
         println!("  ----------");
-        println!("  {:<6} {:<14} {:>10} {:<6}",
-            "Turn", "Tool", "Time (ms)", "OK?");
+        println!(
+            "  {:<6} {:<14} {:>10} {:<6}",
+            "Turn", "Tool", "Time (ms)", "OK?"
+        );
         println!("  {}", "-".repeat(40));
         for tc in &tool_calls {
-            println!("  {:<6} {:<14} {:>10.2} {:<6}",
-                tc.turn, tc.name, tc.duration_ms,
-                if tc.is_error { "ERR" } else { "OK" });
+            println!(
+                "  {:<6} {:<14} {:>10.2} {:<6}",
+                tc.turn,
+                tc.name,
+                tc.duration_ms,
+                if tc.is_error { "ERR" } else { "OK" }
+            );
         }
         println!();
 
@@ -379,20 +509,37 @@ async fn main() -> anyhow::Result<()> {
     let input_cost_haiku = (total_in as f64 / 1_000_000.0) * HAIKU_INPUT_PER_MTOK;
     let output_cost_haiku = (total_out as f64 / 1_000_000.0) * HAIKU_OUTPUT_PER_MTOK;
 
-    println!("  This session's tokens ({} in / {} out) would cost:", total_in, total_out);
+    println!(
+        "  This session's tokens ({} in / {} out) would cost:",
+        total_in, total_out
+    );
     println!();
-    println!("  {:<24} {:>10} {:>10} {:>10}",
-        "Model", "Input", "Output", "Total");
+    println!(
+        "  {:<24} {:>10} {:>10} {:>10}",
+        "Model", "Input", "Output", "Total"
+    );
     println!("  {}", "-".repeat(56));
-    println!("  {:<24} ${:>9.6} ${:>9.6} ${:>9.6}",
-        "Claude Sonnet 4.6", input_cost_sonnet, output_cost_sonnet,
-        input_cost_sonnet + output_cost_sonnet);
-    println!("  {:<24} ${:>9.6} ${:>9.6} ${:>9.6}",
-        "Claude Opus 4.6", input_cost_opus, output_cost_opus,
-        input_cost_opus + output_cost_opus);
-    println!("  {:<24} ${:>9.6} ${:>9.6} ${:>9.6}",
-        "Claude Haiku 4.5", input_cost_haiku, output_cost_haiku,
-        input_cost_haiku + output_cost_haiku);
+    println!(
+        "  {:<24} ${:>9.6} ${:>9.6} ${:>9.6}",
+        "Claude Sonnet 4.6",
+        input_cost_sonnet,
+        output_cost_sonnet,
+        input_cost_sonnet + output_cost_sonnet
+    );
+    println!(
+        "  {:<24} ${:>9.6} ${:>9.6} ${:>9.6}",
+        "Claude Opus 4.6",
+        input_cost_opus,
+        output_cost_opus,
+        input_cost_opus + output_cost_opus
+    );
+    println!(
+        "  {:<24} ${:>9.6} ${:>9.6} ${:>9.6}",
+        "Claude Haiku 4.5",
+        input_cost_haiku,
+        output_cost_haiku,
+        input_cost_haiku + output_cost_haiku
+    );
     println!();
 
     // ── Projected costs ──────────────────────────────────────────────────
@@ -402,7 +549,10 @@ async fn main() -> anyhow::Result<()> {
     println!("  This session:         ${:.6}", session_cost);
     println!("  10 sessions/day:      ${:.4}", session_cost * 10.0);
     println!("  100 sessions/day:     ${:.2}", session_cost * 100.0);
-    println!("  Monthly (30d, 50/day): ${:.2}", session_cost * 50.0 * 30.0);
+    println!(
+        "  Monthly (30d, 50/day): ${:.2}",
+        session_cost * 50.0 * 30.0
+    );
     println!();
 
     // ── Efficiency metrics ───────────────────────────────────────────────
@@ -412,30 +562,46 @@ async fn main() -> anyhow::Result<()> {
     let cost_per_turn = total_cost / turns.len().max(1) as f64;
     let cost_per_tool = if !tool_calls.is_empty() {
         total_cost / tool_calls.len() as f64
-    } else { 0.0 };
+    } else {
+        0.0
+    };
     println!("  Tokens/sec:           {:.0}", tokens_per_sec);
     println!("  Cost/turn:            ${:.6}", cost_per_turn);
     println!("  Cost/tool call:       ${:.6}", cost_per_tool);
-    println!("  Input/output ratio:   {:.1}x", total_in as f64 / total_out.max(1) as f64);
+    println!(
+        "  Input/output ratio:   {:.1}x",
+        total_in as f64 / total_out.max(1) as f64
+    );
     println!();
 
     // ── Verification ─────────────────────────────────────────────────────
     println!("  Verification");
     println!("  ------------");
     let cost_matches = (total_cost - output.usage.cost_usd.unwrap_or(0.0)).abs() < 0.000001;
-    let token_match = output.usage.input_tokens == total_in
-        && output.usage.output_tokens == total_out;
+    let token_match =
+        output.usage.input_tokens == total_in && output.usage.output_tokens == total_out;
     let tool_count_match = output.tool_calls.len() == tool_calls.len();
 
-    println!("  Cost tracking:     {} (reporter=${:.6} vs output=${:.6})",
+    println!(
+        "  Cost tracking:     {} (reporter=${:.6} vs output=${:.6})",
         if cost_matches { "PASS" } else { "FAIL" },
-        total_cost, output.usage.cost_usd.unwrap_or(0.0));
-    println!("  Token tracking:    {} ({}in/{}out vs {}in/{}out)",
+        total_cost,
+        output.usage.cost_usd.unwrap_or(0.0)
+    );
+    println!(
+        "  Token tracking:    {} ({}in/{}out vs {}in/{}out)",
         if token_match { "PASS" } else { "FAIL" },
-        total_in, total_out, output.usage.input_tokens, output.usage.output_tokens);
-    println!("  Tool call count:   {} ({} reporter vs {} output)",
+        total_in,
+        total_out,
+        output.usage.input_tokens,
+        output.usage.output_tokens
+    );
+    println!(
+        "  Tool call count:   {} ({} reporter vs {} output)",
         if tool_count_match { "PASS" } else { "FAIL" },
-        tool_calls.len(), output.tool_calls.len());
+        tool_calls.len(),
+        output.tool_calls.len()
+    );
     println!();
 
     println!("{}", "=".repeat(64));

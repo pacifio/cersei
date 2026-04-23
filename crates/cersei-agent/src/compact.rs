@@ -88,7 +88,10 @@ pub fn estimate_tokens(text: &str) -> u64 {
 
 /// Estimate tokens for a list of messages.
 pub fn estimate_messages_tokens(messages: &[Message]) -> u64 {
-    messages.iter().map(|m| estimate_tokens(&m.get_all_text())).sum()
+    messages
+        .iter()
+        .map(|m| estimate_tokens(&m.get_all_text()))
+        .sum()
 }
 
 /// Get context window size for a model.
@@ -243,7 +246,12 @@ pub fn collapse_read_tool_results(messages: Vec<Message>) -> Vec<Message> {
         let dominated = match &msg.content {
             MessageContent::Blocks(blocks) => {
                 blocks.iter().all(|b| {
-                    if let ContentBlock::ToolResult { tool_use_id, content, .. } = b {
+                    if let ContentBlock::ToolResult {
+                        tool_use_id,
+                        content,
+                        ..
+                    } = b
+                    {
                         // Check if this is a file read result we've already seen
                         if let ToolResultContent::Text(text) = content {
                             if text.contains('\t') {

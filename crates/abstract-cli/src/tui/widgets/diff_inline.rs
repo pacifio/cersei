@@ -7,8 +7,15 @@ const MAX_DIFF_LINES: usize = 15;
 
 /// Render a tool result as an inline diff if it contains diff-like content.
 /// Returns None if the content doesn't look like a diff.
-pub fn render_diff_output(output: &str, tool_name: &str, theme: &Theme) -> Option<Vec<Line<'static>>> {
-    let is_file_tool = matches!(tool_name, "Edit" | "Write" | "ApplyPatch" | "edit" | "write");
+pub fn render_diff_output(
+    output: &str,
+    tool_name: &str,
+    theme: &Theme,
+) -> Option<Vec<Line<'static>>> {
+    let is_file_tool = matches!(
+        tool_name,
+        "Edit" | "Write" | "ApplyPatch" | "edit" | "write"
+    );
     if !is_file_tool {
         return None;
     }
@@ -54,7 +61,11 @@ pub fn render_diff_output(output: &str, tool_name: &str, theme: &Theme) -> Optio
                 Style::default().fg(Color::Cyan),
                 Style::default().fg(Color::Cyan),
             )
-        } else if line.starts_with("diff ") || line.starts_with("index ") || line.starts_with("---") || line.starts_with("+++") {
+        } else if line.starts_with("diff ")
+            || line.starts_with("index ")
+            || line.starts_with("---")
+            || line.starts_with("+++")
+        {
             (
                 Style::default().fg(theme.text_tertiary),
                 Style::default().fg(theme.text_tertiary),

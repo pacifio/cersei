@@ -32,6 +32,53 @@ export function Tag({ type }) {
   );
 }
 
+<Version version="Unreleased" date="2026-04-21">
+
+<Tag type="added" /> **LongMemEval head-to-head memory benchmark (`bench/long-mem/`).** Runs the 500-question [LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025) dataset — the same benchmark [Mastra](https://mastra.ai/research/observational-memory), [Zep](https://arxiv.org/abs/2501.13956), and Supermemory use — across four Cersei memory configurations. Judge rubric is a verbatim port of Mastra's TypeScript harness so numbers are directly comparable. Full methodology + reproduction on [/docs/bench-memory](/docs/bench-memory).
+
+<Tag type="added" /> **Headline results on `longmemeval_s` (500 Qs, `gpt-4o-mini` answerer + judge, 2026-04-21):**
+  - **Hybrid (fact extractor + embed + graph + RRF fusion): 64.6 % overall accuracy, 96.7 % abstention, 0.70 M input tokens — +9.8 pp over the full-context baseline while using 75× fewer input tokens.** Wins or ties on every question type; biggest gains over pure semantic retrieval are on `multi-session` (+19 pp) and `temporal-reasoning` (+15 pp).
+  - **Semantic recall alone (`EmbeddingMemory` over usearch HNSW): 56.6 % overall, 100 % abstention, 0.98 M input tokens** — already beats the 52-million-token full-context baseline (54.8 %) on accuracy while costing ~51× less.
+  - Full-context baseline: 54.8 %. Graph-substring floor: 0.3 %.
+
+<Tag type="added" /> **`cersei-memory::embedding_memory::EmbeddingMemory`** — thin adapter bridging `cersei-embeddings::EmbeddingStore` into the `Memory` trait. Behind the new optional `embed` feature so consumers opt in.
+
+```rust
+use cersei_memory::embedding_memory::EmbeddingMemory;
+use cersei_embeddings::{OpenAiEmbeddings, Metric};
+let mem = EmbeddingMemory::new(OpenAiEmbeddings::from_env()?, Metric::Cosine)?;
+```
+
+<Tag type="added" /> **`GraphMemory::recall_top_k(query, limit) -> Vec<(String, f32)>`** — scored retrieval that re-ranks the substring-match candidates by fraction of query words found. Additive; the existing `recall` signature is unchanged.
+
+<Tag type="fixed" /> **`cersei-embeddings::OpenAiEmbeddings::embed_batch`** no longer panics on multi-byte UTF-8 input. The pre-call truncation was byte-slicing at index 2000, which crashed when the boundary fell inside a character (Spanish diacritics, emoji, smart quotes). Now walks back to the nearest char boundary.
+
+</Version>
+
+<Version version="0.1.7" date="2026-04-20">
+
+<Tag type="added" /> **New crate: `cersei-compression`.** Structural and command-aware compression for tool outputs. Sits between a tool's raw `execute()` result and the existing `cap_tool_result()` safety net, trimming the ANSI codes, `Compiling …` spam, boilerplate comments, and unchanged function bodies that dominate typical tool output. Three levels: `Off` (default, byte-for-byte passthrough), `Minimal` (ANSI + comment stripping, whitespace collapse — safe for JSON/YAML/TOML), `Aggressive` (adds language-aware body stubbing and declarative TOML rules for `git`, `cargo`, `npm`, `pnpm`, `pytest`, `docker`). Docs: [Overview](/docs/compression-overview) · [Benchmarks](/docs/compression-benchmarks).
+
+<Tag type="added" /> **Credit where it's due** — the rule engine, language-aware code filter, and TOML DSL are ports of [**rtk** (Rust Token Killer)](https://github.com/rtk-ai/rtk) by **Patrick Szymkowiak**, MIT licensed. `crates/cersei-compression/LICENSE` + the per-module `//! Credits:` headers document which rtk file each module derives from.
+
+<Tag type="added" /> **Agent builder + runtime knob.** `AgentBuilder::compression_level(level)` for build-time, `agent.set_compression_level(level)` / `agent.compression_level()` for runtime — shared mutex, takes effect on the next tool call. Wired in the runner at `crates/cersei-agent/src/runner.rs:708`, before the existing `cap_tool_result`.
+
+<Tag type="added" /> **Abstract CLI controls.** `--compress <off|minimal|aggressive>` flag, `ABSTRACT_COMPRESSION` env var, `compression_level` in `~/.abstract/config.toml` / `.abstract/config.toml`, and a live `/compression [on|off|minimal|aggressive]` slash command that flips the active agent mid-session. `/compression` with no argument reports the current level.
+
+<Tag type="added" /> **Live-provider savings benchmark** — `crates/cersei-agent/tests/e2e_openai_compression.rs` (`#[ignore]`). Same prompt, same tool, same fixture run twice per provider with only `CompressionLevel` changing. Token counts are **provider-reported** (`output.usage.input_tokens` from OpenAI, `usageMetadata.promptTokenCount` from Gemini), not our estimate.
+  - **OpenAI `gpt-4o-mini`** — **11,576 → 8,202 input tokens (−29.1%, Δ 3,374 tokens)**; 15 → 13 tool calls over 5 turns.
+  - **Google Gemini `gemini-2.5-flash`** — **4,490 → 1,700 input tokens (−62.1%, Δ 2,790 tokens)**; 1 → 1 tool call over 5 → 3 turns.
+  - **Reproduce it** — commands, per-call logs, and caveats on the [Compression Benchmarks](/docs/compression-benchmarks) page.
+  - **Synthetic floors** — `git log` ≥ 30% at Minimal, `cargo test` ≥ 25% at Minimal, Off is byte-for-byte identity, Rust source at Aggressive drops bodies but keeps signatures + imports. Source: `crates/cersei-compression/tests/savings.rs`.
+
+<Tag type="added" /> **Per-call observability.** Every `compress_tool_output` invocation emits a structured `tracing::info!` event on target `cersei_compression` with `tool`, `level`, `strategy`, `detail` (matched rule name or detected `Language`), `before_bytes`, `after_bytes`, `before_lines`, `after_lines`, and `savings_pct`. Subscribe anywhere with `RUST_LOG=cersei_compression=info`.
+
+<Tag type="changed" /> **Workspace version bumped to `0.1.7`** across every crate (`cersei`, `cersei-agent`, `cersei-compression`, `cersei-embeddings`, `cersei-hooks`, `cersei-lsp`, `cersei-mcp`, `cersei-memory`, `cersei-provider`, `cersei-tools`, `cersei-tools-derive`, `cersei-types`, `abstract-cli`) via `version.workspace = true`.
+
+<Tag type="changed" /> **`cersei-agent::Agent` + `AgentBuilder`** gained a `compression_level` field. Default is `CompressionLevel::Off` — existing users see zero behavioural change without opting in. The pre-existing `cap_tool_result` (80+80 head/tail) and `apply_tool_result_budget` (50k chars, keeps last 6 messages) still run after compression as unconditional safety nets.
+
+</Version>
+
 <Version version="0.1.6-patch.2" date="2026-04-18">
 
 <Tag type="added" /> **New crate: `cersei-embeddings`.** Standalone, provider-agnostic text embeddings with a `usearch`-backed vector index. Ships with `GeminiEmbeddings` (`text-embedding-004`, 768-d) and `OpenAiEmbeddings` (`text-embedding-3-small`, 1536-d, base-URL overridable). Zero dependency on other `cersei-*` crates. Docs: [Overview](https://cersei.pacifio.dev/docs/embeddings-overview) · [API Reference](https://cersei.pacifio.dev/docs/embeddings-api) · [Cookbook](https://cersei.pacifio.dev/docs/embeddings-cookbook).

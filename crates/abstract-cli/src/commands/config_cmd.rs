@@ -8,6 +8,8 @@ pub fn run(args: &str, config: &AppConfig) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    eprintln!("\x1b[90mUse `abstract config set <key> <value>` from the shell to set config.\x1b[0m");
+    eprintln!(
+        "\x1b[90mUse `abstract config set <key> <value>` from the shell to set config.\x1b[0m"
+    );
     Ok(())
 }

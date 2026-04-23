@@ -3,7 +3,14 @@
 use crate::tui::theme::Theme;
 use ratatui::{prelude::*, widgets::Paragraph};
 
-pub fn render(f: &mut Frame, area: Rect, is_streaming: bool, side_panel_open: bool, side_panel_focused: bool, theme: &Theme) {
+pub fn render(
+    f: &mut Frame,
+    area: Rect,
+    is_streaming: bool,
+    side_panel_open: bool,
+    side_panel_focused: bool,
+    theme: &Theme,
+) {
     let hints = if side_panel_focused {
         " j/k scroll | d/u page | Tab switch | r refresh | Esc back | ^B close".to_string()
     } else if is_streaming {

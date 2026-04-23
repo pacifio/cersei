@@ -9,8 +9,8 @@ use cersei_tools::PermissionLevel;
 use parking_lot::Mutex;
 use std::collections::HashSet;
 use std::io::{self, Write};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 /// Permission mode shared between TUI and policy.
@@ -31,7 +31,10 @@ pub struct TuiPermissionRequest {
 }
 
 /// Create the channel pair for TUI permission flow.
-pub fn permission_channel() -> (mpsc::Sender<TuiPermissionRequest>, mpsc::Receiver<TuiPermissionRequest>) {
+pub fn permission_channel() -> (
+    mpsc::Sender<TuiPermissionRequest>,
+    mpsc::Receiver<TuiPermissionRequest>,
+) {
     mpsc::channel(8)
 }
 
@@ -69,21 +72,24 @@ impl PermissionPolicy for TuiPermissionPolicy {
                     #[cfg(target_os = "macos")]
                     {
                         let _ = std::process::Command::new("osascript")
-                            .args(["-e", &format!(
-                                "display notification \"{}\" with title \"Abstract CLI\"",
-                                request.description.replace('"', "'")
-                            )])
+                            .args([
+                                "-e",
+                                &format!(
+                                    "display notification \"{}\" with title \"Abstract CLI\"",
+                                    request.description.replace('"', "'")
+                                ),
+                            ])
                             .spawn();
                     }
                 }
                 return PermissionDecision::Allow;
             }
-            1 => {
-                match request.permission_level {
-                    PermissionLevel::None | PermissionLevel::ReadOnly => return PermissionDecision::Allow,
-                    _ => return PermissionDecision::Deny("Plan mode: read-only".into()),
+            1 => match request.permission_level {
+                PermissionLevel::None | PermissionLevel::ReadOnly => {
+                    return PermissionDecision::Allow
                 }
-            }
+                _ => return PermissionDecision::Deny("Plan mode: read-only".into()),
+            },
             2 => {
                 if request.tool_name == "Bash" || request.tool_name == "PowerShell" {
                     return PermissionDecision::Deny("Editor mode: shell commands disabled".into());
@@ -96,7 +102,9 @@ impl PermissionPolicy for TuiPermissionPolicy {
         // Auto-allow safe operations
         match request.permission_level {
             PermissionLevel::None | PermissionLevel::ReadOnly => return PermissionDecision::Allow,
-            PermissionLevel::Forbidden => return PermissionDecision::Deny("Operation is forbidden".into()),
+            PermissionLevel::Forbidden => {
+                return PermissionDecision::Deny("Operation is forbidden".into())
+            }
             _ => {}
         }
 
@@ -126,7 +134,9 @@ impl PermissionPolicy for TuiPermissionPolicy {
                 // Cache session/always decisions
                 match &decision {
                     PermissionDecision::AllowForSession => {
-                        self.session_allowed.lock().insert(request.tool_name.clone());
+                        self.session_allowed
+                            .lock()
+                            .insert(request.tool_name.clone());
                     }
                     PermissionDecision::Allow => {
                         // "Always allow" — cache permanently for session
@@ -177,7 +187,9 @@ impl PermissionPolicy for CliPermissionPolicy {
             3 => return PermissionDecision::Allow,
             4 => return PermissionDecision::Allow,
             1 => match request.permission_level {
-                PermissionLevel::None | PermissionLevel::ReadOnly => return PermissionDecision::Allow,
+                PermissionLevel::None | PermissionLevel::ReadOnly => {
+                    return PermissionDecision::Allow
+                }
                 _ => return PermissionDecision::Deny("Plan mode: read-only".into()),
             },
             2 => {
@@ -191,7 +203,9 @@ impl PermissionPolicy for CliPermissionPolicy {
 
         match request.permission_level {
             PermissionLevel::None | PermissionLevel::ReadOnly => return PermissionDecision::Allow,
-            PermissionLevel::Forbidden => return PermissionDecision::Deny("Operation is forbidden".into()),
+            PermissionLevel::Forbidden => {
+                return PermissionDecision::Deny("Operation is forbidden".into())
+            }
             _ => {}
         }
 
@@ -204,7 +218,10 @@ impl PermissionPolicy for CliPermissionPolicy {
 
         // Direct stdin prompt (non-TUI only)
         eprint!("\n");
-        eprint!("  \x1b[33;1mPermission required: {}\x1b[0m\n", request.tool_name);
+        eprint!(
+            "  \x1b[33;1mPermission required: {}\x1b[0m\n",
+            request.tool_name
+        );
         eprint!("  \x1b[90m{}\x1b[0m\n", request.description);
         eprint!("  \x1b[33m[Y]es  [N]o  [S]ession  [A]lways\x1b[0m ");
         let _ = io::stderr().flush();
@@ -213,7 +230,9 @@ impl PermissionPolicy for CliPermissionPolicy {
         match decision {
             'y' | 'Y' | '\n' => PermissionDecision::AllowOnce,
             's' | 'S' => {
-                self.session_allowed.lock().insert(request.tool_name.clone());
+                self.session_allowed
+                    .lock()
+                    .insert(request.tool_name.clone());
                 PermissionDecision::AllowForSession
             }
             'a' | 'A' => {

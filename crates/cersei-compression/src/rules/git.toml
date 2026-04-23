@@ -1,0 +1,38 @@
+schema_version = 1
+
+[filters.git-log]
+description = "Condense `git log` verbose output."
+match_command = '^git\s+log'
+strip_ansi = true
+strip_lines_matching = [
+    '^Author:',
+    '^Date:',
+    '^\s*$',
+]
+max_lines = 60
+
+[filters.git-status]
+description = "Drop the `(use \"git add\" ...)` help chrome from `git status`."
+match_command = '^git\s+status'
+strip_ansi = true
+strip_lines_matching = [
+    '^\s*\(use "git',
+    '^\s*\(commit or discard',
+    '^\s*$',
+]
+
+[filters.git-diff]
+description = "Keep `git diff` structure but cap total size."
+match_command = '^git\s+diff'
+strip_ansi = true
+max_lines = 400
+
+[filters.zz-git-generic]
+description = "Catch-all for other git subcommands."
+match_command = '^git\b'
+strip_ansi = true
+strip_lines_matching = [
+    '^hint:',
+    '^\s*$',
+]
+max_lines = 120

@@ -20,11 +20,15 @@ pub struct EnterPlanModeTool;
 
 #[async_trait]
 impl Tool for EnterPlanModeTool {
-    fn name(&self) -> &str { "EnterPlanMode" }
+    fn name(&self) -> &str {
+        "EnterPlanMode"
+    }
     fn description(&self) -> &str {
         "Enter plan mode: restricts to read-only tools for safe exploration and planning."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -44,11 +48,15 @@ pub struct ExitPlanModeTool;
 
 #[async_trait]
 impl Tool for ExitPlanModeTool {
-    fn name(&self) -> &str { "ExitPlanMode" }
+    fn name(&self) -> &str {
+        "ExitPlanMode"
+    }
     fn description(&self) -> &str {
         "Exit plan mode and return to full tool access."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({

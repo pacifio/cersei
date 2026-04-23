@@ -40,7 +40,10 @@ pub fn build_cli_system_prompt(
     let mut extra_cached: Vec<(String, String)> = Vec::new();
     let instruction_files = collect_instruction_files(&config.working_dir);
     for (path_label, content) in instruction_files {
-        extra_cached.push(("project_instructions".to_string(), format!("# From: {}\n{}", path_label, content)));
+        extra_cached.push((
+            "project_instructions".to_string(),
+            format!("# From: {}\n{}", path_label, content),
+        ));
     }
 
     // Tree-sitter project intelligence: scan source files for imports + symbols,
@@ -52,7 +55,8 @@ pub fn build_cli_system_prompt(
         20, // top 20 most important files
     );
     if !project_intel.is_empty() {
-        let intel_summary = cersei_tools::tool_primitives::code_intel::format_project_intel(&project_intel);
+        let intel_summary =
+            cersei_tools::tool_primitives::code_intel::format_project_intel(&project_intel);
         extra_cached.push((
             "project_intel".to_string(),
             format!(
@@ -124,7 +128,12 @@ fn build_git_snapshot(working_dir: &std::path::Path) -> Option<GitSnapshot> {
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.lines().filter(|l| !l.is_empty()).map(String::from).collect())
+        .map(|s| {
+            s.lines()
+                .filter(|l| !l.is_empty())
+                .map(String::from)
+                .collect()
+        })
         .unwrap_or_default();
 
     let recent_commits: Vec<String> = Command::new("git")
@@ -133,7 +142,12 @@ fn build_git_snapshot(working_dir: &std::path::Path) -> Option<GitSnapshot> {
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.lines().filter(|l| !l.is_empty()).map(String::from).collect())
+        .map(|s| {
+            s.lines()
+                .filter(|l| !l.is_empty())
+                .map(String::from)
+                .collect()
+        })
         .unwrap_or_default();
 
     Some(GitSnapshot {
@@ -165,7 +179,8 @@ fn collect_instruction_files(working_dir: &std::path::Path) -> Vec<(String, Stri
             if path.exists() {
                 if let Ok(content) = std::fs::read_to_string(&path) {
                     if !content.trim().is_empty() {
-                        let label = path.strip_prefix(working_dir)
+                        let label = path
+                            .strip_prefix(working_dir)
                             .map(|p| p.display().to_string())
                             .unwrap_or_else(|_| path.display().to_string());
                         found.push((label, content));
@@ -207,7 +222,9 @@ fn build_file_tree(working_dir: &std::path::Path, max_files: usize) -> Option<St
                 let total = String::from_utf8_lossy(&output.stdout).lines().count();
                 let mut result = files;
                 if total > max_files {
-                    result.push_str(&format!("\n\n({total} files total, showing first {max_files})"));
+                    result.push_str(&format!(
+                        "\n\n({total} files total, showing first {max_files})"
+                    ));
                 }
                 return Some(result);
             }
@@ -215,10 +232,26 @@ fn build_file_tree(working_dir: &std::path::Path, max_files: usize) -> Option<St
     }
 
     // Fallback: walkdir with exclusions
-    let excluded = ["node_modules", "target", ".git", "__pycache__", ".venv", "venv", "dist", "build", ".next"];
+    let excluded = [
+        "node_modules",
+        "target",
+        ".git",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        ".next",
+    ];
     let mut files = Vec::new();
 
-    fn walk(dir: &std::path::Path, base: &std::path::Path, excluded: &[&str], files: &mut Vec<String>, max: usize) {
+    fn walk(
+        dir: &std::path::Path,
+        base: &std::path::Path,
+        excluded: &[&str],
+        files: &mut Vec<String>,
+        max: usize,
+    ) {
         if files.len() >= max {
             return;
         }
@@ -259,7 +292,8 @@ fn build_file_tree(working_dir: &std::path::Path, max_files: usize) -> Option<St
 /// Focus on solving the task — tests are run externally by the verifier.
 fn build_benchmark_prompt(model: &str, working_dir: &std::path::Path) -> String {
     let wd = working_dir.display();
-    let mut prompt = format!(r#"You are a coding agent inside a Docker container. Your ONLY job is to complete the task correctly. NEVER explain or narrate — only run commands and write code.
+    let mut prompt = format!(
+        r#"You are a coding agent inside a Docker container. Your ONLY job is to complete the task correctly. NEVER explain or narrate — only run commands and write code.
 
 Model: {model}
 Working directory: {wd}
@@ -308,7 +342,8 @@ Do NOT blindly retry the same command. Do NOT skip this reflection.
 - Do NOT look for or try to run /tests/run-tests.sh — tests are run externally after you finish.
 - Focus all effort on producing correct output in {wd}.
 - ALWAYS verify your solution works before finishing.
-"#);
+"#
+    );
 
     // Append learned failure patterns if available
     if let Ok(patterns) = std::env::var("ABSTRACT_FAILURE_PATTERNS") {

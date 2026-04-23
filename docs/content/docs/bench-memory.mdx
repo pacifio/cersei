@@ -1,0 +1,145 @@
+---
+title: "LongMemEval — Memory Benchmark"
+description: Head-to-head long-term-memory benchmark for the Cersei memory stack against Mastra, Zep, and Supermemory using the ICLR 2025 LongMemEval dataset.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+# LongMemEval — Cersei vs Mastra / Zep / Supermemory
+
+[LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025) is the 500-question long-term-memory benchmark Mastra used for its [*Observational Memory*](https://mastra.ai/research/observational-memory) research, Zep reports on in the [Graphiti paper](https://arxiv.org/abs/2501.13956), and Supermemory cites in its comparisons. We run the same 500 questions through four Cersei memory configurations so the numbers line up one-for-one with what those frameworks publish.
+
+## TL;DR
+
+Ran `longmemeval_s` — 500 questions — on **2026-04-21** against four Cersei configurations, judged by `gpt-4o-mini` with prompts ported verbatim from the official benchmark via Mastra's harness.
+
+| Config | Overall (macro, excl abstention) | Abstention | Correct / total | Input tokens (sum) | Avg wall (ms) |
+|---|---|---|---|---|---|
+| **A. Full-context baseline** (`JsonlMemory`) | 54.8 % | 66.7 % (20/30) | 267 / 500 | **52.15 M** | 11 374 |
+| **B. Semantic recall** (`EmbeddingMemory`, usearch HNSW) | 56.6 % | **100 % (30/30)** | 274 / 500 | 0.98 M (53× fewer) | 7 978 |
+| **C. Graph substring** (`GraphMemory`, grafeo) | 0.3 % | 100 % (30/30) | 31 / 500 | 0.06 M | 1 777 |
+| **D. Hybrid** (fact extractor + embed + graph + RRF) | **64.6 %** | 96.7 % (29/30) | **322 / 500** | **0.70 M (75× fewer)** | 28 928 |
+
+**Headlines**
+
+- **Hybrid beats the full-context baseline by +9.8 pp overall** (64.6 % vs 54.8 %) while using **75× fewer input tokens**.
+- **Hybrid beats pure semantic recall by +8 pp overall** — the gain is concentrated on the question types that require synthesising across sessions: **multi-session +19 pp** (50.4 % vs 31.4 %) and **temporal-reasoning +15 pp** (45.7 % vs 30.7 %). That's the whole point of the fact-extractor + RRF fusion over `EmbeddingMemory` + `GraphMemory`.
+- Pure semantic retrieval (`EmbeddingMemory`) already edges out baseline on accuracy (56.6 vs 54.8) while nailing **100 % abstention** (vs 66.7 %) with 53× fewer tokens.
+- Graph-substring retrieval is the honest floor — substring match cannot paraphrase-match and scores essentially 0 on retrieval, while still hitting 100 % abstention (returns junk → answerer correctly refuses).
+
+### Per-question-type breakdown
+
+| Question type | n | Baseline | Embed | Graph | **Hybrid** |
+|---|---:|---:|---:|---:|---:|
+| `knowledge-update` | 72 | 72.2 % | 75.0 % | 0.0 % | **76.4 %** |
+| `multi-session` | 121 | 41.3 % | 31.4 % | 0.0 % | **50.4 %** |
+| `single-session-assistant` | 56 | 91.1 % | 92.9 % | 1.8 % | **92.9 %** |
+| `single-session-preference` | 30 | 16.7 % | 26.7 % | 0.0 % | **33.3 %** |
+| `single-session-user` | 64 | 75.0 % | 82.8 % | 0.0 % | **89.1 %** |
+| `temporal-reasoning` | 127 | 32.3 % | 30.7 % | 0.0 % | **45.7 %** |
+
+Hybrid wins or ties on every single question type.
+
+### Cost comparison
+
+| Config | Input tokens | Est. OpenAI cost (`gpt-4o-mini` @ $0.15/1M in, $0.60/1M out) | Avg wall / Q |
+|---|---:|---:|---:|
+| Baseline | 52.15 M | **$7.83** | 11.4 s |
+| Embed | 0.98 M | **$0.15** (51× cheaper than baseline) | 8.0 s |
+| Graph | 0.06 M | **$0.02** (400× cheaper than baseline) | 1.8 s |
+| Hybrid | 0.70 M | **$0.11** + $5.60 extractor = **$5.71** (1.4× cheaper than baseline) | 28.9 s |
+
+Hybrid is slower and costlier than embed-only because it runs the LLM fact extractor on every session during ingest. The price buys the +8 pp accuracy lift and the dramatic gains on multi-session + temporal-reasoning.
+
+## The four configurations
+
+| Config | Cersei backend | What it tests |
+|---|---|---|
+| **A. `baseline`** | `JsonlMemory` — full haystack in prompt | Control lower bound. The answerer sees every turn, capped only by the LLM context window. |
+| **B. `embed`** | `EmbeddingMemory` (`usearch` HNSW + OpenAI `text-embedding-3-small`, cosine) | Pure semantic retrieval. Directly comparable to Mastra's RAG mode. |
+| **C. `graph`** | `GraphMemory` (grafeo substring + query-word-overlap rerank) | Honest floor for the graph layer — no LLM extraction, no semantic matching. |
+| **D. `hybrid`** | **LLM fact extractor → EmbeddingMemory + GraphMemory → RRF fusion** | The configuration that actually competes with Mastra's observational memory. |
+
+## Methodology (non-negotiable)
+
+- **Dataset:** [`xiaowu0162/longmemeval`](https://huggingface.co/datasets/xiaowu0162/longmemeval) — 500 questions, 6 question types (`single-session-user`, `single-session-assistant`, `single-session-preference`, `multi-session`, `temporal-reasoning`, `knowledge-update`) plus abstention cases (detected via `question_id.ends_with("_abs")`). Variants: `longmemeval_s` (~115k tokens/Q, headline), `longmemeval_m` (~1.5M tokens/Q), `longmemeval_oracle` (evidence-only control).
+- **Judge:** `gpt-4o-mini`, temperature 0, with the six question-type rubrics **ported verbatim** from Mastra's TypeScript harness (`_inspirations/mastra/explorations/longmemeval/src/evaluation/longmemeval-metric.ts`), which in turn copies from the official Python evaluator.
+- **Answerer:** `gpt-4o-mini`, temperature 0, 256 max tokens.
+- **Extractor** (hybrid only): `gpt-4o-mini`, temperature 0, up to 6 facts per session.
+- **Metric:** `overall_accuracy` is the **macro average** across question types excluding abstention (matching Mastra `cli.ts:99`). Abstention is reported separately.
+- **Top-k** for retrieval configs: 8 (tunable via `--top-k`).
+- **Concurrency:** 8 in-flight questions (tunable via `--concurrency`).
+
+## Reproduce
+
+<Tabs items={['Full run', 'Smoke', 'One config']}>
+<Tab value="Full run">
+```bash
+./bench/long-mem/setup.sh              # downloads oracle + _s (~280 MB)
+OPENAI_API_KEY=sk-... \
+  cargo run --release -p longmem-bench -- \
+    --dataset s --config all --concurrency 8
+```
+
+Budget: ~$15–20 in OpenAI API cost, ~30–60 min wall time on tier-1 accounts.
+</Tab>
+<Tab value="Smoke">
+```bash
+# 10 questions × 4 configs on the oracle variant (~30 s, <$0.05)
+OPENAI_API_KEY=sk-... \
+  cargo run --release -p longmem-bench -- \
+    --dataset oracle --config all --limit 10
+```
+
+Use this to verify the pipeline end-to-end before spending on a full run.
+</Tab>
+<Tab value="One config">
+```bash
+# Just the hybrid config on the 500-Q _s set
+OPENAI_API_KEY=sk-... \
+  cargo run --release -p longmem-bench -- \
+    --dataset s --config hybrid
+```
+</Tab>
+</Tabs>
+
+## What goes where
+
+- Source: [`bench/long-mem/`](https://github.com/pacifio/cersei/tree/main/bench/long-mem)
+- Dataset loader: `bench/long-mem/src/dataset.rs`
+- Judge (6 rubric ports + LLM call): `bench/long-mem/src/judge.rs`
+- Per-config retrieval: `bench/long-mem/src/configs/{baseline,embed,graph,hybrid}.rs`
+- Runner + RRF fusion: `bench/long-mem/src/runner.rs`, `configs/hybrid.rs`
+- Aggregation: `bench/long-mem/src/report.rs`
+- SDK wiring behind the configs:
+  - [`EmbeddingMemory`](https://github.com/pacifio/cersei/blob/main/crates/cersei-memory/src/embedding_memory.rs) — thin adapter between `EmbeddingStore` and the `Memory` trait (new in 0.1.8).
+  - [`GraphMemory::recall_top_k`](https://github.com/pacifio/cersei/blob/main/crates/cersei-memory/src/graph.rs) — scored retrieval by query-word overlap (new in 0.1.8).
+
+## Credits
+
+- Benchmark + rubric: [Di Wu et al., ICLR 2025](https://arxiv.org/abs/2410.10813) · [official repo](https://github.com/xiaowu0162/LongMemEval).
+- Harness shape + abstention detection: adapted from [Mastra's `@mastra/longmemeval`](https://github.com/mastra-ai/mastra/tree/main/explorations/longmemeval). Prompt strings are a verbatim port.
+
+## Raw results
+
+Full JSON (summary + per-question rows) in [`bench/long-mem/results/`](https://github.com/pacifio/cersei/tree/main/bench/long-mem/results):
+
+```
+results/
+├── a-baseline-jsonl-longmemeval_s.json          # summary
+├── a-baseline-jsonl-rows-longmemeval_s.json     # 500 per-question traces
+├── b-embed-only-longmemeval_s.json
+├── b-embed-only-rows-longmemeval_s.json
+├── c-graph-substring-longmemeval_s.json
+├── c-graph-substring-rows-longmemeval_s.json
+├── d-hybrid-embed-graph-longmemeval_s.json
+├── d-hybrid-embed-graph-rows-longmemeval_s.json
+└── summary-longmemeval_s.json
+```
+
+## Caveats
+
+- Our `longmemeval_s` numbers are measured with `gpt-4o-mini` as both answerer and judge. Mastra's *Observational Memory* research tests several judge/answerer combinations — when comparing numbers, make sure the model pair matches. Running with `--answerer-model gpt-4o` / `--judge-model gpt-4o` is a one-line flag if you want to rerun against a different pair.
+- `concurrency=4` (outer) × `INNER_EXTRACT_CONCURRENCY=6` (hybrid fact extraction) keeps us under OpenAI tier-1 rate limits. If you have higher tier throughput, bumping `--concurrency 8` will halve wall time.
+- A one-shot bench like this measures recall quality with *fixed* retrieval — it does not exercise agents calling tools during answering. If you need tool-use-in-the-loop behaviour, add a `cersei::Agent` wrapper; the memory backends tested here all plug in via [`.memory(...)`](/docs/api-agent) on the builder.

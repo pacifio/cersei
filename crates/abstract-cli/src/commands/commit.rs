@@ -26,7 +26,9 @@ pub async fn run(config: &AppConfig) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    eprintln!("\x1b[90mStaged changes detected. Ask the agent to generate a commit message.\x1b[0m");
+    eprintln!(
+        "\x1b[90mStaged changes detected. Ask the agent to generate a commit message.\x1b[0m"
+    );
     eprintln!("\x1b[90mTip: Type 'commit these changes' in the prompt.\x1b[0m");
     Ok(())
 }

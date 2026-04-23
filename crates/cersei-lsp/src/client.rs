@@ -87,9 +87,9 @@ impl LspClient {
             cmd.env(k, v);
         }
 
-        let mut child = cmd.spawn().map_err(|e| {
-            LspError::SpawnFailed(format!("{}: {e}", self.config.command))
-        })?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| LspError::SpawnFailed(format!("{}: {e}", self.config.command)))?;
 
         let stdin = child.stdin.take().ok_or(LspError::NotStarted)?;
         let stdout = child.stdout.take().ok_or(LspError::NotStarted)?;
@@ -149,16 +149,15 @@ impl LspClient {
         });
 
         let result = self.send_request("initialize", Some(params)).await?;
-        self.send_notification("initialized", Some(serde_json::json!({}))).await?;
+        self.send_notification("initialized", Some(serde_json::json!({})))
+            .await?;
         self.is_initialized.store(true, Ordering::Relaxed);
         Ok(result)
     }
 
     /// Notify the server about an opened file.
     pub async fn open_document(&self, path: &Path) -> LspResult<()> {
-        let content = tokio::fs::read_to_string(path)
-            .await
-            .unwrap_or_default();
+        let content = tokio::fs::read_to_string(path).await.unwrap_or_default();
         let ext = path
             .extension()
             .and_then(|e| e.to_str())
@@ -219,7 +218,12 @@ impl LspClient {
     }
 
     /// Go to definition.
-    pub async fn definition(&self, path: &Path, line: u32, character: u32) -> LspResult<Vec<String>> {
+    pub async fn definition(
+        &self,
+        path: &Path,
+        line: u32,
+        character: u32,
+    ) -> LspResult<Vec<String>> {
         let result = self
             .send_request(
                 "textDocument/definition",
@@ -234,7 +238,12 @@ impl LspClient {
     }
 
     /// Find all references.
-    pub async fn references(&self, path: &Path, line: u32, character: u32) -> LspResult<Vec<String>> {
+    pub async fn references(
+        &self,
+        path: &Path,
+        line: u32,
+        character: u32,
+    ) -> LspResult<Vec<String>> {
         let result = self
             .send_request(
                 "textDocument/references",
@@ -481,9 +490,7 @@ pub fn path_to_uri(path: &Path) -> String {
     let abs = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        std::env::current_dir()
-            .unwrap_or_default()
-            .join(path)
+        std::env::current_dir().unwrap_or_default().join(path)
     };
 
     #[cfg(windows)]
@@ -498,9 +505,7 @@ pub fn path_to_uri(path: &Path) -> String {
 
 /// Convert a file:// URI to a path string.
 pub fn uri_to_path(uri: &str) -> String {
-    let path = uri
-        .strip_prefix("file://")
-        .unwrap_or(uri);
+    let path = uri.strip_prefix("file://").unwrap_or(uri);
 
     #[cfg(windows)]
     {

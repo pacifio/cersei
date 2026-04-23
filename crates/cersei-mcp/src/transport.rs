@@ -4,10 +4,10 @@ use crate::jsonrpc;
 use cersei_types::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex};
-use std::sync::Arc;
 
 /// Stdio transport: communicates with an MCP server via stdin/stdout of a subprocess.
 pub struct StdioTransport {
@@ -37,9 +37,13 @@ impl StdioTransport {
             CerseiError::Mcp(format!("Failed to spawn MCP server '{}': {}", command, e))
         })?;
 
-        let stdin = child.stdin.take()
+        let stdin = child
+            .stdin
+            .take()
             .ok_or_else(|| CerseiError::Mcp("Failed to get stdin".into()))?;
-        let stdout = child.stdout.take()
+        let stdout = child
+            .stdout
+            .take()
             .ok_or_else(|| CerseiError::Mcp("Failed to get stdout".into()))?;
 
         // Pending requests: id → response channel
@@ -83,10 +87,8 @@ impl StdioTransport {
         });
 
         // Request sender channel
-        let (request_tx, mut request_rx) = mpsc::channel::<(
-            jsonrpc::Request,
-            Option<oneshot::Sender<serde_json::Value>>,
-        )>(64);
+        let (request_tx, mut request_rx) =
+            mpsc::channel::<(jsonrpc::Request, Option<oneshot::Sender<serde_json::Value>>)>(64);
 
         let pending_for_writer = Arc::clone(&pending);
 
@@ -134,17 +136,17 @@ impl StdioTransport {
             .await
             .map_err(|_| CerseiError::Mcp("Transport channel closed".into()))?;
 
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
-            resp_rx,
-        )
-        .await
-        .map_err(|_| CerseiError::Mcp(format!("MCP request '{}' timed out (30s)", method)))?
-        .map_err(|_| CerseiError::Mcp("Response channel dropped".into()))?;
+        let result = tokio::time::timeout(std::time::Duration::from_secs(30), resp_rx)
+            .await
+            .map_err(|_| CerseiError::Mcp(format!("MCP request '{}' timed out (30s)", method)))?
+            .map_err(|_| CerseiError::Mcp("Response channel dropped".into()))?;
 
         // Check for error response
         if let Some(err) = result.get("error") {
-            let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error");
+            let msg = err
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown error");
             return Err(CerseiError::Mcp(format!("MCP error: {}", msg)));
         }
 
@@ -152,11 +154,7 @@ impl StdioTransport {
     }
 
     /// Send a JSON-RPC notification (no response expected).
-    pub async fn notify(
-        &mut self,
-        method: &str,
-        params: Option<serde_json::Value>,
-    ) -> Result<()> {
+    pub async fn notify(&mut self, method: &str, params: Option<serde_json::Value>) -> Result<()> {
         let req = jsonrpc::Request::notification(method, params);
 
         self.request_tx

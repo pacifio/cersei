@@ -8,8 +8,8 @@
 //! cargo run --example coding_agent --release
 //! ```
 
-use cersei::prelude::*;
 use cersei::events::AgentEvent;
+use cersei::prelude::*;
 use cersei::provider::{CompletionStream, ProviderCapabilities, ProviderOptions};
 use cersei::reporters::Reporter;
 use std::io::Write as IoWrite;
@@ -74,7 +74,10 @@ impl Reporter for EventMonitor {
         match event {
             AgentEvent::TurnStart { turn } => {
                 self.record("turn", &format!("turn {} started", turn));
-                eprintln!("\n\x1b[36m━━ Turn {} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m", turn);
+                eprintln!(
+                    "\n\x1b[36m━━ Turn {} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m",
+                    turn
+                );
             }
             AgentEvent::TextDelta(t) => {
                 print!("{}", t);
@@ -84,26 +87,69 @@ impl Reporter for EventMonitor {
                 // silent
             }
             AgentEvent::ToolStart { name, id, .. } => {
-                self.record("tool_start", &format!("{} ({})", name, &id[..8.min(id.len())]));
+                self.record(
+                    "tool_start",
+                    &format!("{} ({})", name, &id[..8.min(id.len())]),
+                );
                 eprint!("\x1b[33m  [{name}] \x1b[0m");
             }
-            AgentEvent::ToolEnd { name, duration, is_error, result, .. } => {
-                let status = if *is_error { "\x1b[31mERR\x1b[0m" } else { "\x1b[32mOK\x1b[0m" };
+            AgentEvent::ToolEnd {
+                name,
+                duration,
+                is_error,
+                result,
+                ..
+            } => {
+                let status = if *is_error {
+                    "\x1b[31mERR\x1b[0m"
+                } else {
+                    "\x1b[32mOK\x1b[0m"
+                };
                 let preview: String = result.chars().take(80).collect();
                 let preview = preview.replace('\n', " ");
-                eprintln!("{} ({:.0}ms) {}", status, duration.as_millis(),
-                    if preview.len() > 60 { &preview[..60] } else { &preview });
-                self.record("tool_end", &format!("{} {} {:.0}ms", name,
-                    if *is_error { "ERR" } else { "OK" }, duration.as_millis()));
+                eprintln!(
+                    "{} ({:.0}ms) {}",
+                    status,
+                    duration.as_millis(),
+                    if preview.len() > 60 {
+                        &preview[..60]
+                    } else {
+                        &preview
+                    }
+                );
+                self.record(
+                    "tool_end",
+                    &format!(
+                        "{} {} {:.0}ms",
+                        name,
+                        if *is_error { "ERR" } else { "OK" },
+                        duration.as_millis()
+                    ),
+                );
             }
-            AgentEvent::TurnComplete { turn, usage, stop_reason, .. } => {
-                self.record("turn_complete", &format!(
-                    "turn {} {}in/{}out {:?}", turn, usage.input_tokens, usage.output_tokens, stop_reason
-                ));
-                eprintln!("\x1b[2m  tokens: {}in / {}out | cost: ${:.6}\x1b[0m",
-                    usage.input_tokens, usage.output_tokens, usage.cost_usd.unwrap_or(0.0));
+            AgentEvent::TurnComplete {
+                turn,
+                usage,
+                stop_reason,
+                ..
+            } => {
+                self.record(
+                    "turn_complete",
+                    &format!(
+                        "turn {} {}in/{}out {:?}",
+                        turn, usage.input_tokens, usage.output_tokens, stop_reason
+                    ),
+                );
+                eprintln!(
+                    "\x1b[2m  tokens: {}in / {}out | cost: ${:.6}\x1b[0m",
+                    usage.input_tokens,
+                    usage.output_tokens,
+                    usage.cost_usd.unwrap_or(0.0)
+                );
             }
-            AgentEvent::CostUpdate { cumulative_cost, .. } => {
+            AgentEvent::CostUpdate {
+                cumulative_cost, ..
+            } => {
                 if *cumulative_cost > 0.0 {
                     self.record("cost", &format!("${:.6}", cumulative_cost));
                 }
@@ -268,12 +314,20 @@ Todos are stored in `todos.json` in the current directory.
 
 #[async_trait]
 impl Provider for MockCodingProvider {
-    fn name(&self) -> &str { "mock-claude" }
-    fn context_window(&self, _: &str) -> u64 { 200_000 }
+    fn name(&self) -> &str {
+        "mock-claude"
+    }
+    fn context_window(&self, _: &str) -> u64 {
+        200_000
+    }
     fn capabilities(&self, _: &str) -> ProviderCapabilities {
         ProviderCapabilities {
-            streaming: true, tool_use: true, vision: true,
-            thinking: true, system_prompt: true, caching: true,
+            streaming: true,
+            tool_use: true,
+            vision: true,
+            thinking: true,
+            system_prompt: true,
+            caching: true,
         }
     }
 
@@ -289,17 +343,31 @@ impl Provider for MockCodingProvider {
             let base_input = 2500 + (msg_count as u64 * 400);
             let cache_read = if turn > 0 { base_input / 3 } else { 0 };
 
-            let _ = tx.send(StreamEvent::MessageStart {
-                id: format!("msg_{turn}"),
-                model: "claude-sonnet-4-6".into(),
-            }).await;
+            let _ = tx
+                .send(StreamEvent::MessageStart {
+                    id: format!("msg_{turn}"),
+                    model: "claude-sonnet-4-6".into(),
+                })
+                .await;
 
             match turn {
                 0 => {
                     // Turn 1: Write todo.py
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "text".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::TextDelta { index: 0,
-                        text: "I'll create the todo CLI app. Let me write `todo.py` first.\n".into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 0,
+                            block_type: "text".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::TextDelta {
+                            index: 0,
+                            text: "I'll create the todo CLI app. Let me write `todo.py` first.\n"
+                                .into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
 
                     // Tool use: Write todo.py
@@ -308,32 +376,57 @@ impl Provider for MockCodingProvider {
                         "file_path": file_path,
                         "content": TODO_PY,
                     });
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 1, block_type: "tool_use".into(), id: Some("tu_write1".into()), name: Some("Write".into()) }).await;
-                    let _ = tx.send(StreamEvent::InputJsonDelta { index: 1,
-                        partial_json: serde_json::to_string(&tool_input).unwrap() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 1,
+                            block_type: "tool_use".into(),
+                            id: Some("tu_write1".into()),
+                            name: Some("Write".into()),
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::InputJsonDelta {
+                            index: 1,
+                            partial_json: serde_json::to_string(&tool_input).unwrap(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 1 }).await;
 
                     let output_tokens = 1250;
-                    let cost = (base_input as f64 / 1e6) * 3.0 + (output_tokens as f64 / 1e6) * 15.0;
-                    let _ = tx.send(StreamEvent::MessageDelta {
-                        stop_reason: Some(StopReason::ToolUse),
-                        usage: Some(Usage {
-                            input_tokens: base_input - cache_read,
-                            output_tokens,
-                            total_tokens: base_input + output_tokens,
-                            cost_usd: Some(cost),
-                            provider_usage: serde_json::json!({
-                                "cache_creation_input_tokens": 1200,
-                                "cache_read_input_tokens": cache_read,
+                    let cost =
+                        (base_input as f64 / 1e6) * 3.0 + (output_tokens as f64 / 1e6) * 15.0;
+                    let _ = tx
+                        .send(StreamEvent::MessageDelta {
+                            stop_reason: Some(StopReason::ToolUse),
+                            usage: Some(Usage {
+                                input_tokens: base_input - cache_read,
+                                output_tokens,
+                                total_tokens: base_input + output_tokens,
+                                cost_usd: Some(cost),
+                                provider_usage: serde_json::json!({
+                                    "cache_creation_input_tokens": 1200,
+                                    "cache_read_input_tokens": cache_read,
+                                }),
                             }),
-                        }),
-                    }).await;
+                        })
+                        .await;
                 }
                 1 => {
                     // Turn 2: Write README.md
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "text".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::TextDelta { index: 0,
-                        text: "Now I'll create a README.md.\n".into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 0,
+                            block_type: "text".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::TextDelta {
+                            index: 0,
+                            text: "Now I'll create a README.md.\n".into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
 
                     let file_path = ws.join("README.md").display().to_string();
@@ -341,62 +434,108 @@ impl Provider for MockCodingProvider {
                         "file_path": file_path,
                         "content": README_CONTENT,
                     });
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 1, block_type: "tool_use".into(), id: Some("tu_write2".into()), name: Some("Write".into()) }).await;
-                    let _ = tx.send(StreamEvent::InputJsonDelta { index: 1,
-                        partial_json: serde_json::to_string(&tool_input).unwrap() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 1,
+                            block_type: "tool_use".into(),
+                            id: Some("tu_write2".into()),
+                            name: Some("Write".into()),
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::InputJsonDelta {
+                            index: 1,
+                            partial_json: serde_json::to_string(&tool_input).unwrap(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 1 }).await;
 
                     let output_tokens = 380;
-                    let cost = (base_input as f64 / 1e6) * 3.0 + (output_tokens as f64 / 1e6) * 15.0;
-                    let _ = tx.send(StreamEvent::MessageDelta {
-                        stop_reason: Some(StopReason::ToolUse),
-                        usage: Some(Usage {
-                            input_tokens: base_input - cache_read,
-                            output_tokens: 380,
-                            total_tokens: base_input + 380,
-                            cost_usd: Some(cost),
-                            provider_usage: serde_json::json!({
-                                "cache_creation_input_tokens": 0,
-                                "cache_read_input_tokens": cache_read,
+                    let cost =
+                        (base_input as f64 / 1e6) * 3.0 + (output_tokens as f64 / 1e6) * 15.0;
+                    let _ = tx
+                        .send(StreamEvent::MessageDelta {
+                            stop_reason: Some(StopReason::ToolUse),
+                            usage: Some(Usage {
+                                input_tokens: base_input - cache_read,
+                                output_tokens: 380,
+                                total_tokens: base_input + 380,
+                                cost_usd: Some(cost),
+                                provider_usage: serde_json::json!({
+                                    "cache_creation_input_tokens": 0,
+                                    "cache_read_input_tokens": cache_read,
+                                }),
                             }),
-                        }),
-                    }).await;
+                        })
+                        .await;
                 }
                 2 => {
                     // Turn 3: Verify with python3
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "text".into(), id: None, name: None }).await;
-                    let _ = tx.send(StreamEvent::TextDelta { index: 0,
-                        text: "Let me verify the Python syntax.\n".into() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 0,
+                            block_type: "text".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::TextDelta {
+                            index: 0,
+                            text: "Let me verify the Python syntax.\n".into(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
 
                     let py_path = ws.join("todo.py").display().to_string();
                     let tool_input = serde_json::json!({
                         "command": format!("python3 -c \"import ast; ast.parse(open('{}').read()); print('Syntax OK')\"", py_path),
                     });
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 1, block_type: "tool_use".into(), id: Some("tu_bash1".into()), name: Some("Bash".into()) }).await;
-                    let _ = tx.send(StreamEvent::InputJsonDelta { index: 1,
-                        partial_json: serde_json::to_string(&tool_input).unwrap() }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 1,
+                            block_type: "tool_use".into(),
+                            id: Some("tu_bash1".into()),
+                            name: Some("Bash".into()),
+                        })
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::InputJsonDelta {
+                            index: 1,
+                            partial_json: serde_json::to_string(&tool_input).unwrap(),
+                        })
+                        .await;
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 1 }).await;
 
                     let output_tokens = 195;
-                    let cost = (base_input as f64 / 1e6) * 3.0 + (output_tokens as f64 / 1e6) * 15.0;
-                    let _ = tx.send(StreamEvent::MessageDelta {
-                        stop_reason: Some(StopReason::ToolUse),
-                        usage: Some(Usage {
-                            input_tokens: base_input - cache_read,
-                            output_tokens: 195,
-                            total_tokens: base_input + 195,
-                            cost_usd: Some(cost),
-                            provider_usage: serde_json::json!({
-                                "cache_creation_input_tokens": 0,
-                                "cache_read_input_tokens": cache_read,
+                    let cost =
+                        (base_input as f64 / 1e6) * 3.0 + (output_tokens as f64 / 1e6) * 15.0;
+                    let _ = tx
+                        .send(StreamEvent::MessageDelta {
+                            stop_reason: Some(StopReason::ToolUse),
+                            usage: Some(Usage {
+                                input_tokens: base_input - cache_read,
+                                output_tokens: 195,
+                                total_tokens: base_input + 195,
+                                cost_usd: Some(cost),
+                                provider_usage: serde_json::json!({
+                                    "cache_creation_input_tokens": 0,
+                                    "cache_read_input_tokens": cache_read,
+                                }),
                             }),
-                        }),
-                    }).await;
+                        })
+                        .await;
                 }
                 _ => {
                     // Turn 4: Final summary
-                    let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "text".into(), id: None, name: None }).await;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 0,
+                            block_type: "text".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
                     let summary = "I've created the Python todo CLI application:\n\n\
                         **Files created:**\n\
                         - `todo.py` — Full CLI with add, list, done, remove, clear commands\n\
@@ -408,27 +547,34 @@ impl Provider for MockCodingProvider {
                         - Formatted output with checkmarks\n\
                         - Python syntax verified successfully\n";
                     for chunk in summary.as_bytes().chunks(50) {
-                        let _ = tx.send(StreamEvent::TextDelta { index: 0,
-                            text: String::from_utf8_lossy(chunk).to_string() }).await;
+                        let _ = tx
+                            .send(StreamEvent::TextDelta {
+                                index: 0,
+                                text: String::from_utf8_lossy(chunk).to_string(),
+                            })
+                            .await;
                         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
                     }
                     let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
 
                     let output_tokens = 285;
-                    let cost = (base_input as f64 / 1e6) * 3.0 + (output_tokens as f64 / 1e6) * 15.0;
-                    let _ = tx.send(StreamEvent::MessageDelta {
-                        stop_reason: Some(StopReason::EndTurn),
-                        usage: Some(Usage {
-                            input_tokens: base_input - cache_read,
-                            output_tokens: 285,
-                            total_tokens: base_input + 285,
-                            cost_usd: Some(cost),
-                            provider_usage: serde_json::json!({
-                                "cache_creation_input_tokens": 0,
-                                "cache_read_input_tokens": cache_read,
+                    let cost =
+                        (base_input as f64 / 1e6) * 3.0 + (output_tokens as f64 / 1e6) * 15.0;
+                    let _ = tx
+                        .send(StreamEvent::MessageDelta {
+                            stop_reason: Some(StopReason::EndTurn),
+                            usage: Some(Usage {
+                                input_tokens: base_input - cache_read,
+                                output_tokens: 285,
+                                total_tokens: base_input + 285,
+                                cost_usd: Some(cost),
+                                provider_usage: serde_json::json!({
+                                    "cache_creation_input_tokens": 0,
+                                    "cache_read_input_tokens": cache_read,
+                                }),
                             }),
-                        }),
-                    }).await;
+                        })
+                        .await;
                 }
             }
 
@@ -455,7 +601,11 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let provider_label = if use_mock { "mock-claude (simulated)" } else { "anthropic (live API)" };
+    let provider_label = if use_mock {
+        "mock-claude (simulated)"
+    } else {
+        "anthropic (live API)"
+    };
 
     eprintln!("╔══════════════════════════════════════════════════════════════╗");
     eprintln!("║  Cersei Coding Agent — Build a Python Todo CLI              ║");
@@ -500,7 +650,9 @@ Then verify the Python file is valid by running `python3 -c "import ast; ast.par
 
     // Attach provider
     let agent = if use_mock {
-        builder.provider(MockCodingProvider::new(&ws_path)).build()?
+        builder
+            .provider(MockCodingProvider::new(&ws_path))
+            .build()?
     } else {
         builder.provider(resolve_provider()?).build()?
     };
@@ -516,24 +668,39 @@ Then verify the Python file is valid by running `python3 -c "import ast; ast.par
 
     let checks = vec![
         ("todo.py exists", todo_py.exists()),
-        ("todo.py non-empty", todo_py.exists() && std::fs::metadata(&todo_py).map(|m| m.len() > 100).unwrap_or(false)),
+        (
+            "todo.py non-empty",
+            todo_py.exists()
+                && std::fs::metadata(&todo_py)
+                    .map(|m| m.len() > 100)
+                    .unwrap_or(false),
+        ),
         ("README.md exists", readme.exists()),
     ];
 
     let mut all_pass = true;
     for (name, pass) in &checks {
-        let icon = if *pass { "\x1b[32m✓\x1b[0m" } else { "\x1b[31m✗\x1b[0m" };
+        let icon = if *pass {
+            "\x1b[32m✓\x1b[0m"
+        } else {
+            "\x1b[31m✗\x1b[0m"
+        };
         eprintln!("  {} {}", icon, name);
-        if !pass { all_pass = false; }
+        if !pass {
+            all_pass = false;
+        }
     }
 
     // Verify Python syntax
     if todo_py.exists() {
         let syntax_check = tokio::process::Command::new("python3")
-            .args(["-c", &format!(
-                "import ast; ast.parse(open('{}').read()); print('Syntax OK')",
-                todo_py.display()
-            )])
+            .args([
+                "-c",
+                &format!(
+                    "import ast; ast.parse(open('{}').read()); print('Syntax OK')",
+                    todo_py.display()
+                ),
+            ])
             .output()
             .await;
 
@@ -555,9 +722,11 @@ Then verify the Python file is valid by running `python3 -c "import ast; ast.par
     // Check file sizes
     if todo_py.exists() {
         let size = std::fs::metadata(&todo_py)?.len();
-        eprintln!("  todo.py: {} bytes ({} lines)",
+        eprintln!(
+            "  todo.py: {} bytes ({} lines)",
             size,
-            std::fs::read_to_string(&todo_py)?.lines().count());
+            std::fs::read_to_string(&todo_py)?.lines().count()
+        );
     }
     if readme.exists() {
         let size = std::fs::metadata(&readme)?.len();
@@ -574,17 +743,32 @@ Then verify the Python file is valid by running `python3 -c "import ast; ast.par
     eprintln!();
     eprintln!("  Input tokens:    {:>8}", output.usage.input_tokens);
     eprintln!("  Output tokens:   {:>8}", output.usage.output_tokens);
-    eprintln!("  Total tokens:    {:>8}", output.usage.input_tokens + output.usage.output_tokens);
-    eprintln!("  Cost (USD):      ${:.6}", output.usage.cost_usd.unwrap_or(0.0));
+    eprintln!(
+        "  Total tokens:    {:>8}",
+        output.usage.input_tokens + output.usage.output_tokens
+    );
+    eprintln!(
+        "  Cost (USD):      ${:.6}",
+        output.usage.cost_usd.unwrap_or(0.0)
+    );
     eprintln!();
 
     // Tool call breakdown
     if !output.tool_calls.is_empty() {
         eprintln!("  Tool Calls:");
         for (i, tc) in output.tool_calls.iter().enumerate() {
-            let status = if tc.is_error { "\x1b[31mERR\x1b[0m" } else { "\x1b[32mOK\x1b[0m" };
-            eprintln!("    {}. {} {} ({:.0}ms)",
-                i + 1, tc.name, status, tc.duration.as_millis());
+            let status = if tc.is_error {
+                "\x1b[31mERR\x1b[0m"
+            } else {
+                "\x1b[32mOK\x1b[0m"
+            };
+            eprintln!(
+                "    {}. {} {} ({:.0}ms)",
+                i + 1,
+                tc.name,
+                status,
+                tc.duration.as_millis()
+            );
         }
         eprintln!();
 
@@ -606,8 +790,10 @@ Then verify the Python file is valid by running `python3 -c "import ast; ast.par
     let events = monitor.events.lock().clone();
     eprintln!("\n  Event Timeline ({} events):", events.len());
     for ev in &events {
-        eprintln!("    {:>8.0}ms  [{:<14}] {}",
-            ev.elapsed_ms, ev.category, ev.detail);
+        eprintln!(
+            "    {:>8.0}ms  [{:<14}] {}",
+            ev.elapsed_ms, ev.category, ev.detail
+        );
     }
 
     // ── Billing projection ───────────────────────────────────────────────

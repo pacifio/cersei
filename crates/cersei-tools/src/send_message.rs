@@ -4,9 +4,8 @@ use super::*;
 use serde::Deserialize;
 
 /// Global inbox registry keyed by session_id.
-static INBOX_REGISTRY: once_cell::sync::Lazy<
-    dashmap::DashMap<String, Vec<InboxMessage>>,
-> = once_cell::sync::Lazy::new(dashmap::DashMap::new);
+static INBOX_REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<String, Vec<InboxMessage>>> =
+    once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct InboxMessage {
@@ -35,10 +34,18 @@ pub struct SendMessageTool;
 
 #[async_trait]
 impl Tool for SendMessageTool {
-    fn name(&self) -> &str { "SendMessage" }
-    fn description(&self) -> &str { "Send a message to another agent or session by ID." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Orchestration }
+    fn name(&self) -> &str {
+        "SendMessage"
+    }
+    fn description(&self) -> &str {
+        "Send a message to another agent or session by ID."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Orchestration
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -53,7 +60,10 @@ impl Tool for SendMessageTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { to: String, content: String }
+        struct Input {
+            to: String,
+            content: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -94,7 +104,11 @@ mod tests {
     #[tokio::test]
     async fn test_send_and_receive() {
         let tool = SendMessageTool;
-        tool.execute(serde_json::json!({"to": "agent-b", "content": "Hello B!"}), &test_ctx()).await;
+        tool.execute(
+            serde_json::json!({"to": "agent-b", "content": "Hello B!"}),
+            &test_ctx(),
+        )
+        .await;
 
         let msgs = peek_inbox("agent-b");
         assert_eq!(msgs.len(), 1);

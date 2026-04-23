@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
 
     let output = Agent::builder()
         .provider(Anthropic::from_env()?)
-        .tools(cersei::tools::coding())  // filesystem + shell tools
+        .tools(cersei::tools::coding()) // filesystem + shell tools
         .system_prompt("You are a helpful coding assistant. Be concise.")
         .max_turns(5)
         .permission_policy(AllowAll)

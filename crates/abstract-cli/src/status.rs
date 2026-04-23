@@ -1,8 +1,8 @@
 //! Status line: model, tokens, cost, context usage.
 
 use crate::theme::Theme;
-use crossterm::style::{Print, ResetColor, SetForegroundColor};
 use crossterm::execute;
+use crossterm::style::{Print, ResetColor, SetForegroundColor};
 use std::io::{self, Write};
 
 #[allow(dead_code)]

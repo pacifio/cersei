@@ -82,7 +82,11 @@ pub fn git_diff(path: &Path) -> Option<String> {
         .unwrap_or_default();
 
     let combined = format!("{}\n{}", staged, unstaged).trim().to_string();
-    if combined.is_empty() { None } else { Some(combined) }
+    if combined.is_empty() {
+        None
+    } else {
+        Some(combined)
+    }
 }
 
 /// Get recent commit history (one-line format).
@@ -176,7 +180,11 @@ mod tests {
     #[test]
     fn test_git_context_real_repo() {
         // Try on the actual project repo
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
         if is_git_repo(root) {
             let ctx = build_git_context(root);
             assert!(ctx.is_some());

@@ -7,12 +7,18 @@ pub struct NotebookEditTool;
 
 #[async_trait]
 impl Tool for NotebookEditTool {
-    fn name(&self) -> &str { "NotebookEdit" }
+    fn name(&self) -> &str {
+        "NotebookEdit"
+    }
     fn description(&self) -> &str {
         "Edit a Jupyter notebook (.ipynb) cell by index. Can replace cell source or change cell type."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::Write }
-    fn category(&self) -> ToolCategory { ToolCategory::FileSystem }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::Write
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::FileSystem
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -134,17 +140,23 @@ mod tests {
         std::fs::write(&nb_path, serde_json::to_string(&notebook).unwrap()).unwrap();
 
         let tool = NotebookEditTool;
-        let result = tool.execute(serde_json::json!({
-            "file_path": nb_path.display().to_string(),
-            "cell_index": 0,
-            "new_source": "print('updated')"
-        }), &test_ctx()).await;
+        let result = tool
+            .execute(
+                serde_json::json!({
+                    "file_path": nb_path.display().to_string(),
+                    "cell_index": 0,
+                    "new_source": "print('updated')"
+                }),
+                &test_ctx(),
+            )
+            .await;
 
         assert!(!result.is_error);
         assert!(result.content.contains("Updated cell 0"));
 
         // Verify
-        let content: Value = serde_json::from_str(&std::fs::read_to_string(&nb_path).unwrap()).unwrap();
+        let content: Value =
+            serde_json::from_str(&std::fs::read_to_string(&nb_path).unwrap()).unwrap();
         let source = content["cells"][0]["source"][0].as_str().unwrap();
         assert!(source.contains("updated"));
     }

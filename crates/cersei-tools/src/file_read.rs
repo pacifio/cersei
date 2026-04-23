@@ -8,10 +8,18 @@ pub struct FileReadTool;
 
 #[async_trait]
 impl Tool for FileReadTool {
-    fn name(&self) -> &str { "Read" }
-    fn description(&self) -> &str { "Read a file from the filesystem." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::ReadOnly }
-    fn category(&self) -> ToolCategory { ToolCategory::FileSystem }
+    fn name(&self) -> &str {
+        "Read"
+    }
+    fn description(&self) -> &str {
+        "Read a file from the filesystem."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::ReadOnly
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::FileSystem
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({

@@ -23,11 +23,9 @@ static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 use async_trait::async_trait;
 use cersei_agent::Agent;
-use cersei_provider::{
-    CompletionRequest, CompletionStream, Provider, ProviderCapabilities,
-};
-use cersei_tools::{PermissionLevel, Tool, ToolCategory, ToolContext, ToolResult};
+use cersei_provider::{CompletionRequest, CompletionStream, Provider, ProviderCapabilities};
 use cersei_tools::permissions::AllowAll;
+use cersei_tools::{PermissionLevel, Tool, ToolCategory, ToolContext, ToolResult};
 use cersei_types::*;
 use serde::Serialize;
 use serde_json::json;
@@ -183,7 +181,13 @@ fn host_info() -> HostInfo {
     let cpu = detect_cpu();
     let ram_gb = detect_ram_gb();
     let cgroup_memory_gb = detect_cgroup_gb();
-    HostInfo { os, arch, cpu, ram_gb, cgroup_memory_gb }
+    HostInfo {
+        os,
+        arch,
+        cpu,
+        ram_gb,
+        cgroup_memory_gb,
+    }
 }
 
 fn detect_cpu() -> String {
@@ -210,7 +214,9 @@ fn detect_cpu() -> String {
             .unwrap_or_else(|| "unknown".into())
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    { "unknown".into() }
+    {
+        "unknown".into()
+    }
 }
 
 fn detect_ram_gb() -> u64 {
@@ -239,7 +245,9 @@ fn detect_ram_gb() -> u64 {
             .unwrap_or(0)
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    { 0 }
+    {
+        0
+    }
 }
 
 fn detect_cgroup_gb() -> Option<u64> {
@@ -259,8 +267,12 @@ struct StubProvider;
 
 #[async_trait]
 impl Provider for StubProvider {
-    fn name(&self) -> &str { "stub" }
-    fn context_window(&self, _model: &str) -> u64 { 1_000_000 }
+    fn name(&self) -> &str {
+        "stub"
+    }
+    fn context_window(&self, _model: &str) -> u64 {
+        1_000_000
+    }
     fn capabilities(&self, _model: &str) -> ProviderCapabilities {
         ProviderCapabilities {
             streaming: true,
@@ -275,25 +287,37 @@ impl Provider for StubProvider {
     async fn complete(&self, _request: CompletionRequest) -> Result<CompletionStream> {
         let (tx, rx) = mpsc::channel(8);
         tokio::spawn(async move {
-            let _ = tx.send(StreamEvent::MessageStart {
-                id: "stub-1".into(),
-                model: "stub".into(),
-            }).await;
-            let _ = tx.send(StreamEvent::ContentBlockStart {
-                index: 0,
-                block_type: "text".into(),
-                id: None,
-                name: None,
-            }).await;
-            let _ = tx.send(StreamEvent::TextDelta {
-                index: 0,
-                text: "ok".into(),
-            }).await;
+            let _ = tx
+                .send(StreamEvent::MessageStart {
+                    id: "stub-1".into(),
+                    model: "stub".into(),
+                })
+                .await;
+            let _ = tx
+                .send(StreamEvent::ContentBlockStart {
+                    index: 0,
+                    block_type: "text".into(),
+                    id: None,
+                    name: None,
+                })
+                .await;
+            let _ = tx
+                .send(StreamEvent::TextDelta {
+                    index: 0,
+                    text: "ok".into(),
+                })
+                .await;
             let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
-            let _ = tx.send(StreamEvent::MessageDelta {
-                stop_reason: Some(StopReason::EndTurn),
-                usage: Some(Usage { input_tokens: 1, output_tokens: 1, ..Default::default() }),
-            }).await;
+            let _ = tx
+                .send(StreamEvent::MessageDelta {
+                    stop_reason: Some(StopReason::EndTurn),
+                    usage: Some(Usage {
+                        input_tokens: 1,
+                        output_tokens: 1,
+                        ..Default::default()
+                    }),
+                })
+                .await;
             let _ = tx.send(StreamEvent::MessageStop).await;
         });
         Ok(CompletionStream::new(rx))
@@ -306,10 +330,18 @@ struct EchoTool;
 
 #[async_trait]
 impl Tool for EchoTool {
-    fn name(&self) -> &str { "echo" }
-    fn description(&self) -> &str { "Return the input text unchanged." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Custom }
+    fn name(&self) -> &str {
+        "echo"
+    }
+    fn description(&self) -> &str {
+        "Return the input text unchanged."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Custom
+    }
     fn input_schema(&self) -> serde_json::Value {
         json!({
             "type": "object",
@@ -409,7 +441,13 @@ async fn axis_3_max_concurrent(steps: &[usize]) -> Vec<ConcurrencyPoint> {
         println!(
             "  axis-3 n={n:>6}  p50={p50:>7.2}ms  p99={p99:>7.2}ms  rss={rss_mb:>7.1}MB  wall={wall_ms:>7.1}ms",
         );
-        out.push(ConcurrencyPoint { n, p50_ms: p50, p99_ms: p99, rss_mb, wall_ms });
+        out.push(ConcurrencyPoint {
+            n,
+            p50_ms: p50,
+            p99_ms: p99,
+            rss_mb,
+            wall_ms,
+        });
         drop(agents); // release before the next step
     }
     out
@@ -483,8 +521,16 @@ async fn axis_4_graph_under_load() -> ScalingLatency {
         .unwrap_or(10_000);
     ScalingLatency {
         at_10k: measure(max.min(10_000)).await,
-        at_100k: if max >= 100_000 { measure(100_000).await } else {
-            LatencyStats { p50: 0.0, p95: 0.0, p99: 0.0, mean: 0.0, samples: 0 }
+        at_100k: if max >= 100_000 {
+            measure(100_000).await
+        } else {
+            LatencyStats {
+                p50: 0.0,
+                p95: 0.0,
+                p99: 0.0,
+                mean: 0.0,
+                samples: 0,
+            }
         },
     }
 }
@@ -492,8 +538,17 @@ async fn axis_4_graph_under_load() -> ScalingLatency {
 #[cfg(not(feature = "graph-bench"))]
 async fn axis_4_graph_under_load() -> ScalingLatency {
     println!("  axis-4  skipped (build with --features graph-bench)");
-    let empty = LatencyStats { p50: 0.0, p95: 0.0, p99: 0.0, mean: 0.0, samples: 0 };
-    ScalingLatency { at_10k: empty, at_100k: empty }
+    let empty = LatencyStats {
+        p50: 0.0,
+        p95: 0.0,
+        p99: 0.0,
+        mean: 0.0,
+        samples: 0,
+    };
+    ScalingLatency {
+        at_10k: empty,
+        at_100k: empty,
+    }
 }
 
 // ─── Axis 5 — Semantic search under load ───────────────────────────────────
@@ -507,10 +562,17 @@ struct StubEmbedder {
 
 #[async_trait]
 impl EmbeddingProvider for StubEmbedder {
-    fn name(&self) -> &str { "stub" }
-    fn dimensions(&self) -> usize { self.dim }
+    fn name(&self) -> &str {
+        "stub"
+    }
+    fn dimensions(&self) -> usize {
+        self.dim
+    }
 
-    async fn embed_batch(&self, texts: &[String]) -> std::result::Result<Vec<Vec<f32>>, EmbeddingError> {
+    async fn embed_batch(
+        &self,
+        texts: &[String],
+    ) -> std::result::Result<Vec<Vec<f32>>, EmbeddingError> {
         Ok(texts.iter().map(|t| hash_vec(t, self.dim)).collect())
     }
 }
@@ -527,15 +589,16 @@ fn hash_vec(text: &str, dim: usize) -> Vec<f32> {
     }
     // L2-normalize so cosine makes sense
     let mag = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-8);
-    for x in v.iter_mut() { *x /= mag; }
+    for x in v.iter_mut() {
+        *x /= mag;
+    }
     v
 }
 
 async fn axis_5_semantic_under_load() -> ScalingLatency {
     async fn measure(n_chunks: usize) -> LatencyStats {
-        let store = Arc::new(
-            EmbeddingStore::new(StubEmbedder { dim: 64 }, Metric::Cosine).expect("store"),
-        );
+        let store =
+            Arc::new(EmbeddingStore::new(StubEmbedder { dim: 64 }, Metric::Cosine).expect("store"));
         println!("  axis-5  seeding {n_chunks} chunks...");
         let batch: Vec<(u64, String)> = (0..n_chunks)
             .map(|i| (i as u64, format!("chunk_{i} about rust topic_{}", i % 20)))
@@ -581,8 +644,16 @@ async fn axis_5_semantic_under_load() -> ScalingLatency {
         .unwrap_or(10_000);
     ScalingLatency {
         at_10k: measure(max.min(10_000)).await,
-        at_100k: if max >= 100_000 { measure(100_000).await } else {
-            LatencyStats { p50: 0.0, p95: 0.0, p99: 0.0, mean: 0.0, samples: 0 }
+        at_100k: if max >= 100_000 {
+            measure(100_000).await
+        } else {
+            LatencyStats {
+                p50: 0.0,
+                p95: 0.0,
+                p99: 0.0,
+                mean: 0.0,
+                samples: 0,
+            }
         },
     }
 }
@@ -635,7 +706,10 @@ async fn main() {
     }
 
     let host = host_info();
-    println!("  host: {} / {} / {} / {} GB", host.os, host.arch, host.cpu, host.ram_gb);
+    println!(
+        "  host: {} / {} / {} / {} GB",
+        host.os, host.arch, host.cpu, host.ram_gb
+    );
     if let Some(cg) = host.cgroup_memory_gb {
         println!("  cgroup memory cap: {cg} GB");
     }
@@ -649,7 +723,9 @@ async fn main() {
             s.p50, s.p95, s.p99, s.mean
         );
         Some(s)
-    } else { None };
+    } else {
+        None
+    };
 
     // Axis 2
     let axis_2 = if enabled(&axes, 2) {
@@ -657,7 +733,9 @@ async fn main() {
         let s = axis_2_per_agent_memory(1000);
         println!("  mean_bytes={} ({})", s.mean_bytes, s.allocator);
         Some(s)
-    } else { None };
+    } else {
+        None
+    };
 
     // Axis 3
     let axis_3 = if enabled(&axes, 3) {
@@ -665,19 +743,25 @@ async fn main() {
         let steps: &[usize] = &[100, 500, 1_000, 5_000, 10_000];
         let s = axis_3_max_concurrent(steps).await;
         Some(s)
-    } else { None };
+    } else {
+        None
+    };
 
     // Axis 4
     let axis_4 = if enabled(&axes, 4) {
         println!("\n[axis 4] graph memory recall under load (100 agents × 100 recalls)...");
         Some(axis_4_graph_under_load().await)
-    } else { None };
+    } else {
+        None
+    };
 
     // Axis 5
     let axis_5 = if enabled(&axes, 5) {
         println!("\n[axis 5] semantic search under load (100 agents × 100 queries)...");
         Some(axis_5_semantic_under_load().await)
-    } else { None };
+    } else {
+        None
+    };
 
     let report = Report {
         framework: "cersei",

@@ -9,9 +9,9 @@
 //! ANTHROPIC_API_KEY=sk-ant-... cargo run --example multi_listener
 //! ```
 
-use cersei::prelude::*;
 use cersei::events::AgentEvent;
-use cersei::reporters::{ConsoleReporter, CollectorReporter, MetricsReporter, AgentMetrics};
+use cersei::prelude::*;
+use cersei::reporters::{AgentMetrics, CollectorReporter, ConsoleReporter, MetricsReporter};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -62,7 +62,9 @@ async fn main() -> anyhow::Result<()> {
                         tool_count += 1;
                         eprintln!("\x1b[35m[dashboard] [{tool_count}] → {name}\x1b[0m");
                     }
-                    AgentEvent::CostUpdate { cumulative_cost, .. } => {
+                    AgentEvent::CostUpdate {
+                        cumulative_cost, ..
+                    } => {
                         last_cost = *cumulative_cost;
                     }
                     AgentEvent::TurnComplete { turn, .. } => {
@@ -73,9 +75,7 @@ async fn main() -> anyhow::Result<()> {
                     _ => {}
                 }
             }
-            eprintln!(
-                "\x1b[35m[dashboard] Final: {tool_count} tool calls, ${last_cost:.4}\x1b[0m"
-            );
+            eprintln!("\x1b[35m[dashboard] Final: {tool_count} tool calls, ${last_cost:.4}\x1b[0m");
         });
     }
 

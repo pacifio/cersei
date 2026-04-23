@@ -1,0 +1,197 @@
+---
+title: "Compression Overview"
+description: Structural and command-aware compression for tool outputs — trims 20–60% of input tokens billed by OpenAI and Gemini in measured end-to-end runs.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+# cersei-compression
+
+`cersei-compression` sits between a tool's raw `execute()` result and the agent's built-in `cap_tool_result()` truncation, trimming the part of every tool output that is ANSI codes, blank lines, `Compiling …` progress spam, boilerplate comments, and unchanged function bodies.
+
+Savings are **measurable on real provider bills** — `gpt-4o-mini` billed us 29.1% fewer input tokens on a `cargo test` turn, `gemini-2.5-flash` billed 62.1% fewer on the same fixture. Full numbers with reproduction commands live on the [Compression Benchmarks](/docs/compression-benchmarks) page.
+
+<Callout type="info">
+**Port with credit.** The rule engine, language-aware code filter, and TOML DSL are ports of [**rtk** (Rust Token Killer)](https://github.com/rtk-ai/rtk) by **Patrick Szymkowiak**, MIT licensed. `cersei-compression/LICENSE` + the per-module `//! Credits:` headers document which rtk file each module derives from.
+</Callout>
+
+## Levels
+
+| Level | Behaviour |
+|---|---|
+| `Off` | Byte-for-byte passthrough. **Default** — zero behavioural change for existing users on 0.1.7. |
+| `Minimal` | Strip ANSI, collapse blank runs, drop non-doc comments in source files. Safe for JSON/YAML/TOML (never code-stripped). |
+| `Aggressive` | Minimal **+** function body stubbing (keeps signatures + imports), command-specific TOML rules for `git`, `cargo`, `npm`, `pnpm`, `pytest`, `docker`, plus a generic catch-all. |
+
+## How it decides what to do
+
+Dispatch is routed by **tool name** and, for shell-like tools, by the **first word of the command**:
+
+```
+tool_name        input hint                   strategy
+──────────────── ──────────────────────────── ────────────────────────
+Bash, Exec       first word of .command       TOML rules DSL
+Read, ReadFile   file extension of .file_path language-aware code filter
+Grep, Glob, Ls   —                            passthrough
+WebFetch, Fetch  —                            ANSI strip + generic rule
+everything else  —                            passthrough (Aggressive: safety cap)
+```
+
+Every call emits a structured `tracing::info!` event on the `cersei_compression` target so you can see exactly which rule fired, with before/after bytes, lines, and savings percent. More in the [Observability](#observability) section.
+
+## Add it to your project
+
+```toml
+[dependencies]
+cersei-compression = "0.1.7"
+```
+
+The crate is pure Rust, depends only on workspace-shared crates (`regex`, `once_cell`, `serde`, `serde_json`, `toml`, `tracing`, `anyhow`), and links cleanly in `--release` with LTO.
+
+## 5-line quick start
+
+<Tabs items={['As an SDK user', 'Directly', 'From abstract-cli']}>
+<Tab value="As an SDK user">
+```rust
+use cersei::Agent;
+use cersei_compression::CompressionLevel;
+
+let agent = Agent::builder()
+    .provider(provider)
+    .tool(my_tool)
+    .compression_level(CompressionLevel::Aggressive)
+    .build()?;
+```
+
+Every tool result the agent surfaces to the LLM now runs through the compression pipeline first.
+</Tab>
+<Tab value="Directly">
+```rust
+use cersei_compression::{compress_tool_output, CompressionLevel};
+use serde_json::json;
+
+let out = compress_tool_output(
+    "Bash",
+    &json!({"command": "cargo test"}),
+    raw_stdout,
+    CompressionLevel::Aggressive,
+);
+```
+
+Infallible — on any internal error the raw input is returned unchanged so the agent loop never breaks.
+</Tab>
+<Tab value="From abstract-cli">
+```bash
+# CLI flag
+abstract --compress aggressive "fix the failing tests"
+
+# Env var (picked up on startup)
+ABSTRACT_COMPRESSION=aggressive abstract
+
+# Config file — ~/.abstract/config.toml or .abstract/config.toml
+compression_level = "aggressive"
+
+# Runtime toggle in the REPL
+> /compression aggressive
+```
+</Tab>
+</Tabs>
+
+## Agent builder knob
+
+Added on `AgentBuilder` in 0.1.7, mirroring the existing `.tool_result_budget()` and `.auto_compact()` setters:
+
+```rust
+use cersei_compression::CompressionLevel;
+
+let agent = Agent::builder()
+    .provider(provider)
+    .tool(my_tool)
+    .compression_level(CompressionLevel::Aggressive)   // ← new in 0.1.7
+    .build()?;
+
+// Runtime change — takes effect on the next tool call
+agent.set_compression_level(CompressionLevel::Off);
+let current = agent.compression_level();
+```
+
+The field is a shared mutex, so `/compression on|off|…` in the Abstract REPL can flip the active agent's level mid-session without a rebuild.
+
+## What's in the box
+
+| Piece | Role |
+|---|---|
+| `CompressionLevel` | `Off` / `Minimal` / `Aggressive` enum, parseable from string. |
+| `compress_tool_output` | Infallible public entry point used by `cersei-agent`. |
+| `code::filter` | Language-aware comment + body stubbing (Rust, Python, JS/TS, Go, C/C++, Java, Ruby, Shell; Data formats never stripped). |
+| `truncate::smart_truncate` | Line-structure-aware fallback — keeps imports + signatures + braces. |
+| `toml_rules` | TOML DSL: `strip_ansi`, `replace`, `match_output`, `strip/keep_lines`, `truncate_lines_at`, `head/tail_lines`, `max_lines`, `on_empty`. |
+| `ansi::strip_ansi` + `ansi::truncate` | Unicode-safe character helpers. |
+
+## Built-in rule files
+
+Seven TOML rule files shipped embedded at compile time (via `include_str!`):
+
+| Rule file | Commands matched |
+|---|---|
+| `git.toml` | `git log`, `git status`, `git diff`, generic `git` |
+| `cargo.toml` | `cargo build`, `cargo check`, `cargo test`, `cargo clippy`, generic `cargo` |
+| `npm.toml` | `npm install`, `npm ci`, `npx`, generic `npm` |
+| `pnpm.toml` | `pnpm install`, `pnpm add`, generic `pnpm` |
+| `pytest.toml` | `pytest`, `py.test`, `python -m pytest` |
+| `docker.toml` | `docker build`, `docker buildx`, generic `docker` |
+| `generic.toml` | Catch-all fallback (blank-line collapse + long-line truncation) |
+
+Specific rules are alphabetically ordered so they win over the `zz-*-generic` catch-alls within each file. Rule precedence inside the registry is file order: `git → cargo → npm → pnpm → pytest → docker → generic`.
+
+## Safety net
+
+Compression is a **pre-filter**. After it runs, `cersei-agent` still applies:
+
+1. **`cap_tool_result`** — per-result head/tail truncation (80 + 80 lines, or 20k char char-based fallback for very long single lines).
+2. **`apply_tool_result_budget`** — global budget that truncates the oldest tool results when total context crosses the configured limit (50,000 chars default; keeps the most recent 6 messages intact).
+
+If the compression pipeline returns the raw input unchanged (because a level matched nothing, or a regex blew up internally), the safety net still fires. You can never end up with *more* context than `cap_tool_result` allows.
+
+## Observability
+
+Every call emits a single `tracing::info!` event on the `cersei_compression` target. Subscribe in your app with:
+
+```rust
+use tracing_subscriber::EnvFilter;
+
+tracing_subscriber::fmt()
+    .with_env_filter(EnvFilter::new("cersei_compression=info"))
+    .init();
+```
+
+Or just set `RUST_LOG=cersei_compression=info` when running `abstract`.
+
+Sample log line from a live `gemini-2.5-flash` run:
+
+```
+INFO cersei_compression: tool-output compressed
+  tool="Bash" level=aggressive strategy="shell" detail="cargo-test"
+  before_bytes=2893 after_bytes=1565
+  before_lines=76 after_lines=30
+  savings_pct="45.9"
+```
+
+Fields emitted per call:
+
+| Field | Meaning |
+|---|---|
+| `tool` | The Tool name that produced the output (`Bash`, `Read`, …). |
+| `level` | `off` / `minimal` / `aggressive`. |
+| `strategy` | `shell` / `code` / `passthrough` / `web` / `unknown` / `unknown-capped`. |
+| `detail` | Matched rule name (e.g. `cargo-test`) or detected Language (e.g. `Rust`). Empty for passthrough. |
+| `before_bytes` / `after_bytes` | Raw byte counts. |
+| `before_lines` / `after_lines` | Line counts. |
+| `savings_pct` | Byte-level savings, formatted to one decimal place. |
+
+## Next steps
+
+- **[Compression Benchmarks](/docs/compression-benchmarks)** — exact token counts from live OpenAI + Gemini runs, reproducible commands, per-call log dumps.
+- **[Changelog](/docs/changelog)** — the 0.1.7 release notes.
+- **[Abstract Commands](/docs/abstract-commands)** — `/compression` in the REPL.

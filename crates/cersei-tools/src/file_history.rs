@@ -27,37 +27,46 @@ impl FileHistory {
     }
 
     pub fn record_read(&mut self, path: &PathBuf) {
-        let entry = self.entries.entry(path.clone()).or_insert_with(|| FileAccess {
-            path: path.clone(),
-            read_count: 0,
-            write_count: 0,
-            edit_count: 0,
-            last_accessed: 0,
-        });
+        let entry = self
+            .entries
+            .entry(path.clone())
+            .or_insert_with(|| FileAccess {
+                path: path.clone(),
+                read_count: 0,
+                write_count: 0,
+                edit_count: 0,
+                last_accessed: 0,
+            });
         entry.read_count += 1;
         entry.last_accessed = now_secs();
     }
 
     pub fn record_write(&mut self, path: &PathBuf) {
-        let entry = self.entries.entry(path.clone()).or_insert_with(|| FileAccess {
-            path: path.clone(),
-            read_count: 0,
-            write_count: 0,
-            edit_count: 0,
-            last_accessed: 0,
-        });
+        let entry = self
+            .entries
+            .entry(path.clone())
+            .or_insert_with(|| FileAccess {
+                path: path.clone(),
+                read_count: 0,
+                write_count: 0,
+                edit_count: 0,
+                last_accessed: 0,
+            });
         entry.write_count += 1;
         entry.last_accessed = now_secs();
     }
 
     pub fn record_edit(&mut self, path: &PathBuf) {
-        let entry = self.entries.entry(path.clone()).or_insert_with(|| FileAccess {
-            path: path.clone(),
-            read_count: 0,
-            write_count: 0,
-            edit_count: 0,
-            last_accessed: 0,
-        });
+        let entry = self
+            .entries
+            .entry(path.clone())
+            .or_insert_with(|| FileAccess {
+                path: path.clone(),
+                read_count: 0,
+                write_count: 0,
+                edit_count: 0,
+                last_accessed: 0,
+            });
         entry.edit_count += 1;
         entry.last_accessed = now_secs();
     }
@@ -71,7 +80,9 @@ impl FileHistory {
 
     /// Get modified files (written or edited), sorted by recency.
     pub fn modified_files(&self) -> Vec<&FileAccess> {
-        let mut files: Vec<_> = self.entries.values()
+        let mut files: Vec<_> = self
+            .entries
+            .values()
             .filter(|f| f.write_count > 0 || f.edit_count > 0)
             .collect();
         files.sort_by(|a, b| b.last_accessed.cmp(&a.last_accessed));
@@ -85,17 +96,36 @@ impl FileHistory {
             return None;
         }
 
-        let lines: Vec<String> = modified.iter().take(20).map(|f| {
-            let ops = format!(
-                "{}{}{}",
-                if f.read_count > 0 { format!("r{} ", f.read_count) } else { String::new() },
-                if f.write_count > 0 { format!("w{} ", f.write_count) } else { String::new() },
-                if f.edit_count > 0 { format!("e{}", f.edit_count) } else { String::new() },
-            );
-            format!("- {} ({})", f.path.display(), ops.trim())
-        }).collect();
+        let lines: Vec<String> = modified
+            .iter()
+            .take(20)
+            .map(|f| {
+                let ops = format!(
+                    "{}{}{}",
+                    if f.read_count > 0 {
+                        format!("r{} ", f.read_count)
+                    } else {
+                        String::new()
+                    },
+                    if f.write_count > 0 {
+                        format!("w{} ", f.write_count)
+                    } else {
+                        String::new()
+                    },
+                    if f.edit_count > 0 {
+                        format!("e{}", f.edit_count)
+                    } else {
+                        String::new()
+                    },
+                );
+                format!("- {} ({})", f.path.display(), ops.trim())
+            })
+            .collect();
 
-        Some(format!("Files modified this session:\n{}", lines.join("\n")))
+        Some(format!(
+            "Files modified this session:\n{}",
+            lines.join("\n")
+        ))
     }
 
     pub fn file_count(&self) -> usize {
@@ -108,7 +138,10 @@ impl FileHistory {
 }
 
 fn now_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

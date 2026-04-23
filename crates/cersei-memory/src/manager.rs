@@ -137,8 +137,18 @@ impl MemoryManager {
         for meta in metas.iter().take(limit * 2) {
             if let Some(file) = memdir::load_memory_file(&meta.path) {
                 if file.content.to_lowercase().contains(&query_lower)
-                    || meta.name.as_deref().unwrap_or("").to_lowercase().contains(&query_lower)
-                    || meta.description.as_deref().unwrap_or("").to_lowercase().contains(&query_lower)
+                    || meta
+                        .name
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&query_lower)
+                    || meta
+                        .description
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&query_lower)
                 {
                     results.push(file.content);
                     if results.len() >= limit {
@@ -222,7 +232,11 @@ impl MemoryManager {
             if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
                 continue;
             }
-            let id = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+            let id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
             let created_at = std::fs::metadata(&path)
                 .and_then(|m| m.created())
                 .ok()
@@ -270,9 +284,15 @@ impl MemoryManager {
     }
 
     /// Access paths.
-    pub fn memory_dir(&self) -> &Path { &self.memory_dir }
-    pub fn sessions_dir(&self) -> &Path { &self.sessions_dir }
-    pub fn project_root(&self) -> &Path { &self.project_root }
+    pub fn memory_dir(&self) -> &Path {
+        &self.memory_dir
+    }
+    pub fn sessions_dir(&self) -> &Path {
+        &self.sessions_dir
+    }
+    pub fn project_root(&self) -> &Path {
+        &self.project_root
+    }
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -295,14 +315,17 @@ mod tests {
     #[test]
     fn test_manager_context_with_claude_md() {
         let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("CLAUDE.md"), "# Project Rules\nUse Rust only.").unwrap();
+        std::fs::write(
+            tmp.path().join("CLAUDE.md"),
+            "# Project Rules\nUse Rust only.",
+        )
+        .unwrap();
 
         let mem_dir = tmp.path().join("memory");
         std::fs::create_dir_all(&mem_dir).unwrap();
         std::fs::write(mem_dir.join("MEMORY.md"), "- [pref](pref.md) — user prefs").unwrap();
 
-        let manager = MemoryManager::new(tmp.path())
-            .with_memory_dir(mem_dir);
+        let manager = MemoryManager::new(tmp.path()).with_memory_dir(mem_dir);
 
         let context = manager.build_context();
         assert!(context.contains("Use Rust only"));
@@ -312,11 +335,14 @@ mod tests {
     #[test]
     fn test_manager_session_write_load() {
         let tmp = tempfile::tempdir().unwrap();
-        let manager = MemoryManager::new(tmp.path())
-            .with_sessions_dir(tmp.path().join("sessions"));
+        let manager = MemoryManager::new(tmp.path()).with_sessions_dir(tmp.path().join("sessions"));
 
-        let uuid = manager.write_user_message("s1", Message::user("Hello")).unwrap();
-        manager.write_assistant_message("s1", Message::assistant("Hi!"), Some(&uuid)).unwrap();
+        let uuid = manager
+            .write_user_message("s1", Message::user("Hello"))
+            .unwrap();
+        manager
+            .write_assistant_message("s1", Message::assistant("Hi!"), Some(&uuid))
+            .unwrap();
 
         let messages = manager.load_session_messages("s1").unwrap();
         assert_eq!(messages.len(), 2);
@@ -329,11 +355,18 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mem_dir = tmp.path().join("memory");
         std::fs::create_dir_all(&mem_dir).unwrap();
-        std::fs::write(mem_dir.join("rust_tips.md"), "---\nname: Rust Tips\n---\n\nAlways use clippy for linting.").unwrap();
-        std::fs::write(mem_dir.join("python_tips.md"), "---\nname: Python Tips\n---\n\nUse ruff for linting.").unwrap();
+        std::fs::write(
+            mem_dir.join("rust_tips.md"),
+            "---\nname: Rust Tips\n---\n\nAlways use clippy for linting.",
+        )
+        .unwrap();
+        std::fs::write(
+            mem_dir.join("python_tips.md"),
+            "---\nname: Python Tips\n---\n\nUse ruff for linting.",
+        )
+        .unwrap();
 
-        let manager = MemoryManager::new(tmp.path())
-            .with_memory_dir(mem_dir);
+        let manager = MemoryManager::new(tmp.path()).with_memory_dir(mem_dir);
 
         let results = manager.recall("clippy", 10);
         assert_eq!(results.len(), 1);
@@ -352,8 +385,7 @@ mod tests {
         std::fs::write(mem_dir.join("b.md"), "content b").unwrap();
         std::fs::write(mem_dir.join("MEMORY.md"), "index").unwrap();
 
-        let manager = MemoryManager::new(tmp.path())
-            .with_memory_dir(mem_dir);
+        let manager = MemoryManager::new(tmp.path()).with_memory_dir(mem_dir);
 
         let metas = manager.scan();
         assert_eq!(metas.len(), 2); // excludes MEMORY.md
@@ -368,8 +400,7 @@ mod tests {
         std::fs::write(sessions_dir.join("s2.jsonl"), "{}").unwrap();
         std::fs::write(sessions_dir.join("not-a-session.txt"), "x").unwrap();
 
-        let manager = MemoryManager::new(tmp.path())
-            .with_sessions_dir(sessions_dir);
+        let manager = MemoryManager::new(tmp.path()).with_sessions_dir(sessions_dir);
 
         let sessions = manager.list_sessions();
         assert_eq!(sessions.len(), 2);

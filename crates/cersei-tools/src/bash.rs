@@ -13,7 +13,11 @@ fn parse_sentinel_output(stdout: &str, sentinel: &str) -> (String, Option<String
     if let Some(pos) = stdout.rfind(sentinel) {
         let user_output = stdout[..pos].trim_end_matches('\n').to_string();
         let state_section = &stdout[pos + sentinel.len()..];
-        let new_cwd = state_section.trim().lines().next().map(|s| s.trim().to_string());
+        let new_cwd = state_section
+            .trim()
+            .lines()
+            .next()
+            .map(|s| s.trim().to_string());
         (user_output, new_cwd)
     } else {
         // Sentinel not found (command may have failed before reaching it)
@@ -25,14 +29,20 @@ pub struct BashTool;
 
 #[async_trait]
 impl Tool for BashTool {
-    fn name(&self) -> &str { "Bash" }
+    fn name(&self) -> &str {
+        "Bash"
+    }
 
     fn description(&self) -> &str {
         "Execute a bash command and return its output. The working directory persists between commands."
     }
 
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::Execute }
-    fn category(&self) -> ToolCategory { ToolCategory::Shell }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::Execute
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Shell
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({

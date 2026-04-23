@@ -30,7 +30,9 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) {
     state.virtual_list.set_viewport(area.height);
 
     // Sync scroll state
-    state.scroll.update_dimensions(state.virtual_list.total_height(), area.height);
+    state
+        .scroll
+        .update_dimensions(state.virtual_list.total_height(), area.height);
     state.virtual_list.scroll_offset = state.scroll.effective_offset();
     state.virtual_list.sticky_bottom = state.scroll.sticky_bottom;
 
@@ -127,7 +129,11 @@ fn build_streaming_lines(state: &AppState, theme: &Theme, width: u16) -> Vec<VIt
 
     // Cursor blink
     if state.streaming_text.is_empty() && state.active_tools.is_empty() {
-        let dot = if state.frame_count % 8 < 4 { "▊" } else { " " };
+        let dot = if state.frame_count % 8 < 4 {
+            "▊"
+        } else {
+            " "
+        };
         items.push(VItem::new(Line::from(Span::styled(
             format!("  {dot}"),
             theme.accent_style(),
@@ -149,9 +155,7 @@ fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
         } else {
             let mut remaining = line;
             while remaining.len() > max_width {
-                let break_at = remaining[..max_width]
-                    .rfind(' ')
-                    .unwrap_or(max_width);
+                let break_at = remaining[..max_width].rfind(' ').unwrap_or(max_width);
                 let break_at = if break_at == 0 { max_width } else { break_at };
                 result.push(remaining[..break_at].to_string());
                 remaining = remaining[break_at..].trim_start();

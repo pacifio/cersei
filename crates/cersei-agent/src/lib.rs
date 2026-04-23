@@ -9,16 +9,16 @@ pub mod coordinator;
 pub mod effort;
 pub mod events;
 pub mod reporters;
+mod runner;
 pub mod session_memory;
 pub mod system_prompt;
-mod runner;
 
 // Re-export runner utilities
 pub use runner::apply_tool_result_budget;
 
 use cersei_hooks::Hook;
-use cersei_memory::Memory;
 use cersei_mcp::McpServerConfig;
+use cersei_memory::Memory;
 use cersei_provider::Provider;
 use cersei_tools::permissions::{AllowAll, PermissionPolicy};
 use cersei_tools::{CostTracker, Tool};
@@ -87,6 +87,7 @@ pub struct Agent {
     auto_compact: bool,
     compact_threshold: f64,
     tool_result_budget: usize,
+    pub(crate) compression_level: Arc<parking_lot::Mutex<cersei_compression::CompressionLevel>>,
     pub benchmark_mode: bool,
     messages: Arc<parking_lot::Mutex<Vec<Message>>>,
     cumulative_usage: Arc<parking_lot::Mutex<Usage>>,
@@ -113,7 +114,8 @@ impl Agent {
         let agent = Arc::clone(self);
 
         tokio::spawn(async move {
-            let result = runner::run_agent_streaming(&agent, &prompt, event_tx.clone(), control_rx).await;
+            let result =
+                runner::run_agent_streaming(&agent, &prompt, event_tx.clone(), control_rx).await;
             match result {
                 Ok(output) => {
                     let _ = event_tx.send(AgentEvent::Complete(output)).await;
@@ -145,6 +147,17 @@ impl Agent {
     /// Cancel a running agent.
     pub fn cancel(&self) {
         self.cancel_token.cancel();
+    }
+
+    /// Get the current tool-output compression level.
+    pub fn compression_level(&self) -> cersei_compression::CompressionLevel {
+        *self.compression_level.lock()
+    }
+
+    /// Change the tool-output compression level at runtime. Takes effect on
+    /// the next tool call.
+    pub fn set_compression_level(&self, level: cersei_compression::CompressionLevel) {
+        *self.compression_level.lock() = level;
     }
 
     /// Subscribe to the broadcast channel (requires enable_broadcast on builder).
@@ -208,6 +221,7 @@ pub struct AgentBuilder {
     auto_compact: bool,
     compact_threshold: f64,
     tool_result_budget: usize,
+    compression_level: cersei_compression::CompressionLevel,
     initial_messages: Option<Vec<Message>>,
     benchmark_mode: bool,
 }
@@ -238,6 +252,7 @@ impl Default for AgentBuilder {
             auto_compact: true,
             compact_threshold: 0.9,
             tool_result_budget: 50_000,
+            compression_level: cersei_compression::CompressionLevel::Off,
             initial_messages: None,
             benchmark_mode: false,
         }
@@ -340,10 +355,7 @@ impl AgentBuilder {
         self
     }
 
-    pub fn event_filter(
-        mut self,
-        f: impl Fn(&AgentEvent) -> bool + Send + Sync + 'static,
-    ) -> Self {
+    pub fn event_filter(mut self, f: impl Fn(&AgentEvent) -> bool + Send + Sync + 'static) -> Self {
         self.event_filter = Some(Box::new(f));
         self
     }
@@ -365,6 +377,14 @@ impl AgentBuilder {
 
     pub fn tool_result_budget(mut self, chars: usize) -> Self {
         self.tool_result_budget = chars;
+        self
+    }
+
+    /// Set the tool-output compression level (default `Off`). Compression is
+    /// applied to each tool result before the per-result cap and the overall
+    /// tool-result budget run.
+    pub fn compression_level(mut self, level: cersei_compression::CompressionLevel) -> Self {
+        self.compression_level = level;
         self
     }
 
@@ -405,9 +425,7 @@ impl AgentBuilder {
             temperature: self.temperature,
             thinking_budget: self.thinking_budget,
             working_dir,
-            permission_policy: self
-                .permission_policy
-                .unwrap_or_else(|| Arc::new(AllowAll)),
+            permission_policy: self.permission_policy.unwrap_or_else(|| Arc::new(AllowAll)),
             memory: self.memory,
             session_id: self.session_id,
             hooks: self.hooks,
@@ -420,8 +438,11 @@ impl AgentBuilder {
             auto_compact: self.auto_compact,
             compact_threshold: self.compact_threshold,
             tool_result_budget: self.tool_result_budget,
+            compression_level: Arc::new(parking_lot::Mutex::new(self.compression_level)),
             benchmark_mode: self.benchmark_mode,
-            messages: Arc::new(parking_lot::Mutex::new(self.initial_messages.unwrap_or_default())),
+            messages: Arc::new(parking_lot::Mutex::new(
+                self.initial_messages.unwrap_or_default(),
+            )),
             cumulative_usage: Arc::new(parking_lot::Mutex::new(Usage::default())),
             cancel_token: self
                 .cancel_token

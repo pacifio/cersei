@@ -98,10 +98,7 @@ fn build_provider(entry: &ProviderEntry, model: &str) -> Result<Box<dyn Provider
                     entry.env_keys.join(" or ")
                 ))
             })?;
-            let provider = Gemini::builder()
-                .api_key(key)
-                .model(model)
-                .build()?;
+            let provider = Gemini::builder().api_key(key).model(model).build()?;
             Ok(Box::new(provider))
         }
         ApiFormat::OpenAiCompatible => {
@@ -134,7 +131,13 @@ fn auto_detect(model: &str) -> Result<(&'static ProviderEntry, &str)> {
     // 1. Check known model prefixes
     let prefix_match = match model {
         m if m.starts_with("claude-") => Some("anthropic"),
-        m if m.starts_with("gpt-") || m.starts_with("o1") || m.starts_with("o3") || m.starts_with("gpt5") => Some("openai"),
+        m if m.starts_with("gpt-")
+            || m.starts_with("o1")
+            || m.starts_with("o3")
+            || m.starts_with("gpt5") =>
+        {
+            Some("openai")
+        }
         m if m.starts_with("gemini-") => Some("google"),
         m if m.starts_with("mistral-") || m.starts_with("codestral-") => Some("mistral"),
         m if m.starts_with("deepseek-") => Some("deepseek"),
@@ -143,9 +146,17 @@ fn auto_detect(model: &str) -> Result<(&'static ProviderEntry, &str)> {
         m if m.starts_with("llama") => {
             // llama models could be on Groq, Together, etc.
             // Prefer Groq if key is set, otherwise Together
-            if std::env::var("GROQ_API_KEY").ok().filter(|k| !k.is_empty()).is_some() {
+            if std::env::var("GROQ_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+                .is_some()
+            {
                 Some("groq")
-            } else if std::env::var("TOGETHER_API_KEY").ok().filter(|k| !k.is_empty()).is_some() {
+            } else if std::env::var("TOGETHER_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+                .is_some()
+            {
                 Some("together")
             } else {
                 Some("ollama")
@@ -192,7 +203,10 @@ mod tests {
         match result {
             Err(e) => {
                 let msg = e.to_string();
-                assert!(msg.contains("nonexistent"), "Error should mention the provider name: {msg}");
+                assert!(
+                    msg.contains("nonexistent"),
+                    "Error should mention the provider name: {msg}"
+                );
             }
             Ok(_) => panic!("Expected error for unknown provider"),
         }
@@ -234,9 +248,8 @@ mod tests {
 
     #[test]
     fn test_auto_detect_cohere() {
-        let (entry, model) = auto_detect("command-r-plus").unwrap_or_else(|_| {
-            (registry::lookup("cohere").unwrap(), "command-r-plus")
-        });
+        let (entry, model) = auto_detect("command-r-plus")
+            .unwrap_or_else(|_| (registry::lookup("cohere").unwrap(), "command-r-plus"));
         assert_eq!(entry.id, "cohere");
         assert_eq!(model, "command-r-plus");
     }

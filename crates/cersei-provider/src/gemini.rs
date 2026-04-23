@@ -115,7 +115,11 @@ impl Provider for Gemini {
                                 ContentBlock::Text { text } => {
                                     parts.push(serde_json::json!({ "text": text }));
                                 }
-                                ContentBlock::ToolResult { tool_use_id, content, .. } => {
+                                ContentBlock::ToolResult {
+                                    tool_use_id,
+                                    content,
+                                    ..
+                                } => {
                                     // Gemini requires the function NAME, not the call ID
                                     let func_name = tool_name_map
                                         .get(tool_use_id)
@@ -176,10 +180,13 @@ impl Provider for Gemini {
                                     let mut part_obj = serde_json::Map::new();
                                     if segments.len() >= 3 {
                                         // Has fc_id and thoughtSignature
-                                        fc["id"] = serde_json::Value::String(segments[1].to_string());
+                                        fc["id"] =
+                                            serde_json::Value::String(segments[1].to_string());
                                         part_obj.insert("functionCall".to_string(), fc);
-                                        part_obj.insert("thoughtSignature".to_string(),
-                                            serde_json::Value::String(segments[2].to_string()));
+                                        part_obj.insert(
+                                            "thoughtSignature".to_string(),
+                                            serde_json::Value::String(segments[2].to_string()),
+                                        );
                                     } else {
                                         part_obj.insert("functionCall".to_string(), fc);
                                     }
@@ -314,7 +321,9 @@ impl Provider for Gemini {
                                             continue;
                                         }
 
-                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                        if let Ok(json) =
+                                            serde_json::from_str::<serde_json::Value>(data)
+                                        {
                                             // Extract usage metadata
                                             if let Some(metadata) = json.get("usageMetadata") {
                                                 total_input_tokens = metadata
@@ -328,7 +337,9 @@ impl Provider for Gemini {
                                             }
 
                                             // Process candidates
-                                            if let Some(candidates) = json.get("candidates").and_then(|c| c.as_array()) {
+                                            if let Some(candidates) =
+                                                json.get("candidates").and_then(|c| c.as_array())
+                                            {
                                                 for candidate in candidates {
                                                     if let Some(parts) = candidate
                                                         .get("content")
@@ -336,7 +347,10 @@ impl Provider for Gemini {
                                                         .and_then(|p| p.as_array())
                                                     {
                                                         for part in parts {
-                                                            if let Some(text) = part.get("text").and_then(|t| t.as_str()) {
+                                                            if let Some(text) = part
+                                                                .get("text")
+                                                                .and_then(|t| t.as_str())
+                                                            {
                                                                 let _ = tx
                                                                     .send(StreamEvent::ContentBlockStart {
                                                                         index: block_index,
@@ -359,7 +373,9 @@ impl Provider for Gemini {
                                                                 block_index += 1;
                                                             }
 
-                                                            if let Some(fc) = part.get("functionCall") {
+                                                            if let Some(fc) =
+                                                                part.get("functionCall")
+                                                            {
                                                                 saw_function_calls = true;
                                                                 let name = fc
                                                                     .get("name")
@@ -369,21 +385,36 @@ impl Provider for Gemini {
                                                                 let args = fc
                                                                     .get("args")
                                                                     .cloned()
-                                                                    .unwrap_or(serde_json::Value::Object(Default::default()));
+                                                                    .unwrap_or(
+                                                                        serde_json::Value::Object(
+                                                                            Default::default(),
+                                                                        ),
+                                                                    );
                                                                 // Capture thoughtSignature (sibling of functionCall at part level, Gemini 3.1+)
-                                                                let thought_sig = part.get("thoughtSignature")
+                                                                let thought_sig = part
+                                                                    .get("thoughtSignature")
                                                                     .and_then(|s| s.as_str())
                                                                     .unwrap_or("");
                                                                 // Capture functionCall.id if present
-                                                                let fc_id = fc.get("id")
+                                                                let fc_id = fc
+                                                                    .get("id")
                                                                     .and_then(|s| s.as_str())
                                                                     .unwrap_or("");
                                                                 // Encode both in tool_id for roundtrip
-                                                                let tool_id = if thought_sig.is_empty() {
-                                                                    format!("gemini-tool-{}", block_index)
-                                                                } else {
-                                                                    format!("gemini-tool-{}::{}::{}", block_index, fc_id, thought_sig)
-                                                                };
+                                                                let tool_id =
+                                                                    if thought_sig.is_empty() {
+                                                                        format!(
+                                                                            "gemini-tool-{}",
+                                                                            block_index
+                                                                        )
+                                                                    } else {
+                                                                        format!(
+                                                                        "gemini-tool-{}::{}::{}",
+                                                                        block_index,
+                                                                        fc_id,
+                                                                        thought_sig
+                                                                    )
+                                                                    };
 
                                                                 let _ = tx
                                                                     .send(StreamEvent::ContentBlockStart {
@@ -420,7 +451,9 @@ impl Provider for Gemini {
                                                         } else {
                                                             match reason {
                                                                 "STOP" => StopReason::EndTurn,
-                                                                "MAX_TOKENS" => StopReason::MaxTokens,
+                                                                "MAX_TOKENS" => {
+                                                                    StopReason::MaxTokens
+                                                                }
                                                                 "SAFETY" => StopReason::EndTurn,
                                                                 _ => StopReason::EndTurn,
                                                             }
@@ -429,8 +462,10 @@ impl Provider for Gemini {
                                                             .send(StreamEvent::MessageDelta {
                                                                 stop_reason: Some(stop),
                                                                 usage: Some(Usage {
-                                                                    input_tokens: total_input_tokens,
-                                                                    output_tokens: total_output_tokens,
+                                                                    input_tokens:
+                                                                        total_input_tokens,
+                                                                    output_tokens:
+                                                                        total_output_tokens,
                                                                     ..Default::default()
                                                                 }),
                                                             })
@@ -507,7 +542,9 @@ impl GeminiBuilder {
         Ok(Gemini {
             api_key,
             base_url: self.base_url.unwrap_or_else(|| GEMINI_API_BASE.to_string()),
-            default_model: self.model.unwrap_or_else(|| "gemini-3.1-pro-preview".to_string()),
+            default_model: self
+                .model
+                .unwrap_or_else(|| "gemini-3.1-pro-preview".to_string()),
             client: reqwest::Client::new(),
         })
     }

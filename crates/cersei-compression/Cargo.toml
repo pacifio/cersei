@@ -1,0 +1,17 @@
+[package]
+name = "cersei-compression"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Structural and command-aware compression for tool outputs in the Cersei SDK. Ports rtk (Rust Token Killer) techniques."
+
+[dependencies]
+anyhow = { workspace = true }
+once_cell = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }

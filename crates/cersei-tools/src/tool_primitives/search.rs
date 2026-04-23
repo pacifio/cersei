@@ -143,8 +143,8 @@ pub async fn glob(pattern: &str, base_dir: &Path) -> Result<Vec<PathBuf>, Search
     // glob::glob is synchronous — run on blocking thread
     let paths = tokio::task::spawn_blocking(move || -> Result<Vec<PathBuf>, SearchError> {
         let mut results = Vec::new();
-        for entry in ::glob::glob(&full_pattern)
-            .map_err(|e| SearchError::InvalidPattern(e.to_string()))?
+        for entry in
+            ::glob::glob(&full_pattern).map_err(|e| SearchError::InvalidPattern(e.to_string()))?
         {
             if let Ok(path) = entry {
                 results.push(path);

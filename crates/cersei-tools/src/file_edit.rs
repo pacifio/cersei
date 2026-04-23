@@ -8,10 +8,18 @@ pub struct FileEditTool;
 
 #[async_trait]
 impl Tool for FileEditTool {
-    fn name(&self) -> &str { "Edit" }
-    fn description(&self) -> &str { "Perform exact string replacements in files." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::Write }
-    fn category(&self) -> ToolCategory { ToolCategory::FileSystem }
+    fn name(&self) -> &str {
+        "Edit"
+    }
+    fn description(&self) -> &str {
+        "Perform exact string replacements in files."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::Write
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::FileSystem
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({

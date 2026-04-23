@@ -43,17 +43,26 @@ fn main() {
         let opts = SystemPromptOptions::default();
         let prompt = build_system_prompt(&opts);
 
-        check!("Contains boundary marker", prompt.contains(SYSTEM_PROMPT_DYNAMIC_BOUNDARY));
+        check!(
+            "Contains boundary marker",
+            prompt.contains(SYSTEM_PROMPT_DYNAMIC_BOUNDARY)
+        );
         check!("Contains attribution", prompt.contains("Cersei SDK"));
         check!("Contains capabilities", prompt.contains("Capabilities"));
-        check!("Contains tool guidelines", prompt.contains("Tool use guidelines"));
+        check!(
+            "Contains tool guidelines",
+            prompt.contains("Tool use guidelines")
+        );
         check!("Contains safety", prompt.contains("Safety"));
         check!("Contains security", prompt.contains("Security"));
 
         // Verify caching boundary splits correctly
         let parts: Vec<&str> = prompt.split(SYSTEM_PROMPT_DYNAMIC_BOUNDARY).collect();
         check!("Splits into 2 parts at boundary", parts.len() == 2);
-        check!("Static part is longer than dynamic", parts[0].len() > parts[1].len());
+        check!(
+            "Static part is longer than dynamic",
+            parts[0].len() > parts[1].len()
+        );
 
         // Test all output styles
         for style in &["concise", "formal", "casual", "learning", "explanatory"] {
@@ -73,7 +82,10 @@ fn main() {
             ..Default::default()
         };
         let prompt = build_system_prompt(&opts);
-        check!("Coordinator mode present", prompt.contains("Coordinator Mode"));
+        check!(
+            "Coordinator mode present",
+            prompt.contains("Coordinator Mode")
+        );
         check!("Working dir in dynamic section", {
             let bp = prompt.find(SYSTEM_PROMPT_DYNAMIC_BOUNDARY).unwrap();
             let wp = prompt.find("/test/project").unwrap();
@@ -84,7 +96,10 @@ fn main() {
             let mp = prompt.find("user.md").unwrap();
             mp > bp
         });
-        check!("Custom instructions present", prompt.contains("Rust expert"));
+        check!(
+            "Custom instructions present",
+            prompt.contains("Rust expert")
+        );
 
         // Replace mode
         let opts = SystemPromptOptions {
@@ -93,11 +108,21 @@ fn main() {
             ..Default::default()
         };
         let prompt = build_system_prompt(&opts);
-        check!("Replace mode strips default", !prompt.contains("Capabilities"));
-        check!("Replace mode keeps custom", prompt.starts_with("CUSTOM ONLY"));
+        check!(
+            "Replace mode strips default",
+            !prompt.contains("Capabilities")
+        );
+        check!(
+            "Replace mode keeps custom",
+            prompt.starts_with("CUSTOM ONLY")
+        );
 
         let prompt_len = build_system_prompt(&SystemPromptOptions::default()).len();
-        println!("  Default prompt: {} chars (~{} tokens)\n", prompt_len, prompt_len / 4);
+        println!(
+            "  Default prompt: {} chars (~{} tokens)\n",
+            prompt_len,
+            prompt_len / 4
+        );
     }
 
     // ── 2. Bash Classifier ───────────────────────────────────────────────
@@ -139,11 +164,18 @@ fn main() {
             if actual == *expected {
                 classifier_passed += 1;
             } else {
-                println!("    MISMATCH: '{}' → {:?} (expected {:?})", cmd, actual, expected);
+                println!(
+                    "    MISMATCH: '{}' → {:?} (expected {:?})",
+                    cmd, actual, expected
+                );
             }
         }
         check!(
-            &format!("Classified {}/{} commands correctly", classifier_passed, test_cases.len()),
+            &format!(
+                "Classified {}/{} commands correctly",
+                classifier_passed,
+                test_cases.len()
+            ),
             classifier_passed == test_cases.len()
         );
 
@@ -167,7 +199,9 @@ fn main() {
         for i in 0..20 {
             messages.push(Message::user(format!("Read file src/mod_{}.rs", i)));
             messages.push(Message::assistant_blocks(vec![
-                ContentBlock::Text { text: format!("Here's mod_{}:", i) },
+                ContentBlock::Text {
+                    text: format!("Here's mod_{}:", i),
+                },
                 ContentBlock::ToolUse {
                     id: format!("t{}", i),
                     name: "Read".into(),
@@ -177,7 +211,7 @@ fn main() {
             messages.push(Message::user_blocks(vec![ContentBlock::ToolResult {
                 tool_use_id: format!("t{}", i),
                 content: cersei_types::ToolResultContent::Text(
-                    format!("// module {}\nfn func_{}() {{}}\n", i, i).repeat(50)
+                    format!("// module {}\nfn func_{}() {{}}\n", i, i).repeat(50),
                 ),
                 is_error: Some(false),
             }]));
@@ -188,24 +222,49 @@ fn main() {
 
         let analysis = analyze_context(Some(sys_prompt), Some(tool_defs), &messages);
 
-        check!("System prompt tokens > 0", analysis.system_prompt_tokens > 0);
+        check!(
+            "System prompt tokens > 0",
+            analysis.system_prompt_tokens > 0
+        );
         check!("Tool defs tokens > 0", analysis.tool_definitions_tokens > 0);
-        check!("Conversation tokens > 0", analysis.conversation_history_tokens > 0);
+        check!(
+            "Conversation tokens > 0",
+            analysis.conversation_history_tokens > 0
+        );
         check!("Tool results tokens > 0", analysis.tool_results_tokens > 0);
-        check!("Total tokens > all parts", analysis.total_tokens >= analysis.conversation_history_tokens + analysis.tool_results_tokens);
-        check!("Compressibility in 0..1", analysis.compressibility >= 0.0 && analysis.compressibility <= 1.0);
+        check!(
+            "Total tokens > all parts",
+            analysis.total_tokens
+                >= analysis.conversation_history_tokens + analysis.tool_results_tokens
+        );
+        check!(
+            "Compressibility in 0..1",
+            analysis.compressibility >= 0.0 && analysis.compressibility <= 1.0
+        );
 
         // Check strategy recommendation
         let strategy = suggest_compaction(&analysis, 200_000);
         println!("    Total tokens: {}", analysis.total_tokens);
-        println!("    Usage: {:.1}%", (analysis.total_tokens as f64 / 200_000.0) * 100.0);
-        println!("    Compressibility: {:.0}%", analysis.compressibility * 100.0);
+        println!(
+            "    Usage: {:.1}%",
+            (analysis.total_tokens as f64 / 200_000.0) * 100.0
+        );
+        println!(
+            "    Compressibility: {:.0}%",
+            analysis.compressibility * 100.0
+        );
         println!("    Strategy: {:?}", strategy);
 
         // Verify visualization
         let viz = format_ctx_viz(&analysis, 200_000);
-        check!("Viz contains progress bar", viz.contains('[') && viz.contains(']'));
-        check!("Viz contains categories", viz.contains("System Prompt") || viz.contains("Conversation"));
+        check!(
+            "Viz contains progress bar",
+            viz.contains('[') && viz.contains(']')
+        );
+        check!(
+            "Viz contains categories",
+            viz.contains("System Prompt") || viz.contains("Conversation")
+        );
 
         println!();
     }
@@ -217,14 +276,26 @@ fn main() {
         use cersei_agent::compact::*;
 
         // Test warning states
-        check!("50% = Ok", calculate_token_warning_state(100_000, 200_000) == TokenWarningState::Ok);
-        check!("85% = Warning", calculate_token_warning_state(170_000, 200_000) == TokenWarningState::Warning);
-        check!("96% = Critical", calculate_token_warning_state(192_000, 200_000) == TokenWarningState::Critical);
+        check!(
+            "50% = Ok",
+            calculate_token_warning_state(100_000, 200_000) == TokenWarningState::Ok
+        );
+        check!(
+            "85% = Warning",
+            calculate_token_warning_state(170_000, 200_000) == TokenWarningState::Warning
+        );
+        check!(
+            "96% = Critical",
+            calculate_token_warning_state(192_000, 200_000) == TokenWarningState::Critical
+        );
 
         // Test should_compact thresholds
         check!("89% = no compact", !should_compact(178_000, 200_000));
         check!("91% = compact", should_compact(182_000, 200_000));
-        check!("98% = context collapse", should_context_collapse(196_000, 200_000));
+        check!(
+            "98% = context collapse",
+            should_context_collapse(196_000, 200_000)
+        );
 
         // Test circuit breaker
         let mut state = AutoCompactState::default();
@@ -233,14 +304,20 @@ fn main() {
         state.on_failure();
         state.on_failure();
         check!("3 failures trips breaker", state.disabled);
-        check!("Disabled state blocks compact", !should_auto_compact(195_000, 200_000, &state));
+        check!(
+            "Disabled state blocks compact",
+            !should_auto_compact(195_000, 200_000, &state)
+        );
 
         // Test snip compact
         let msgs: Vec<Message> = (0..50)
             .map(|i| Message::user(format!("Message {} with some content to take up space", i)))
             .collect();
         let (kept, freed) = snip_compact(msgs, KEEP_RECENT_MESSAGES);
-        check!(&format!("Snip keeps {} recent", KEEP_RECENT_MESSAGES), kept.len() == KEEP_RECENT_MESSAGES);
+        check!(
+            &format!("Snip keeps {} recent", KEEP_RECENT_MESSAGES),
+            kept.len() == KEEP_RECENT_MESSAGES
+        );
         check!("Snip frees tokens", freed > 0);
 
         // Test message grouping
@@ -250,12 +327,25 @@ fn main() {
             conv.push(Message::assistant(format!("Answer {}", i)));
         }
         let groups = group_messages_for_compact(&conv);
-        check!(&format!("Groups {} messages into {} groups", conv.len(), groups.len()), groups.len() == 6);
+        check!(
+            &format!(
+                "Groups {} messages into {} groups",
+                conv.len(),
+                groups.len()
+            ),
+            groups.len() == 6
+        );
 
         // Test compact prompt
         let prompt = get_compact_prompt(Some("Focus on API changes"));
-        check!("Compact prompt includes custom", prompt.contains("API changes"));
-        check!("Compact prompt includes instructions", prompt.contains("Summarize"));
+        check!(
+            "Compact prompt includes custom",
+            prompt.contains("API changes")
+        );
+        check!(
+            "Compact prompt includes instructions",
+            prompt.contains("Summarize")
+        );
 
         println!();
     }
@@ -273,7 +363,7 @@ fn main() {
             messages.push(Message::user_blocks(vec![ContentBlock::ToolResult {
                 tool_use_id: format!("t{}", i),
                 content: cersei_types::ToolResultContent::Text(
-                    format!("Content of file {} ", i).repeat(500) // ~10KB per result
+                    format!("Content of file {} ", i).repeat(500), // ~10KB per result
                 ),
                 is_error: Some(false),
             }]));
@@ -289,15 +379,23 @@ fn main() {
                         if let ContentBlock::ToolResult { content, .. } = bb {
                             if let cersei_types::ToolResultContent::Text(t) = content {
                                 Some(t.len())
-                            } else { None }
-                        } else { None }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
                     })
                     .collect::<Vec<_>>(),
                 _ => vec![],
             })
             .sum();
 
-        println!("    Before: {} chars of tool results across {} messages", total_before, messages.len());
+        println!(
+            "    Before: {} chars of tool results across {} messages",
+            total_before,
+            messages.len()
+        );
 
         // Apply budget of 50K chars
         apply_tool_result_budget(&mut messages, 50_000);
@@ -311,8 +409,12 @@ fn main() {
                         if let ContentBlock::ToolResult { content, .. } = bb {
                             if let cersei_types::ToolResultContent::Text(t) = content {
                                 Some(t.len())
-                            } else { None }
-                        } else { None }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
                     })
                     .collect::<Vec<_>>(),
                 _ => vec![],
@@ -328,32 +430,43 @@ fn main() {
                         if let ContentBlock::ToolResult { content, .. } = bb {
                             if let cersei_types::ToolResultContent::Text(t) = content {
                                 t.contains("truncated")
-                            } else { false }
-                        } else { false }
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
                     })
                     .collect::<Vec<_>>(),
                 _ => vec![],
             })
             .count();
 
-        println!("    After:  {} chars ({} truncated results)", total_after, truncated_count);
+        println!(
+            "    After:  {} chars ({} truncated results)",
+            total_after, truncated_count
+        );
         check!("Budget reduced total size", total_after < total_before);
         check!("Some results were truncated", truncated_count > 0);
         check!("Recent results preserved", {
             // Last few messages should NOT be truncated
-            let last_result = messages.iter().rev().find_map(|m| {
-                match &m.content {
-                    MessageContent::Blocks(b) => b.iter().find_map(|bb| {
-                        if let ContentBlock::ToolResult { content, .. } = bb {
-                            if let cersei_types::ToolResultContent::Text(t) = content {
-                                Some(t.clone())
-                            } else { None }
-                        } else { None }
-                    }),
-                    _ => None,
-                }
+            let last_result = messages.iter().rev().find_map(|m| match &m.content {
+                MessageContent::Blocks(b) => b.iter().find_map(|bb| {
+                    if let ContentBlock::ToolResult { content, .. } = bb {
+                        if let cersei_types::ToolResultContent::Text(t) = content {
+                            Some(t.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }),
+                _ => None,
             });
-            last_result.map(|t| !t.contains("truncated")).unwrap_or(true)
+            last_result
+                .map(|t| !t.contains("truncated"))
+                .unwrap_or(true)
         });
 
         println!();
@@ -362,9 +475,15 @@ fn main() {
     // ── Summary ──────────────────────────────────────────────────────────
     println!("╔══════════════════════════════════════════════╗");
     if failed == 0 {
-        println!("║  \x1b[32mALL {} CHECKS PASSED\x1b[0m                          ║", passed);
+        println!(
+            "║  \x1b[32mALL {} CHECKS PASSED\x1b[0m                          ║",
+            passed
+        );
     } else {
-        println!("║  \x1b[31m{} PASSED, {} FAILED\x1b[0m                           ║", passed, failed);
+        println!(
+            "║  \x1b[31m{} PASSED, {} FAILED\x1b[0m                           ║",
+            passed, failed
+        );
     }
     println!("╚══════════════════════════════════════════════╝\n");
 

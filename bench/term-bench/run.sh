@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# ─── Abstract Benchmark Runner ─────────────────────────────────────────────
+# ─── Abstract Benchmark Runner (terminal-bench) ────────────────────────────
 # Usage:
-#   ./bench/run.sh                          # Run all tasks with default model
-#   ./bench/run.sh --model google/gemini-3.1-pro-preview
-#   ./bench/run.sh --task fibonacci         # Run single task
-#   ./bench/run.sh --dry-run                # Print commands without executing
-#   ./bench/run.sh --report                 # Generate report from last results
+#   ./bench/term-bench/run.sh                          # Run all tasks with default model
+#   ./bench/term-bench/run.sh --model google/gemini-3.1-pro-preview
+#   ./bench/term-bench/run.sh --task fibonacci         # Run single task
+#   ./bench/term-bench/run.sh --dry-run                # Print commands without executing
+#   ./bench/term-bench/run.sh --report                 # Generate report from last results
 #
 # Environment:
 #   GOOGLE_API_KEY / GEMINI_API_KEY   — for Gemini models
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TASKS_DIR="$SCRIPT_DIR/tasks"
 RESULTS_DIR="$SCRIPT_DIR/results"
 

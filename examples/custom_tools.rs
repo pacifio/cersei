@@ -23,12 +23,18 @@ struct WordCountTool;
 
 #[async_trait]
 impl Tool for WordCountTool {
-    fn name(&self) -> &str { "word_count" }
+    fn name(&self) -> &str {
+        "word_count"
+    }
     fn description(&self) -> &str {
         "Count the number of words, lines, and characters in the given text."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Custom }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Custom
+    }
 
     fn input_schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -45,7 +51,9 @@ impl Tool for WordCountTool {
 
     async fn execute(&self, input: serde_json::Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { text: String }
+        struct Input {
+            text: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -70,11 +78,15 @@ struct KvLookupTool {
 
 #[async_trait]
 impl Tool for KvLookupTool {
-    fn name(&self) -> &str { "kv_lookup" }
+    fn name(&self) -> &str {
+        "kv_lookup"
+    }
     fn description(&self) -> &str {
         "Look up a value by key from the key-value store. Returns the value or 'not found'."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::ReadOnly }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::ReadOnly
+    }
 
     fn input_schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -88,7 +100,9 @@ impl Tool for KvLookupTool {
 
     async fn execute(&self, input: serde_json::Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { key: String }
+        struct Input {
+            key: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -118,7 +132,9 @@ async fn main() -> anyhow::Result<()> {
     let agent = Agent::builder()
         .provider(Anthropic::from_env()?)
         .tool(WordCountTool)
-        .tool(KvLookupTool { store: store.clone() })
+        .tool(KvLookupTool {
+            store: store.clone(),
+        })
         .tools(cersei::tools::filesystem()) // also add file tools
         .system_prompt("You are a helpful assistant. Use tools when needed.")
         .max_turns(5)
@@ -133,9 +149,12 @@ async fn main() -> anyhow::Result<()> {
     println!("{}", output.text());
     println!("\nTool calls made:");
     for tc in &output.tool_calls {
-        println!("  {} → {} ({}ms)", tc.name,
+        println!(
+            "  {} → {} ({}ms)",
+            tc.name,
             if tc.is_error { "ERR" } else { "OK" },
-            tc.duration.as_millis());
+            tc.duration.as_millis()
+        );
     }
 
     Ok(())

@@ -245,17 +245,30 @@ fn load_external_oauth() -> Option<OAuthTokenData> {
 
     Some(OAuthTokenData {
         access_token: v.get("access_token")?.as_str()?.to_string(),
-        refresh_token: v.get("refresh_token").and_then(|v| v.as_str()).map(String::from),
+        refresh_token: v
+            .get("refresh_token")
+            .and_then(|v| v.as_str())
+            .map(String::from),
         expires_at_ms: v.get("expires_at_ms").and_then(|v| v.as_i64()),
         scopes: v
             .get("scopes")
             .and_then(|v| v.as_array())
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default(),
         email: v.get("email").and_then(|v| v.as_str()).map(String::from),
         api_key: v.get("api_key").and_then(|v| v.as_str()).map(String::from),
-        account_uuid: v.get("account_uuid").and_then(|v| v.as_str()).map(String::from),
-        organization_uuid: v.get("organization_uuid").and_then(|v| v.as_str()).map(String::from),
+        account_uuid: v
+            .get("account_uuid")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        organization_uuid: v
+            .get("organization_uuid")
+            .and_then(|v| v.as_str())
+            .map(String::from),
     })
 }
 
@@ -352,11 +365,21 @@ async fn run_callback_server(
         }
     }
 
-    let path = request_line.split_whitespace().nth(1).unwrap_or("").to_string();
+    let path = request_line
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or("")
+        .to_string();
     let parsed = url::Url::parse(&format!("http://localhost{}", path))?;
 
-    let code = parsed.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.to_string());
-    let recv_state = parsed.query_pairs().find(|(k, _)| k == "state").map(|(_, v)| v.to_string());
+    let code = parsed
+        .query_pairs()
+        .find(|(k, _)| k == "code")
+        .map(|(_, v)| v.to_string());
+    let recv_state = parsed
+        .query_pairs()
+        .find(|(k, _)| k == "state")
+        .map(|(_, v)| v.to_string());
 
     let response = format!(
         "HTTP/1.1 302 Found\r\nLocation: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -408,7 +431,9 @@ async fn exchange_code(
         "state": state,
     });
 
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
     let resp = client
         .post(TOKEN_URL)
         .header("content-type", "application/json")
@@ -426,7 +451,9 @@ async fn exchange_code(
 }
 
 async fn create_api_key(access_token: &str) -> anyhow::Result<String> {
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
     let resp = client
         .post(API_KEY_URL)
         .header("authorization", format!("Bearer {access_token}"))
@@ -440,7 +467,8 @@ async fn create_api_key(access_token: &str) -> anyhow::Result<String> {
     }
 
     let data: ApiKeyResponse = resp.json().await?;
-    data.raw_key.ok_or_else(|| anyhow::anyhow!("No API key in response"))
+    data.raw_key
+        .ok_or_else(|| anyhow::anyhow!("No API key in response"))
 }
 
 async fn refresh_oauth_token(oauth: &OAuthTokenData) -> anyhow::Result<OAuthTokenData> {
@@ -456,7 +484,9 @@ async fn refresh_oauth_token(oauth: &OAuthTokenData) -> anyhow::Result<OAuthToke
         "scope": ALL_SCOPES.join(" "),
     });
 
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
     let resp = client.post(TOKEN_URL).json(&body).send().await?;
 
     if !resp.status().is_success() {
@@ -561,7 +591,10 @@ pub fn run_logout() -> anyhow::Result<()> {
 
     let claude_path = oauth_tokens_path();
     if claude_path.exists() {
-        eprintln!("\x1b[90mNote: External OAuth tokens at {} were not removed.\x1b[0m", claude_path.display());
+        eprintln!(
+            "\x1b[90mNote: External OAuth tokens at {} were not removed.\x1b[0m",
+            claude_path.display()
+        );
     }
     Ok(())
 }
@@ -578,7 +611,9 @@ fn show_status() -> anyhow::Result<()> {
                 "\x1b[90mnot running\x1b[0m".to_string()
             }
         } else if let Some(key) = entry.api_key_from_env() {
-            let env_name = entry.env_keys.iter()
+            let env_name = entry
+                .env_keys
+                .iter()
                 .find(|v| std::env::var(v).ok().filter(|k| !k.is_empty()).is_some())
                 .unwrap_or(&"?");
             format!("\x1b[32mENV\x1b[0m ({}={})", env_name, mask_key(&key))
@@ -600,7 +635,9 @@ async fn login_interactive() -> anyhow::Result<()> {
     let creds = Credentials::load();
     if creds.has_any_auth() {
         show_status()?;
-        eprintln!("\n\x1b[90mAlready authenticated. Use 'abstract login <provider>' to re-auth.\x1b[0m");
+        eprintln!(
+            "\n\x1b[90mAlready authenticated. Use 'abstract login <provider>' to re-auth.\x1b[0m"
+        );
         return Ok(());
     }
 
@@ -733,7 +770,8 @@ async fn login_anthropic_oauth() -> anyhow::Result<()> {
     let token_resp = exchange_code(&auth_code, &state, &verifier, port).await?;
     eprintln!("\x1b[32mdone.\x1b[0m");
 
-    let expires_at_ms = chrono::Utc::now().timestamp_millis() + (token_resp.expires_in as i64 * 1000);
+    let expires_at_ms =
+        chrono::Utc::now().timestamp_millis() + (token_resp.expires_in as i64 * 1000);
     let scopes: Vec<String> = token_resp
         .scope
         .as_deref()
@@ -742,9 +780,18 @@ async fn login_anthropic_oauth() -> anyhow::Result<()> {
         .map(String::from)
         .collect();
 
-    let account_uuid = token_resp.account.as_ref().and_then(|a| a["uuid"].as_str().map(String::from));
-    let email = token_resp.account.as_ref().and_then(|a| a["email_address"].as_str().map(String::from));
-    let org_uuid = token_resp.organization.as_ref().and_then(|o| o["uuid"].as_str().map(String::from));
+    let account_uuid = token_resp
+        .account
+        .as_ref()
+        .and_then(|a| a["uuid"].as_str().map(String::from));
+    let email = token_resp
+        .account
+        .as_ref()
+        .and_then(|a| a["email_address"].as_str().map(String::from));
+    let org_uuid = token_resp
+        .organization
+        .as_ref()
+        .and_then(|o| o["uuid"].as_str().map(String::from));
     let uses_bearer = scopes.iter().any(|s| s == INFERENCE_SCOPE);
 
     // 7. Console path: create API key from access token
@@ -793,10 +840,20 @@ async fn login_anthropic_oauth() -> anyhow::Result<()> {
     eprintln!();
     eprintln!("  \x1b[32;1mAuthenticated!\x1b[0m");
     eprintln!("  Account: {}", email.as_deref().unwrap_or("unknown"));
-    eprintln!("  Mode:    {}", if uses_bearer { "Bearer (Claude.ai)" } else { "API Key (Console)" });
-    eprintln!("  Expires: {}", chrono::DateTime::from_timestamp_millis(expires_at_ms)
-        .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
-        .unwrap_or_else(|| "unknown".into()));
+    eprintln!(
+        "  Mode:    {}",
+        if uses_bearer {
+            "Bearer (Claude.ai)"
+        } else {
+            "API Key (Console)"
+        }
+    );
+    eprintln!(
+        "  Expires: {}",
+        chrono::DateTime::from_timestamp_millis(expires_at_ms)
+            .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
+            .unwrap_or_else(|| "unknown".into())
+    );
     eprintln!();
     eprintln!("  You can now use: abstract \"your prompt\"");
 

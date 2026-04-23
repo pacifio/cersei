@@ -2,10 +2,10 @@
 
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use ratatui::prelude::*;
+use std::sync::OnceLock;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
-use std::sync::OnceLock;
 
 static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
 static THEME_SET: OnceLock<ThemeSet> = OnceLock::new();
@@ -45,12 +45,17 @@ pub fn render_markdown(text: &str, width: u16) -> Vec<Line<'static>> {
                 heading_level = level as u8;
             }
             Event::End(TagEnd::Heading(_)) => {
-                let text: String = current_spans.iter().map(|s| s.content.to_string()).collect();
+                let text: String = current_spans
+                    .iter()
+                    .map(|s| s.content.to_string())
+                    .collect();
                 current_spans.clear();
                 let prefix = "#".repeat(heading_level as usize);
                 current_spans.push(Span::styled(
                     format!("{prefix} {text}"),
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
                 ));
                 flush_line(&mut lines, &mut current_spans);
                 in_heading = false;
@@ -65,7 +70,14 @@ pub fn render_markdown(text: &str, width: u16) -> Vec<Line<'static>> {
                     CodeBlockKind::Indented => String::new(),
                 };
                 lines.push(Line::from(Span::styled(
-                    format!("  ┌─ {}", if code_lang.is_empty() { "code" } else { &code_lang }),
+                    format!(
+                        "  ┌─ {}",
+                        if code_lang.is_empty() {
+                            "code"
+                        } else {
+                            &code_lang
+                        }
+                    ),
                     Style::default().fg(Color::DarkGray),
                 )));
             }
@@ -74,15 +86,26 @@ pub fn render_markdown(text: &str, width: u16) -> Vec<Line<'static>> {
                 for hl_line in highlighted {
                     lines.push(hl_line);
                 }
-                lines.push(Line::from(Span::styled("  └─", Style::default().fg(Color::DarkGray))));
+                lines.push(Line::from(Span::styled(
+                    "  └─",
+                    Style::default().fg(Color::DarkGray),
+                )));
                 in_code_block = false;
                 code_buffer.clear();
             }
 
-            Event::Start(Tag::Emphasis) => { italic = true; }
-            Event::End(TagEnd::Emphasis) => { italic = false; }
-            Event::Start(Tag::Strong) => { bold = true; }
-            Event::End(TagEnd::Strong) => { bold = false; }
+            Event::Start(Tag::Emphasis) => {
+                italic = true;
+            }
+            Event::End(TagEnd::Emphasis) => {
+                italic = false;
+            }
+            Event::Start(Tag::Strong) => {
+                bold = true;
+            }
+            Event::End(TagEnd::Strong) => {
+                bold = false;
+            }
 
             Event::Start(Tag::List(_)) => {
                 flush_line(&mut lines, &mut current_spans);
@@ -113,8 +136,12 @@ pub fn render_markdown(text: &str, width: u16) -> Vec<Line<'static>> {
                     code_buffer.push_str(&text);
                 } else {
                     let mut style = Style::default();
-                    if bold { style = style.add_modifier(Modifier::BOLD); }
-                    if italic { style = style.add_modifier(Modifier::ITALIC); }
+                    if bold {
+                        style = style.add_modifier(Modifier::BOLD);
+                    }
+                    if italic {
+                        style = style.add_modifier(Modifier::ITALIC);
+                    }
                     current_spans.push(Span::styled(text.to_string(), style));
                 }
             }
@@ -166,7 +193,8 @@ pub fn render_markdown(text: &str, width: u16) -> Vec<Line<'static>> {
                             let mut leftover = rest.to_string();
                             while leftover.len() > max_width {
                                 let (chunk, rem) = leftover.split_at(max_width);
-                                wrapped.push(Line::from(Span::styled(chunk.to_string(), span.style)));
+                                wrapped
+                                    .push(Line::from(Span::styled(chunk.to_string(), span.style)));
                                 leftover = rem.to_string();
                             }
                             if !leftover.is_empty() {

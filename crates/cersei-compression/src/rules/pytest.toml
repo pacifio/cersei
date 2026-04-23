@@ -1,0 +1,15 @@
+schema_version = 1
+
+[filters.pytest]
+description = "Keep failing tests and the summary for pytest."
+match_command = '^(pytest|py\.test|python\s+-m\s+pytest)\b'
+strip_ansi = true
+strip_lines_matching = [
+    '^platform\s',
+    '^rootdir:',
+    '^plugins:',
+    '^collecting\s',
+    '^collected\s',
+    '^\s*$',
+]
+max_lines = 250

@@ -125,23 +125,15 @@ pub fn builtin_servers() -> Vec<LspServerConfig> {
         ),
         // Ruby
         {
-            let mut cfg = LspServerConfig::new(
-                "ruby-lsp",
-                "ruby-lsp",
-                &["*.rb"],
-                &[(".rb", "ruby")],
-            );
+            let mut cfg =
+                LspServerConfig::new("ruby-lsp", "ruby-lsp", &["*.rb"], &[(".rb", "ruby")]);
             cfg.args = vec!["--stdio".to_string()];
             cfg
         },
         // PHP
         {
-            let mut cfg = LspServerConfig::new(
-                "phpactor",
-                "phpactor",
-                &["*.php"],
-                &[(".php", "php")],
-            );
+            let mut cfg =
+                LspServerConfig::new("phpactor", "phpactor", &["*.php"], &[(".php", "php")]);
             cfg.args = vec!["language-server".to_string()];
             cfg
         },
@@ -176,12 +168,8 @@ pub fn builtin_servers() -> Vec<LspServerConfig> {
         ),
         // C#
         {
-            let mut cfg = LspServerConfig::new(
-                "omnisharp",
-                "OmniSharp",
-                &["*.cs"],
-                &[(".cs", "csharp")],
-            );
+            let mut cfg =
+                LspServerConfig::new("omnisharp", "OmniSharp", &["*.cs"], &[(".cs", "csharp")]);
             cfg.args = vec!["-lsp".to_string()];
             cfg
         },

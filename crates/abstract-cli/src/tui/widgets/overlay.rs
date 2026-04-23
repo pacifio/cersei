@@ -43,7 +43,12 @@ fn render_help(f: &mut Frame, theme: &Theme) {
     f.render_widget(Clear, area);
 
     let help_text = vec![
-        Line::from(Span::styled("Commands", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Commands",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::default(),
         Line::from("  /help        Show this help"),
         Line::from("  /clear       Clear conversation"),
@@ -60,7 +65,12 @@ fn render_help(f: &mut Frame, theme: &Theme) {
         Line::from("  /compact     Context compaction info"),
         Line::from("  /exit        Exit"),
         Line::default(),
-        Line::from(Span::styled("Keys", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Keys",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::default(),
         Line::from("  Enter        Send message"),
         Line::from("  Ctrl+C       Cancel / clear / quit"),
@@ -73,7 +83,12 @@ fn render_help(f: &mut Frame, theme: &Theme) {
         Line::from("  Up/Down      Scroll (empty) / history"),
         Line::from("  Esc          Close overlay"),
         Line::default(),
-        Line::from(Span::styled("Modes (Shift+Tab)", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Modes (Shift+Tab)",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::default(),
         Line::from("  Auto         Ask for permissions"),
         Line::from("  Plan         Read-only, no execution"),
@@ -90,7 +105,9 @@ fn render_help(f: &mut Frame, theme: &Theme) {
         .border_style(theme.border_style())
         .style(Style::default().bg(theme.bg));
 
-    let help = Paragraph::new(help_text).block(block).wrap(Wrap { trim: false });
+    let help = Paragraph::new(help_text)
+        .block(block)
+        .wrap(Wrap { trim: false });
     f.render_widget(help, area);
 }
 
@@ -113,16 +130,24 @@ fn render_permission(f: &mut Frame, p: &PermissionOverlay, theme: &Theme) {
 
     for (i, opt) in options.iter().enumerate() {
         let style = if i == p.selected {
-            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD)
         } else {
             theme.text()
         };
         let marker = if i == p.selected { ">" } else { " " };
-        lines.push(Line::from(Span::styled(format!("    {marker} {opt}"), style)));
+        lines.push(Line::from(Span::styled(
+            format!("    {marker} {opt}"),
+            style,
+        )));
     }
 
     lines.push(Line::default());
-    lines.push(Line::from(Span::styled("  Up/Down select, Enter confirm, Esc deny", theme.dimmed())));
+    lines.push(Line::from(Span::styled(
+        "  Up/Down select, Enter confirm, Esc deny",
+        theme.dimmed(),
+    )));
     lines.push(Line::default());
 
     let block = Block::default()
@@ -140,7 +165,10 @@ fn render_recovery(f: &mut Frame, r: &RecoveryOverlay, theme: &Theme) {
     f.render_widget(Clear, area);
 
     let mut lines = vec![
-        Line::from(Span::styled("Provider error", theme.error_style().add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Provider error",
+            theme.error_style().add_modifier(Modifier::BOLD),
+        )),
         Line::default(),
         Line::from(Span::styled(&r.error_msg, theme.dimmed())),
         Line::default(),
@@ -148,7 +176,9 @@ fn render_recovery(f: &mut Frame, r: &RecoveryOverlay, theme: &Theme) {
 
     for (i, opt) in r.options.iter().enumerate() {
         let style = if i == r.selected {
-            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD)
         } else {
             theme.text()
         };
@@ -157,7 +187,10 @@ fn render_recovery(f: &mut Frame, r: &RecoveryOverlay, theme: &Theme) {
     }
 
     lines.push(Line::default());
-    lines.push(Line::from(Span::styled("Up/Down to select, Enter to confirm, Esc to skip", theme.dimmed())));
+    lines.push(Line::from(Span::styled(
+        "Up/Down to select, Enter to confirm, Esc to skip",
+        theme.dimmed(),
+    )));
 
     let block = Block::default()
         .title(" Provider Error ")

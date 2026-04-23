@@ -4,7 +4,10 @@
 //! a custom renderer with Block widgets and canvas lines.
 
 use crate::tui::theme::Theme;
-use ratatui::{prelude::*, widgets::{Block, Borders, Clear, Paragraph, Wrap}};
+use ratatui::{
+    prelude::*,
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+};
 
 /// A node in the graph visualization.
 #[derive(Debug, Clone)]
@@ -226,7 +229,9 @@ pub fn render(f: &mut Frame, state: &GraphOverlayState, theme: &Theme) {
 
         let is_selected = i == state.selected;
         let border_style = if is_selected {
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(node.kind.color())
         };
@@ -270,8 +275,7 @@ pub fn render(f: &mut Frame, state: &GraphOverlayState, theme: &Theme) {
             let abs_x = inner.x + fx;
             let abs_y = inner.y + fy;
             if abs_x < inner.right() && abs_y < inner.bottom() {
-                let connector = Paragraph::new("│")
-                    .style(Style::default().fg(Color::DarkGray));
+                let connector = Paragraph::new("│").style(Style::default().fg(Color::DarkGray));
                 f.render_widget(connector, Rect::new(abs_x, abs_y, 1, 1));
             }
         }
@@ -284,14 +288,9 @@ pub fn render(f: &mut Frame, state: &GraphOverlayState, theme: &Theme) {
             " Selected: {} ({:?}) — {}",
             selected_node.label, selected_node.kind, selected_node.id
         );
-        let detail_area = Rect::new(
-            inner.x,
-            inner.bottom().saturating_sub(1),
-            inner.width,
-            1,
-        );
-        let detail_widget = Paragraph::new(detail)
-            .style(Style::default().fg(theme.fg).bg(theme.bg));
+        let detail_area = Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1);
+        let detail_widget =
+            Paragraph::new(detail).style(Style::default().fg(theme.fg).bg(theme.bg));
         f.render_widget(detail_widget, detail_area);
     }
 }

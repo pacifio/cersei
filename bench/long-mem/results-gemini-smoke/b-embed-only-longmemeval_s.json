@@ -1,0 +1,22 @@
+{
+  "config": "b-embed-only",
+  "dataset": "longmemeval_s",
+  "judge_model": "gemini-2.5-flash",
+  "total_questions": 10,
+  "correct_answers": 9,
+  "overall_accuracy": 0.9,
+  "accuracy_by_type": {
+    "single-session-user": {
+      "correct": 9,
+      "total": 10,
+      "accuracy": 0.9
+    }
+  },
+  "abstention_total": 0,
+  "abstention_correct": 0,
+  "abstention_accuracy": 0.0,
+  "avg_elapsed_ms": 27337,
+  "total_input_tokens": 45502,
+  "total_output_tokens": 137,
+  "total_judge_tokens": 2040
+}

@@ -49,7 +49,12 @@ impl Reporter for ConsoleReporter {
             } => {
                 if self.verbose {
                     let status = if *is_error { "FAILED" } else { "OK" };
-                    eprintln!("[tool] {} {} ({:.1}s)", name, status, duration.as_secs_f64());
+                    eprintln!(
+                        "[tool] {} {} ({:.1}s)",
+                        name,
+                        status,
+                        duration.as_secs_f64()
+                    );
                 }
             }
             AgentEvent::TurnComplete { turn, usage, .. } => {
@@ -188,10 +193,7 @@ impl Reporter for MetricsReporter {
             }
             AgentEvent::ToolEnd { name, .. } => {
                 metrics.total_tool_calls += 1;
-                *metrics
-                    .tool_call_histogram
-                    .entry(name.clone())
-                    .or_default() += 1;
+                *metrics.tool_call_histogram.entry(name.clone()).or_default() += 1;
             }
             _ => {}
         }

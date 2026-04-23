@@ -52,7 +52,9 @@ struct AgentInput {
 
 #[async_trait]
 impl Tool for AgentTool {
-    fn name(&self) -> &str { "Agent" }
+    fn name(&self) -> &str {
+        "Agent"
+    }
 
     fn description(&self) -> &str {
         "Launch a new agent to handle complex, multi-step tasks autonomously. \
@@ -175,8 +177,8 @@ impl Tool for AgentTool {
 mod tests {
     use super::*;
     use cersei_provider::{CompletionRequest, CompletionStream, ProviderCapabilities};
-    use cersei_tools::{CostTracker, Extensions};
     use cersei_tools::permissions::AllowAll;
+    use cersei_tools::{CostTracker, Extensions};
     use cersei_types::*;
     use tokio::sync::mpsc;
 
@@ -185,23 +187,59 @@ mod tests {
 
     #[async_trait]
     impl Provider for EchoProvider {
-        fn name(&self) -> &str { "echo" }
-        fn context_window(&self, _: &str) -> u64 { 4096 }
+        fn name(&self) -> &str {
+            "echo"
+        }
+        fn context_window(&self, _: &str) -> u64 {
+            4096
+        }
         fn capabilities(&self, _: &str) -> ProviderCapabilities {
-            ProviderCapabilities { streaming: true, tool_use: false, ..Default::default() }
+            ProviderCapabilities {
+                streaming: true,
+                tool_use: false,
+                ..Default::default()
+            }
         }
         async fn complete(&self, req: CompletionRequest) -> cersei_types::Result<CompletionStream> {
-            let prompt = req.messages.last().and_then(|m| m.get_text()).unwrap_or("").to_string();
+            let prompt = req
+                .messages
+                .last()
+                .and_then(|m| m.get_text())
+                .unwrap_or("")
+                .to_string();
             let (tx, rx) = mpsc::channel(16);
             tokio::spawn(async move {
-                let _ = tx.send(StreamEvent::MessageStart { id: "1".into(), model: "echo".into() }).await;
-                let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "text".into(), id: None, name: None }).await;
-                let _ = tx.send(StreamEvent::TextDelta { index: 0, text: format!("Echo: {}", prompt) }).await;
+                let _ = tx
+                    .send(StreamEvent::MessageStart {
+                        id: "1".into(),
+                        model: "echo".into(),
+                    })
+                    .await;
+                let _ = tx
+                    .send(StreamEvent::ContentBlockStart {
+                        index: 0,
+                        block_type: "text".into(),
+                        id: None,
+                        name: None,
+                    })
+                    .await;
+                let _ = tx
+                    .send(StreamEvent::TextDelta {
+                        index: 0,
+                        text: format!("Echo: {}", prompt),
+                    })
+                    .await;
                 let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
-                let _ = tx.send(StreamEvent::MessageDelta {
-                    stop_reason: Some(StopReason::EndTurn),
-                    usage: Some(Usage { input_tokens: 10, output_tokens: 5, ..Default::default() }),
-                }).await;
+                let _ = tx
+                    .send(StreamEvent::MessageDelta {
+                        stop_reason: Some(StopReason::EndTurn),
+                        usage: Some(Usage {
+                            input_tokens: 10,
+                            output_tokens: 5,
+                            ..Default::default()
+                        }),
+                    })
+                    .await;
                 let _ = tx.send(StreamEvent::MessageStop).await;
             });
             Ok(CompletionStream::new(rx))
@@ -210,10 +248,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_tool_spawns_sub_agent() {
-        let agent_tool = AgentTool::new(
-            || Box::new(EchoProvider),
-            cersei_tools::filesystem(),
-        );
+        let agent_tool = AgentTool::new(|| Box::new(EchoProvider), cersei_tools::filesystem());
 
         let ctx = ToolContext {
             working_dir: std::env::temp_dir(),
@@ -224,23 +259,32 @@ mod tests {
             extensions: Extensions::default(),
         };
 
-        let result = agent_tool.execute(json!({
-            "description": "test sub-agent",
-            "prompt": "Hello from parent"
-        }), &ctx).await;
+        let result = agent_tool
+            .execute(
+                json!({
+                    "description": "test sub-agent",
+                    "prompt": "Hello from parent"
+                }),
+                &ctx,
+            )
+            .await;
 
-        assert!(!result.is_error, "Sub-agent should succeed: {}", result.content);
-        assert!(result.content.contains("Echo:"), "Should contain echo response");
+        assert!(
+            !result.is_error,
+            "Sub-agent should succeed: {}",
+            result.content
+        );
+        assert!(
+            result.content.contains("Echo:"),
+            "Should contain echo response"
+        );
         assert!(result.metadata.is_some(), "Should have metadata");
     }
 
     #[tokio::test]
     async fn test_agent_tool_filters_self() {
         // Verify Agent tool is not available to sub-agents (no recursion)
-        let agent_tool = AgentTool::new(
-            || Box::new(EchoProvider),
-            cersei_tools::all(),
-        );
+        let agent_tool = AgentTool::new(|| Box::new(EchoProvider), cersei_tools::all());
 
         let ctx = ToolContext {
             working_dir: std::env::temp_dir(),
@@ -252,10 +296,15 @@ mod tests {
         };
 
         // This should work — sub-agent gets tools minus "Agent"
-        let result = agent_tool.execute(json!({
-            "description": "test no recursion",
-            "prompt": "Do something"
-        }), &ctx).await;
+        let result = agent_tool
+            .execute(
+                json!({
+                    "description": "test no recursion",
+                    "prompt": "Do something"
+                }),
+                &ctx,
+            )
+            .await;
 
         assert!(!result.is_error);
     }

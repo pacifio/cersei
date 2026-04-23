@@ -4,9 +4,8 @@ use super::*;
 use serde::{Deserialize, Serialize};
 
 /// Global todo storage keyed by session_id.
-static TODO_REGISTRY: once_cell::sync::Lazy<
-    dashmap::DashMap<String, Vec<TodoItem>>,
-> = once_cell::sync::Lazy::new(dashmap::DashMap::new);
+static TODO_REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<String, Vec<TodoItem>>> =
+    once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TodoItem {
@@ -41,11 +40,15 @@ pub struct TodoWriteTool;
 
 #[async_trait]
 impl Tool for TodoWriteTool {
-    fn name(&self) -> &str { "TodoWrite" }
+    fn name(&self) -> &str {
+        "TodoWrite"
+    }
     fn description(&self) -> &str {
         "Create and manage a structured task list. Tracks progress with pending/in_progress/completed states."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -71,7 +74,9 @@ impl Tool for TodoWriteTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { todos: Vec<TodoItem> }
+        struct Input {
+            todos: Vec<TodoItem>,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -146,17 +151,28 @@ mod tests {
     async fn test_todo_update() {
         clear_todos("todo-test2");
         let tool = TodoWriteTool;
-        let ctx = ToolContext { session_id: "todo-test2".into(), ..test_ctx() };
+        let ctx = ToolContext {
+            session_id: "todo-test2".into(),
+            ..test_ctx()
+        };
 
         // Create
-        tool.execute(serde_json::json!({
-            "todos": [{"content": "Task A", "status": "pending", "activeForm": "Doing A"}]
-        }), &ctx).await;
+        tool.execute(
+            serde_json::json!({
+                "todos": [{"content": "Task A", "status": "pending", "activeForm": "Doing A"}]
+            }),
+            &ctx,
+        )
+        .await;
 
         // Update to completed
-        tool.execute(serde_json::json!({
-            "todos": [{"content": "Task A", "status": "completed", "activeForm": "Doing A"}]
-        }), &ctx).await;
+        tool.execute(
+            serde_json::json!({
+                "todos": [{"content": "Task A", "status": "completed", "activeForm": "Doing A"}]
+            }),
+            &ctx,
+        )
+        .await;
 
         let todos = get_todos("todo-test2");
         assert_eq!(todos[0].status, TodoStatus::Completed);

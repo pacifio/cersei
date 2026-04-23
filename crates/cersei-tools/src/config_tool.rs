@@ -4,9 +4,8 @@ use super::*;
 use serde::Deserialize;
 
 /// In-memory config store (session-scoped).
-static CONFIG_STORE: once_cell::sync::Lazy<
-    dashmap::DashMap<String, serde_json::Value>,
-> = once_cell::sync::Lazy::new(dashmap::DashMap::new);
+static CONFIG_STORE: once_cell::sync::Lazy<dashmap::DashMap<String, serde_json::Value>> =
+    once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 pub fn get_config(key: &str) -> Option<serde_json::Value> {
     CONFIG_STORE.get(key).map(|v| v.clone())
@@ -20,10 +19,18 @@ pub struct ConfigTool;
 
 #[async_trait]
 impl Tool for ConfigTool {
-    fn name(&self) -> &str { "Config" }
-    fn description(&self) -> &str { "Read or modify configuration values." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Custom }
+    fn name(&self) -> &str {
+        "Config"
+    }
+    fn description(&self) -> &str {
+        "Read or modify configuration values."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Custom
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -75,7 +82,9 @@ impl Tool for ConfigTool {
                     ToolResult::success(entries.join("\n"))
                 }
             }
-            other => ToolResult::error(format!("Unknown action: {}. Use get, set, or list.", other)),
+            other => {
+                ToolResult::error(format!("Unknown action: {}. Use get, set, or list.", other))
+            }
         }
     }
 }
@@ -100,8 +109,17 @@ mod tests {
     #[tokio::test]
     async fn test_config_set_get() {
         let tool = ConfigTool;
-        tool.execute(serde_json::json!({"action": "set", "key": "theme", "value": "dark"}), &test_ctx()).await;
-        let result = tool.execute(serde_json::json!({"action": "get", "key": "theme"}), &test_ctx()).await;
+        tool.execute(
+            serde_json::json!({"action": "set", "key": "theme", "value": "dark"}),
+            &test_ctx(),
+        )
+        .await;
+        let result = tool
+            .execute(
+                serde_json::json!({"action": "get", "key": "theme"}),
+                &test_ctx(),
+            )
+            .await;
         assert!(result.content.contains("dark"));
     }
 }

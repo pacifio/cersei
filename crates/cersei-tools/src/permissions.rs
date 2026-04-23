@@ -1,8 +1,8 @@
 //! Permission policies for tool execution.
 
+use super::PermissionLevel;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use super::PermissionLevel;
 
 // ─── Permission policy trait ─────────────────────────────────────────────────
 
@@ -62,7 +62,10 @@ pub struct DenyAll;
 #[async_trait]
 impl PermissionPolicy for DenyAll {
     async fn check(&self, request: &PermissionRequest) -> PermissionDecision {
-        PermissionDecision::Deny(format!("Tool '{}' blocked by DenyAll policy", request.tool_name))
+        PermissionDecision::Deny(format!(
+            "Tool '{}' blocked by DenyAll policy",
+            request.tool_name
+        ))
     }
 }
 

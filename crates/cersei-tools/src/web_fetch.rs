@@ -8,12 +8,18 @@ pub struct WebFetchTool;
 
 #[async_trait]
 impl Tool for WebFetchTool {
-    fn name(&self) -> &str { "WebFetch" }
+    fn name(&self) -> &str {
+        "WebFetch"
+    }
     fn description(&self) -> &str {
         "Fetch a URL and return its content as readable text. HTML is converted to markdown."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::ReadOnly }
-    fn category(&self) -> ToolCategory { ToolCategory::Web }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::ReadOnly
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Web
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({

@@ -36,10 +36,18 @@ pub struct SystemPromptSection {
 
 impl SystemPromptSection {
     pub fn cached(tag: impl Into<String>, content: impl Into<String>) -> Self {
-        Self { tag: tag.into(), content: Some(content.into()), cache_break: false }
+        Self {
+            tag: tag.into(),
+            content: Some(content.into()),
+            cache_break: false,
+        }
     }
     pub fn uncached(tag: impl Into<String>, content: Option<String>) -> Self {
-        Self { tag: tag.into(), content, cache_break: true }
+        Self {
+            tag: tag.into(),
+            content,
+            cache_break: true,
+        }
     }
 }
 
@@ -94,7 +102,9 @@ pub enum SystemPromptPrefix {
 impl SystemPromptPrefix {
     pub fn detect(is_non_interactive: bool, has_append_system_prompt: bool) -> Self {
         if is_non_interactive {
-            if has_append_system_prompt { return Self::SdkPreset; }
+            if has_append_system_prompt {
+                return Self::SdkPreset;
+            }
             return Self::Sdk;
         }
         Self::Interactive
@@ -141,7 +151,6 @@ pub struct SystemPromptOptions {
     pub extra_dynamic_sections: Vec<(String, String)>,
 
     // ── New fields for conditional components ──
-
     /// Tool names available in the agent's tool list (for conditional guidance).
     pub tools_available: Vec<String>,
     /// Whether a memory backend is configured.
@@ -214,7 +223,11 @@ pub fn build_system_prompt(opts: &SystemPromptOptions) -> String {
     }
 
     // 11. Session guidance: Agent tool
-    if opts.tools_available.iter().any(|t| t == "Agent" || t == "TaskCreate") {
+    if opts
+        .tools_available
+        .iter()
+        .any(|t| t == "Agent" || t == "TaskCreate")
+    {
         parts.push(SESSION_AGENT_GUIDANCE.to_string());
     }
 
@@ -242,7 +255,10 @@ pub fn build_system_prompt(opts: &SystemPromptOptions) -> String {
 
     // 16. Custom system prompt
     if let Some(custom) = &opts.custom_system_prompt {
-        parts.push(format!("\n<custom_instructions>\n{}\n</custom_instructions>", custom));
+        parts.push(format!(
+            "\n<custom_instructions>\n{}\n</custom_instructions>",
+            custom
+        ));
     }
 
     // 17. Extra cached sections

@@ -556,19 +556,14 @@ mod tests {
         let ctx = ToolContext {
             working_dir: std::path::PathBuf::from("/tmp"),
             session_id: "test".to_string(),
-            permissions: std::sync::Arc::new(
-                crate::permissions::AllowAll,
-            ),
+            permissions: std::sync::Arc::new(crate::permissions::AllowAll),
             cost_tracker: std::sync::Arc::new(CostTracker::new()),
             mcp_manager: None,
             extensions: Extensions::default(),
         };
 
         let result = tool
-            .execute(
-                serde_json::json!({"query": "test"}),
-                &ctx,
-            )
+            .execute(serde_json::json!({"query": "test"}), &ctx)
             .await;
         assert!(result.is_error);
         assert!(result.content.contains("EXA_API_KEY"));

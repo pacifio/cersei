@@ -148,7 +148,11 @@ pub async fn log(path: &Path, n: usize) -> Result<Vec<GitLogEntry>, GitError> {
 /// List files modified since HEAD.
 pub async fn list_modified_files(path: &Path) -> Result<Vec<String>, GitError> {
     let output = git_cmd(path, &["diff", "--name-only", "HEAD"]).await?;
-    Ok(output.lines().map(String::from).filter(|s| !s.is_empty()).collect())
+    Ok(output
+        .lines()
+        .map(String::from)
+        .filter(|s| !s.is_empty())
+        .collect())
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────

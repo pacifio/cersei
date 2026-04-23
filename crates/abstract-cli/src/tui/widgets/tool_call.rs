@@ -15,7 +15,10 @@ pub fn render_tool_call(tool: &ToolCall, theme: &Theme, frame_count: u64) -> Vec
     let (icon, icon_style) = match tool.status {
         ToolStatus::Running => {
             let spinner = match (frame_count / 4) % 4 {
-                0 => "⠋", 1 => "⠙", 2 => "⠹", _ => "⠸",
+                0 => "⠋",
+                1 => "⠙",
+                2 => "⠹",
+                _ => "⠸",
             };
             (spinner.to_string(), Style::default().fg(theme.accent))
         }
@@ -23,11 +26,19 @@ pub fn render_tool_call(tool: &ToolCall, theme: &Theme, frame_count: u64) -> Vec
         ToolStatus::Error => ("✗".into(), Style::default().fg(theme.error)),
     };
 
-    let dur = tool.duration_ms.map(|d| format!(" ({d}ms)")).unwrap_or_default();
+    let dur = tool
+        .duration_ms
+        .map(|d| format!(" ({d}ms)"))
+        .unwrap_or_default();
 
     lines.push(Line::from(vec![
         Span::styled(format!("  {icon} "), icon_style),
-        Span::styled(tool.name.clone(), Style::default().fg(theme.tool_badge).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            tool.name.clone(),
+            Style::default()
+                .fg(theme.tool_badge)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" "),
         Span::styled(tool.input_summary.clone(), Style::default().fg(theme.dim)),
         Span::styled(dur, Style::default().fg(theme.dim)),
@@ -41,7 +52,11 @@ pub fn render_tool_call(tool: &ToolCall, theme: &Theme, frame_count: u64) -> Vec
             } else {
                 // Default: plain text preview
                 let is_file_tool = matches!(tool.name.as_str(), "Edit" | "Write" | "ApplyPatch");
-                let max_lines = if is_file_tool { MAX_FILE_TOOL_LINES } else { MAX_OUTPUT_LINES };
+                let max_lines = if is_file_tool {
+                    MAX_FILE_TOOL_LINES
+                } else {
+                    MAX_OUTPUT_LINES
+                };
 
                 let preview_lines: Vec<&str> = output.lines().take(max_lines).collect();
                 let total = output.lines().count();

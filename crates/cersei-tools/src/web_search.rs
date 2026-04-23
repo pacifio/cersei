@@ -14,12 +14,18 @@ pub struct WebSearchTool;
 
 #[async_trait]
 impl Tool for WebSearchTool {
-    fn name(&self) -> &str { "WebSearch" }
+    fn name(&self) -> &str {
+        "WebSearch"
+    }
     fn description(&self) -> &str {
         "Search the web and return relevant results. Requires CERSEI_SEARCH_API_KEY environment variable."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::ReadOnly }
-    fn category(&self) -> ToolCategory { ToolCategory::Web }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::ReadOnly
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Web
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -99,7 +105,13 @@ impl Tool for WebSearchTool {
                 let title = result["title"].as_str().unwrap_or("(no title)");
                 let url = result["url"].as_str().unwrap_or("");
                 let desc = result["description"].as_str().unwrap_or("");
-                output.push_str(&format!("{}. **{}**\n   {}\n   {}\n\n", i + 1, title, url, desc));
+                output.push_str(&format!(
+                    "{}. **{}**\n   {}\n   {}\n\n",
+                    i + 1,
+                    title,
+                    url,
+                    desc
+                ));
             }
         }
 

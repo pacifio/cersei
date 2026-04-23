@@ -143,7 +143,14 @@ fn draw(terminal: &mut Terminal, state: &mut AppState, theme: &Theme) -> anyhow:
         messages::render(f, layout.main.messages, state, theme);
         status::render(f, layout.main.status, state, theme);
         input::render(f, layout.main.input, state, theme);
-        footer::render(f, layout.main.footer, state.is_streaming, state.side_panel_open, state.side_panel_focused, theme);
+        footer::render(
+            f,
+            layout.main.footer,
+            state.is_streaming,
+            state.side_panel_open,
+            state.side_panel_focused,
+            theme,
+        );
 
         // Side panel
         if let Some(panel_area) = layout.side_panel {
@@ -172,14 +179,32 @@ fn handle_key(
     // ── Side panel focused: j/k scroll, Tab switches tabs, Esc returns focus ──
     if state.side_panel_focused {
         match key.code {
-            KeyCode::Char('j') => { state.side_panel_scroll.scroll_down(1); }
-            KeyCode::Char('k') => { state.side_panel_scroll.scroll_up(1); }
-            KeyCode::Char('d') => { state.side_panel_scroll.page_down(); }
-            KeyCode::Char('u') => { state.side_panel_scroll.page_up(); }
-            KeyCode::Char('g') => { state.side_panel_scroll.scroll_up(state.side_panel_scroll.content_height); }
-            KeyCode::Char('G') => { state.side_panel_scroll.scroll_to_bottom(); }
-            KeyCode::Tab => { state.side_panel_tab = state.side_panel_tab.toggle(); }
-            KeyCode::Char('r') => { side_panel::refresh_content(state, &config.working_dir); }
+            KeyCode::Char('j') => {
+                state.side_panel_scroll.scroll_down(1);
+            }
+            KeyCode::Char('k') => {
+                state.side_panel_scroll.scroll_up(1);
+            }
+            KeyCode::Char('d') => {
+                state.side_panel_scroll.page_down();
+            }
+            KeyCode::Char('u') => {
+                state.side_panel_scroll.page_up();
+            }
+            KeyCode::Char('g') => {
+                state
+                    .side_panel_scroll
+                    .scroll_up(state.side_panel_scroll.content_height);
+            }
+            KeyCode::Char('G') => {
+                state.side_panel_scroll.scroll_to_bottom();
+            }
+            KeyCode::Tab => {
+                state.side_panel_tab = state.side_panel_tab.toggle();
+            }
+            KeyCode::Char('r') => {
+                side_panel::refresh_content(state, &config.working_dir);
+            }
             KeyCode::Esc | KeyCode::Char('q') => {
                 state.side_panel_focused = false;
             }
@@ -190,7 +215,9 @@ fn handle_key(
                         state.side_panel_open = false;
                         state.side_panel_focused = false;
                     }
-                    (KeyModifiers::CONTROL, KeyCode::Char('d')) => { state.should_quit = true; }
+                    (KeyModifiers::CONTROL, KeyCode::Char('d')) => {
+                        state.should_quit = true;
+                    }
                     (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
                         if state.is_streaming {
                             cancel_token.cancel();
@@ -395,7 +422,9 @@ fn handle_agent_event(state: &mut AppState, event: AgentEvent) {
         AgentEvent::ThinkingDelta(text) => {
             state.streaming_thinking.push_str(&text);
         }
-        AgentEvent::ToolStart { name, id: _, input, .. } => {
+        AgentEvent::ToolStart {
+            name, id: _, input, ..
+        } => {
             let summary = tool_input_summary(&name, &input);
             state.active_tools.push(ToolCall {
                 name,
@@ -407,14 +436,29 @@ fn handle_agent_event(state: &mut AppState, event: AgentEvent) {
             });
             state.tool_count += 1;
         }
-        AgentEvent::ToolEnd { name, id: _, result, is_error, duration } => {
+        AgentEvent::ToolEnd {
+            name,
+            id: _,
+            result,
+            is_error,
+            duration,
+        } => {
             if let Some(tool) = state.active_tools.iter_mut().rev().find(|t| t.name == name) {
-                tool.status = if is_error { ToolStatus::Error } else { ToolStatus::Done };
+                tool.status = if is_error {
+                    ToolStatus::Error
+                } else {
+                    ToolStatus::Done
+                };
                 tool.duration_ms = Some(duration.as_millis() as u64);
                 tool.output_preview = Some(result.chars().take(200).collect());
             }
         }
-        AgentEvent::CostUpdate { cumulative_cost, input_tokens, output_tokens, .. } => {
+        AgentEvent::CostUpdate {
+            cumulative_cost,
+            input_tokens,
+            output_tokens,
+            ..
+        } => {
             state.input_tokens = input_tokens;
             state.output_tokens = output_tokens;
             // Use reported cost or estimate from model pricing
@@ -427,9 +471,9 @@ fn handle_agent_event(state: &mut AppState, event: AgentEvent) {
         AgentEvent::TurnComplete { usage, .. } => {
             state.input_tokens = usage.input_tokens;
             state.output_tokens = usage.output_tokens;
-            state.cost_usd = usage.cost_usd
-                .filter(|c| *c > 0.0)
-                .unwrap_or_else(|| cersei_tools::estimate_cost(&state.model, usage.input_tokens, usage.output_tokens));
+            state.cost_usd = usage.cost_usd.filter(|c| *c > 0.0).unwrap_or_else(|| {
+                cersei_tools::estimate_cost(&state.model, usage.input_tokens, usage.output_tokens)
+            });
         }
         AgentEvent::TokenWarning { pct_used, .. } => {
             state.context_pct = pct_used;
@@ -466,26 +510,40 @@ fn handle_overlay_key(state: &mut AppState, key: KeyEvent) {
             state.overlay = Overlay::None;
         }
         KeyCode::Up => match &mut state.overlay {
-            Overlay::Permission(p) => { p.selected = p.selected.saturating_sub(1); }
-            Overlay::Recovery(r) => { r.selected = r.selected.saturating_sub(1); }
-            Overlay::Graph(g) => { g.select_prev(); }
+            Overlay::Permission(p) => {
+                p.selected = p.selected.saturating_sub(1);
+            }
+            Overlay::Recovery(r) => {
+                r.selected = r.selected.saturating_sub(1);
+            }
+            Overlay::Graph(g) => {
+                g.select_prev();
+            }
             _ => {}
         },
         KeyCode::Down => match &mut state.overlay {
-            Overlay::Permission(p) => { p.selected = (p.selected + 1).min(3); }
+            Overlay::Permission(p) => {
+                p.selected = (p.selected + 1).min(3);
+            }
             Overlay::Recovery(r) => {
                 if !r.options.is_empty() {
                     r.selected = (r.selected + 1).min(r.options.len() - 1);
                 }
             }
-            Overlay::Graph(g) => { g.select_next(); }
+            Overlay::Graph(g) => {
+                g.select_next();
+            }
             _ => {}
         },
         KeyCode::Left => {
-            if let Overlay::Graph(g) = &mut state.overlay { g.pan_x -= 3; }
+            if let Overlay::Graph(g) = &mut state.overlay {
+                g.pan_x -= 3;
+            }
         }
         KeyCode::Right => {
-            if let Overlay::Graph(g) = &mut state.overlay { g.pan_x += 3; }
+            if let Overlay::Graph(g) = &mut state.overlay {
+                g.pan_x += 3;
+            }
         }
         KeyCode::Enter => {
             // For permission overlays, send the selected decision
@@ -507,16 +565,24 @@ fn handle_overlay_key(state: &mut AppState, key: KeyEvent) {
 }
 
 fn handle_slash_command(state: &mut AppState, input: &str, config: &AppConfig) {
-    let cmd = input.trim_start_matches('/').split_whitespace().next().unwrap_or("");
+    let cmd = input
+        .trim_start_matches('/')
+        .split_whitespace()
+        .next()
+        .unwrap_or("");
     match cmd {
-        "help" | "h" | "?" => { state.overlay = Overlay::Help; }
+        "help" | "h" | "?" => {
+            state.overlay = Overlay::Help;
+        }
         "clear" => {
             state.turns.clear();
             state.streaming_text.clear();
             state.streaming_thinking.clear();
             state.active_tools.clear();
         }
-        "exit" | "quit" | "q" => { state.should_quit = true; }
+        "exit" | "quit" | "q" => {
+            state.should_quit = true;
+        }
         "panel" => {
             state.side_panel_open = !state.side_panel_open;
             if state.side_panel_open {
@@ -550,12 +616,18 @@ fn handle_slash_command(state: &mut AppState, input: &str, config: &AppConfig) {
         }
         "rewind" => {
             // Remove the last assistant turn (rewind one step)
-            if let Some(pos) = state.turns.iter().rposition(|t| t.role == crate::tui::app::TurnRole::Assistant) {
+            if let Some(pos) = state
+                .turns
+                .iter()
+                .rposition(|t| t.role == crate::tui::app::TurnRole::Assistant)
+            {
                 let removed = state.turns.len() - pos;
                 state.turns.truncate(pos);
                 state.turns.push(crate::tui::app::Turn {
                     role: crate::tui::app::TurnRole::System,
-                    content: format!("Rewound {removed} turn(s). You can now re-send your last message."),
+                    content: format!(
+                        "Rewound {removed} turn(s). You can now re-send your last message."
+                    ),
                     tools: Vec::new(),
                     thinking: None,
                 });
@@ -618,7 +690,10 @@ fn handle_slash_command(state: &mut AppState, input: &str, config: &AppConfig) {
         "model" => {
             state.turns.push(crate::tui::app::Turn {
                 role: crate::tui::app::TurnRole::System,
-                content: format!("Current model: {}\nChange with: abstract --model <provider/model>", state.model),
+                content: format!(
+                    "Current model: {}\nChange with: abstract --model <provider/model>",
+                    state.model
+                ),
                 tools: Vec::new(),
                 thinking: None,
             });
@@ -663,11 +738,16 @@ fn handle_slash_command(state: &mut AppState, input: &str, config: &AppConfig) {
                             let name = entry.file_name().to_string_lossy().to_string();
                             if name.ends_with(".json") {
                                 if let Ok(content) = std::fs::read_to_string(entry.path()) {
-                                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                    if let Ok(json) =
+                                        serde_json::from_str::<serde_json::Value>(&content)
+                                    {
                                         let provider = json["type"].as_str().unwrap_or("?");
                                         let email = json["email"].as_str().unwrap_or("?");
                                         let expired = json["expired"].as_str().unwrap_or("?");
-                                        accounts.push(format!("  {} ({}) — expires {}", provider, email, expired));
+                                        accounts.push(format!(
+                                            "  {} ({}) — expires {}",
+                                            provider, email, expired
+                                        ));
                                     }
                                 }
                             }
@@ -705,10 +785,26 @@ fn handle_slash_command(state: &mut AppState, input: &str, config: &AppConfig) {
 
 fn tool_input_summary(name: &str, input: &serde_json::Value) -> String {
     match name {
-        "Bash" | "bash" => input.get("command").and_then(|v| v.as_str()).map(|s| truncate(s, 60)).unwrap_or_default(),
-        "Read" | "Write" | "Edit" => input.get("file_path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        "Glob" => input.get("pattern").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        "Grep" => input.get("pattern").and_then(|v| v.as_str()).map(|s| truncate(s, 40)).unwrap_or_default(),
+        "Bash" | "bash" => input
+            .get("command")
+            .and_then(|v| v.as_str())
+            .map(|s| truncate(s, 60))
+            .unwrap_or_default(),
+        "Read" | "Write" | "Edit" => input
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        "Glob" => input
+            .get("pattern")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        "Grep" => input
+            .get("pattern")
+            .and_then(|v| v.as_str())
+            .map(|s| truncate(s, 40))
+            .unwrap_or_default(),
         "LSP" => {
             let action = input.get("action").and_then(|v| v.as_str()).unwrap_or("?");
             let file = input.get("file").and_then(|v| v.as_str()).unwrap_or("?");
@@ -719,5 +815,9 @@ fn tool_input_summary(name: &str, input: &serde_json::Value) -> String {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max { s.to_string() } else { format!("{}...", &s[..max]) }
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max])
+    }
 }

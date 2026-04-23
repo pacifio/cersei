@@ -20,11 +20,15 @@ impl ToolSearchTool {
 
 #[async_trait]
 impl Tool for ToolSearchTool {
-    fn name(&self) -> &str { "ToolSearch" }
+    fn name(&self) -> &str {
+        "ToolSearch"
+    }
     fn description(&self) -> &str {
         "Search for available tools by keyword. Returns matching tool names and descriptions."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -38,7 +42,9 @@ impl Tool for ToolSearchTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { query: String }
+        struct Input {
+            query: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -89,12 +95,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_search_file() {
-        let tools: Vec<Box<dyn Tool>> = vec![
-            Box::new(FileReadTool),
-            Box::new(FileWriteTool),
-        ];
+        let tools: Vec<Box<dyn Tool>> = vec![Box::new(FileReadTool), Box::new(FileWriteTool)];
         let search = ToolSearchTool::new(&tools);
-        let result = search.execute(serde_json::json!({"query": "file"}), &test_ctx()).await;
+        let result = search
+            .execute(serde_json::json!({"query": "file"}), &test_ctx())
+            .await;
         assert!(!result.is_error);
         assert!(result.content.contains("Read"));
         assert!(result.content.contains("Write"));
@@ -104,7 +109,9 @@ mod tests {
     async fn test_search_no_match() {
         let tools: Vec<Box<dyn Tool>> = vec![Box::new(FileReadTool)];
         let search = ToolSearchTool::new(&tools);
-        let result = search.execute(serde_json::json!({"query": "xyz123"}), &test_ctx()).await;
+        let result = search
+            .execute(serde_json::json!({"query": "xyz123"}), &test_ctx())
+            .await;
         assert!(result.content.contains("No tools found"));
     }
 }

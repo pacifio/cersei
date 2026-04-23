@@ -46,14 +46,20 @@ impl Default for SkillTool {
 
 #[async_trait]
 impl Tool for SkillTool {
-    fn name(&self) -> &str { "Skill" }
+    fn name(&self) -> &str {
+        "Skill"
+    }
 
     fn description(&self) -> &str {
         "Load and execute a skill (prompt template). Use skill='list' to see available skills."
     }
 
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Custom }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Custom
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -86,14 +92,18 @@ impl Tool for SkillTool {
 
         // List mode
         if input.skill == "list" {
-            let project_root = self.project_root.as_deref()
+            let project_root = self
+                .project_root
+                .as_deref()
                 .or_else(|| Some(ctx.working_dir.as_path()));
             let skills = discovery::discover_all(project_root, &self.extra_paths);
             return ToolResult::success(discovery::format_skill_list(&skills));
         }
 
         // Load mode
-        let project_root = self.project_root.as_deref()
+        let project_root = self
+            .project_root
+            .as_deref()
             .or_else(|| Some(ctx.working_dir.as_path()));
         let loaded = discovery::load_skill(&input.skill, project_root, &self.extra_paths);
 
@@ -118,9 +128,7 @@ impl Tool for SkillTool {
                 let all = discovery::discover_all(project_root, &self.extra_paths);
                 let suggestions: Vec<&str> = all
                     .iter()
-                    .filter(|s| {
-                        s.name.contains(&input.skill) || input.skill.contains(&s.name)
-                    })
+                    .filter(|s| s.name.contains(&input.skill) || input.skill.contains(&s.name))
                     .map(|s| s.name.as_str())
                     .take(5)
                     .collect();
@@ -156,7 +164,9 @@ mod tests {
     #[tokio::test]
     async fn test_skill_list() {
         let tool = SkillTool::new();
-        let r = tool.execute(serde_json::json!({"skill": "list"}), &test_ctx()).await;
+        let r = tool
+            .execute(serde_json::json!({"skill": "list"}), &test_ctx())
+            .await;
         assert!(!r.is_error);
         assert!(r.content.contains("Available skills:"));
         assert!(r.content.contains("simplify"));
@@ -166,10 +176,15 @@ mod tests {
     #[tokio::test]
     async fn test_skill_load_bundled() {
         let tool = SkillTool::new();
-        let r = tool.execute(serde_json::json!({
-            "skill": "debug",
-            "args": "the login page crashes"
-        }), &test_ctx()).await;
+        let r = tool
+            .execute(
+                serde_json::json!({
+                    "skill": "debug",
+                    "args": "the login page crashes"
+                }),
+                &test_ctx(),
+            )
+            .await;
         assert!(!r.is_error);
         assert!(r.content.contains("the login page crashes"));
         assert!(!r.content.contains("$ARGUMENTS"));
@@ -180,7 +195,12 @@ mod tests {
     #[tokio::test]
     async fn test_skill_load_by_alias() {
         let tool = SkillTool::new();
-        let r = tool.execute(serde_json::json!({"skill": "diagnose", "args": "memory leak"}), &test_ctx()).await;
+        let r = tool
+            .execute(
+                serde_json::json!({"skill": "diagnose", "args": "memory leak"}),
+                &test_ctx(),
+            )
+            .await;
         assert!(!r.is_error);
         assert!(r.content.contains("memory leak"));
     }
@@ -188,7 +208,9 @@ mod tests {
     #[tokio::test]
     async fn test_skill_not_found() {
         let tool = SkillTool::new();
-        let r = tool.execute(serde_json::json!({"skill": "nonexistent"}), &test_ctx()).await;
+        let r = tool
+            .execute(serde_json::json!({"skill": "nonexistent"}), &test_ctx())
+            .await;
         assert!(r.is_error);
         assert!(r.content.contains("not found"));
     }
@@ -211,11 +233,18 @@ mod tests {
         };
 
         // List should include it
-        let r = tool.execute(serde_json::json!({"skill": "list"}), &ctx).await;
+        let r = tool
+            .execute(serde_json::json!({"skill": "list"}), &ctx)
+            .await;
         assert!(r.content.contains("my-deploy"));
 
         // Load and expand
-        let r = tool.execute(serde_json::json!({"skill": "my-deploy", "args": "v2.0"}), &ctx).await;
+        let r = tool
+            .execute(
+                serde_json::json!({"skill": "my-deploy", "args": "v2.0"}),
+                &ctx,
+            )
+            .await;
         assert!(!r.is_error);
         assert!(r.content.contains("Deploy v2.0 to production"));
         assert_eq!(r.metadata.as_ref().unwrap()["format"], "Commands");
@@ -238,7 +267,9 @@ mod tests {
             ..test_ctx()
         };
 
-        let r = tool.execute(serde_json::json!({"skill": "aws-deploy"}), &ctx).await;
+        let r = tool
+            .execute(serde_json::json!({"skill": "aws-deploy"}), &ctx)
+            .await;
         assert!(!r.is_error);
         assert!(r.content.contains("CDK"));
         assert_eq!(r.metadata.as_ref().unwrap()["format"], "Skills");
@@ -248,12 +279,16 @@ mod tests {
     async fn test_real_user_skills() {
         // Test compatibility with actual ~/.claude/commands/ skills
         let tool = SkillTool::new();
-        let r = tool.execute(serde_json::json!({"skill": "list"}), &test_ctx()).await;
+        let r = tool
+            .execute(serde_json::json!({"skill": "list"}), &test_ctx())
+            .await;
         // Should at least have bundled skills
         assert!(r.content.contains("simplify"));
 
         // Try loading "design" if it exists (from ~/.claude/commands/design.md)
-        let r = tool.execute(serde_json::json!({"skill": "design"}), &test_ctx()).await;
+        let r = tool
+            .execute(serde_json::json!({"skill": "design"}), &test_ctx())
+            .await;
         if !r.is_error {
             println!("Loaded real user skill 'design': {} chars", r.content.len());
             assert!(r.content.len() > 100); // design.md is substantial

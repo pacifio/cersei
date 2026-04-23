@@ -6,7 +6,9 @@ use ratatui::{prelude::*, widgets::Paragraph};
 pub fn render(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     let prompt = if state.is_streaming { "  " } else { "> " };
     let width = area.width as usize;
-    if width < 4 { return; }
+    if width < 4 {
+        return;
+    }
 
     let usable = width.saturating_sub(prompt.len());
 
@@ -14,7 +16,8 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     let vis_lines = visual_lines(&state.input, prompt, usable);
 
     // Find which visual line the cursor is on
-    let (cursor_row, cursor_col) = cursor_visual_pos(&state.input, state.cursor_pos, prompt, usable);
+    let (cursor_row, cursor_col) =
+        cursor_visual_pos(&state.input, state.cursor_pos, prompt, usable);
 
     // Scroll so cursor row is visible
     let scroll = if cursor_row as u16 >= area.height {
@@ -41,7 +44,9 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
 
 /// Desired height for the input area.
 pub fn desired_height(input: &str, width: u16) -> u16 {
-    if width < 4 { return 1; }
+    if width < 4 {
+        return 1;
+    }
     let usable = (width as usize).saturating_sub(2);
     let lines = visual_lines(input, "> ", usable);
     (lines.len() as u16).clamp(1, 10)
@@ -85,7 +90,12 @@ fn visual_lines(input: &str, prompt: &str, usable_width: usize) -> Vec<String> {
 }
 
 /// Find which visual row and column the cursor sits on.
-fn cursor_visual_pos(input: &str, cursor_pos: usize, prompt: &str, usable_width: usize) -> (usize, usize) {
+fn cursor_visual_pos(
+    input: &str,
+    cursor_pos: usize,
+    prompt: &str,
+    usable_width: usize,
+) -> (usize, usize) {
     let before = &input[..cursor_pos.min(input.len())];
     let logical: Vec<&str> = before.split('\n').collect();
 

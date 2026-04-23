@@ -10,8 +10,8 @@ use crate::input::InputReader;
 use crate::render::{self, StreamRenderer};
 use crate::status::StatusLine;
 use crate::theme::Theme;
-use cersei::Agent;
 use cersei::events::AgentEvent;
+use cersei::Agent;
 use cersei_memory::manager::MemoryManager;
 use cersei_types::Role;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -54,7 +54,10 @@ fn prompt_recovery(current_model: &str, config: &AppConfig) -> Recovery {
         let model_str = format!("{}/{}", entry.id, entry.default_model);
         if model_str != current_model
             && !config.fallback_models.contains(&model_str)
-            && !config.fallback_models.iter().any(|f| f.starts_with(entry.id))
+            && !config
+                .fallback_models
+                .iter()
+                .any(|f| f.starts_with(entry.id))
         {
             let key = format!("{}", options.len() + 1);
             options.push((key, model_str));
@@ -160,7 +163,9 @@ pub async fn run_repl(
                     break;
                 }
                 _ => {
-                    cmd_registry.execute(cmd, args, config, session_id).await;
+                    cmd_registry
+                        .execute(cmd, args, config, session_id, Some(&agent))
+                        .await;
                     continue;
                 }
             }
@@ -214,7 +219,11 @@ pub async fn run_repl(
                                 ) {
                                     Ok((new_agent, resolved)) => {
                                         agent = Arc::new(new_agent);
-                                        current_model = format!("{}/{}", new_model.split('/').next().unwrap_or(""), &resolved);
+                                        current_model = format!(
+                                            "{}/{}",
+                                            new_model.split('/').next().unwrap_or(""),
+                                            &resolved
+                                        );
                                         if current_model.starts_with('/') {
                                             current_model = resolved.clone();
                                         }
@@ -260,7 +269,8 @@ pub async fn run_single_shot(
     let agent = Arc::new(agent);
 
     running.store(true, Ordering::Relaxed);
-    let result = run_agent_streaming(&agent, prompt, &mut renderer, &mut status, json_mode, true).await;
+    let result =
+        run_agent_streaming(&agent, prompt, &mut renderer, &mut status, json_mode, true).await;
     running.store(false, Ordering::Relaxed);
 
     match result {
@@ -358,7 +368,10 @@ async fn run_agent_streaming(
             } => {
                 if !json_mode {
                     let preview: String = prompt.chars().take(60).collect();
-                    eprintln!("\x1b[90m  Sub-agent {}: {preview}...\x1b[0m", &agent_id[..8.min(agent_id.len())]);
+                    eprintln!(
+                        "\x1b[90m  Sub-agent {}: {preview}...\x1b[0m",
+                        &agent_id[..8.min(agent_id.len())]
+                    );
                 }
             }
             AgentEvent::Error(msg) => {

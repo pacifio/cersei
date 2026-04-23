@@ -95,6 +95,10 @@ pub struct Cli {
     #[arg(long, value_name = "URL")]
     pub proxy_url: Option<String>,
 
+    /// Compress tool outputs before they reach the LLM: off (default), minimal, or aggressive.
+    #[arg(long, value_name = "LEVEL")]
+    pub compress: Option<String>,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -311,6 +315,9 @@ fn apply_cli_overrides(cli: &Cli, config: &mut config::AppConfig) {
     if let Some(url) = &cli.proxy_url {
         config.proxy.enabled = true;
         config.proxy.url = url.clone();
+    }
+    if let Some(lvl) = &cli.compress {
+        config.compression_level = lvl.clone();
     }
 }
 

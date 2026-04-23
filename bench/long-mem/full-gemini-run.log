@@ -1,0 +1,1069 @@
+Loaded 500 questions from longmemeval_s
+─── running config: Baseline  (concurrency=4)  ───
+  [10/500] done (last=f8c5f88b)
+  [20/500] done (last=8ebdbe50)
+  [30/500] done (last=a06e4cfe)
+  [40/500] done (last=15745da0)
+  [50/500] done (last=ccb36322)
+  [60/500] done (last=c14c00dd)
+  [70/500] done (last=6d550036)
+  ✗ a82c026e: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [80/500] done (last=c4a1ceb8)
+  [90/500] done (last=80ec1f4f)
+  [100/500] done (last=gpt4_2ba83207)
+  ✗ 00ca467f: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [110/500] done (last=a9f6b44c)
+  [120/500] done (last=bf659f65)
+  ✗ 10d9b85a: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ c2ac3c61: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ 81507db6: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [130/500] done (last=gpt4_372c3eed_abs)
+  ✗ eeda8a6d_abs: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [140/500] done (last=32260d93)
+  [150/500] done (last=d6233ab6)
+  ✗ 38146c39: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ 505af2f5: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ 1da05512: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [160/500] done (last=0a34ad58)
+  ✗ a89d7624: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ cc06de0d: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ a11281a2: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ 1f2b8d4f: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [170/500] done (last=9aaed6a3)
+  ✗ 7405e8b1: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [180/500] done (last=ef66a6e5)
+  ✗ 681a1674: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ 4adc0475: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [190/500] done (last=77eafa52)
+  [200/500] done (last=bb7c3b45)
+  [210/500] done (last=157a136e)
+  [220/500] done (last=8e91e7d9)
+  [230/500] done (last=ba358f49_abs)
+  ✗ a96c20ee_abs: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ gpt4_59149c77: answerer completion failed: Provider error: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "The request timed out. Please try again.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [240/500] done (last=af082822)
+  [250/500] done (last=gpt4_18c2b244)
+  [260/500] done (last=gpt4_e061b84f)
+  [270/500] done (last=bcbe585f)
+  [280/500] done (last=gpt4_68e94287)
+  [290/500] done (last=gpt4_f420262d)
+  [300/500] done (last=6e984302)
+  [310/500] done (last=gpt4_385a5000)
+  [320/500] done (last=gpt4_93159ced)
+  [330/500] done (last=dcfa8644)
+  [340/500] done (last=a3045048)
+  [350/500] done (last=6613b389)
+  [360/500] done (last=gpt4_93159ced_abs)
+  [370/500] done (last=d7c942c3)
+  [380/500] done (last=0f05491a)
+  [390/500] done (last=c4ea545c)
+  [400/500] done (last=b01defab)
+  [410/500] done (last=eace081b)
+  [420/500] done (last=a2f3aa27)
+  [430/500] done (last=26bdc477)
+  [440/500] done (last=07741c45)
+  [450/500] done (last=ceb54acb)
+  [460/500] done (last=1d4da289)
+  [470/500] done (last=e8a79c70)
+  [480/500] done (last=8b9d4367)
+  [490/500] done (last=c8f1aeed)
+  [500/500] done (last=4bc144e2)
+✓ a-baseline-jsonl → 0.846 overall (422 correct / 500 total), 0.867 abstention, wrote ./results-gemini/a-baseline-jsonl-longmemeval_s.json
+─── running config: Embed  (concurrency=4)  ───
+  [10/500] done (last=f8c5f88b)
+  [20/500] done (last=af8d2e46)
+  [30/500] done (last=d52b4f67)
+  ✗ ec81a493: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 577d4d32: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 3f1e9474: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  [40/500] done (last=86b68151)
+  [50/500] done (last=76d63226)
+  [60/500] done (last=3d86fd0a)
+  ✗ 3d86fd0a: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ 36580ce8: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ 0862e8bf_abs: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ c14c00dd: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ a82c026e: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ 15745da0_abs: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [70/500] done (last=19b5f2b3_abs)
+  ✗ 0a995998: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [80/500] done (last=dd2973ad)
+  ✗ gpt4_15e38248: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [90/500] done (last=88432d0a)
+  [100/500] done (last=gpt4_d12ceb0e)
+  [110/500] done (last=gpt4_194be4b3)
+  [120/500] done (last=2b8f3739)
+  [130/500] done (last=edced276_abs)
+  [140/500] done (last=54026fce)
+  [150/500] done (last=505af2f5)
+  [160/500] done (last=1c0ddc50)
+  [170/500] done (last=51c32626)
+  [180/500] done (last=a4996e51)
+  [190/500] done (last=720133ac)
+  [200/500] done (last=0ea62687)
+  [210/500] done (last=09ba9854)
+  [220/500] done (last=a346bb18)
+  [230/500] done (last=ba358f49_abs)
+  [240/500] done (last=af082822)
+  [250/500] done (last=gpt4_18c2b244)
+  [260/500] done (last=2ebe6c90)
+  ✗ gpt4_74aed68e: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ gpt4_8e165409: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  [270/500] done (last=gpt4_f420262c)
+  [280/500] done (last=gpt4_85da3956)
+  [290/500] done (last=gpt4_1e4a8aec)
+  [300/500] done (last=6e984302)
+  [310/500] done (last=08f4fc43)
+  [320/500] done (last=gpt4_70e84552)
+  [330/500] done (last=c9f37c46)
+  [340/500] done (last=993da5e2)
+  [350/500] done (last=gpt4_78cf46a3)
+  [360/500] done (last=gpt4_70e84552_abs)
+  [370/500] done (last=d7c942c3)
+  ✗ f9e8c073: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  [380/500] done (last=0f05491a)
+  [390/500] done (last=72e3ee87)
+  [400/500] done (last=ed4ddc30)
+  [410/500] done (last=eace081b)
+  ✗ a2f3aa27: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ cf22b7bf: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  [420/500] done (last=7401057b)
+  ✗ 06db6396: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 9bbe84a2: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 10e09553: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 3ba21379: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ ba61f0b9: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 5c40ec5b: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  [430/500] done (last=c6853660)
+  [440/500] done (last=89941a94)
+  [450/500] done (last=f523d9fe)
+  ✗ f523d9fe: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ dc439ea3: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 0e5e2d1a: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ cc539528: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ fea54f57: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 488d3006: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 18dcd5a5: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 8cf51dda: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 58470ed2: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  [460/500] done (last=8aef76bc)
+  ✗ 8aef76bc: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 71a3fd6b: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 8464fc84: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 1d4da289: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 3249768e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [470/500] done (last=e8a79c70)
+  [480/500] done (last=a40e080f)
+  ✗ 8b9d4367: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 5809eb10: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  [490/500] done (last=c8f1aeed)
+  ✗ 561fabcd: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ e48988bc: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 778164c6: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 65240037: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 1de5cff2: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  [500/500] done (last=c7cf7dfd)
+  ✗ c7cf7dfd: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+✓ b-embed-only → 0.755 overall (391 correct / 500 total), 0.867 abstention, wrote ./results-gemini/b-embed-only-longmemeval_s.json
+─── running config: Graph  (concurrency=4)  ───
+  [10/500] done (last=f8c5f88b)
+  [20/500] done (last=dccbc061)
+  [30/500] done (last=a06e4cfe)
+  [40/500] done (last=15745da0)
+  [50/500] done (last=8a137a7f)
+  [60/500] done (last=faba32e5)
+  [70/500] done (last=f4f1d8a4_abs)
+  [80/500] done (last=gpt4_f2262a51)
+  [90/500] done (last=88432d0a)
+  [100/500] done (last=2ce6a0f2)
+  [110/500] done (last=gpt4_194be4b3)
+  [120/500] done (last=e3038f8c)
+  [130/500] done (last=edced276_abs)
+  [140/500] done (last=caf03d32)
+  [150/500] done (last=95228167)
+  [160/500] done (last=1c0ddc50)
+  [170/500] done (last=1f2b8d4f)
+  [180/500] done (last=e25c3b8d)
+  [190/500] done (last=8979f9ec)
+  [200/500] done (last=1192316e)
+  [210/500] done (last=09ba9854)
+  [220/500] done (last=8e91e7d9)
+  [230/500] done (last=a96c20ee_abs)
+  [240/500] done (last=gpt4_4929293a)
+  [250/500] done (last=gpt4_8279ba02)
+  [260/500] done (last=2ebe6c90)
+  [270/500] done (last=bcbe585f)
+  [280/500] done (last=gpt4_b0863698)
+  [290/500] done (last=gpt4_1e4a8aec)
+  [300/500] done (last=0bc8ad93)
+  [310/500] done (last=gpt4_385a5000)
+  [320/500] done (last=gpt4_70e84552)
+  [330/500] done (last=e4e14d04)
+  [340/500] done (last=993da5e2)
+  [350/500] done (last=gpt4_78cf46a3)
+  [360/500] done (last=gpt4_70e84552_abs)
+  [370/500] done (last=d7c942c3)
+  [380/500] done (last=0f05491a)
+  [390/500] done (last=72e3ee87)
+  [400/500] done (last=ed4ddc30)
+  [410/500] done (last=eace081b)
+  [420/500] done (last=cf22b7bf)
+  [430/500] done (last=c6853660)
+  [440/500] done (last=07741c45)
+  [450/500] done (last=ceb54acb)
+  [460/500] done (last=1d4da289)
+  [470/500] done (last=e8a79c70)
+  [480/500] done (last=a40e080f)
+  [490/500] done (last=16c90bf4)
+  [500/500] done (last=65240037)
+✓ c-graph-substring → 0.066 overall (46 correct / 500 total), 1.000 abstention, wrote ./results-gemini/c-graph-substring-longmemeval_s.json
+─── running config: Hybrid  (concurrency=4)  ───
+  ✗ 58bf7951: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  [10/500] done (last=f8c5f88b)
+  ✗ dccbc061: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ c8c3f81d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [20/500] done (last=ad7109d1)
+  ✗ 8ebdbe50: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 75499fd8: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 0862e8bf: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 853b0a1d: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ a06e4cfe: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 95bcc1c8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [30/500] done (last=37d43f65)
+  ✗ 37d43f65: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  [40/500] done (last=bc8a6e93)
+  ✗ bc8a6e93: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ccb36322: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e01b8e2f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 001be529: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 19b5f2b3: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 545bd2b5: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [50/500] done (last=76d63226)
+  ✗ 76d63226: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 86f00804: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8a137a7f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c19f7a0b: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 8e9d538c: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 29f2956b: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  ✗ faba32e5: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 503,
+    "message": "The service is currently unavailable.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+  [60/500] done (last=3d86fd0a)
+  ✗ 3d86fd0a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 36580ce8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0862e8bf_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ f4f1d8a4: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c14c00dd: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a82c026e: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  [70/500] done (last=f4f1d8a4_abs)
+  [80/500] done (last=c4a1ceb8)
+  ✗ c4a1ceb8: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 46a3abf7: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6cb6f249: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 36b9f61e: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ gpt4_2f8be40d: ingest failed: Configuration error: embed add_batch: API error: Gemini embedding failed: {
+  "error": {
+    "code": 429,
+    "message": "Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+
+  ✗ 28dc39ac: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ gpt4_a56e767c: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ gpt4_15e38248: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 80ec1f4f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [90/500] done (last=2e6d26dc)
+  ✗ 2e6d26dc: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_7fce9456: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ d23cf73b: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ d682f1a2: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ gpt4_2ba83207: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ gpt4_5501fe77: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 7024f17c: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 2318644b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2ce6a0f2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [100/500] done (last=b3c15d39)
+  ✗ b3c15d39: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ gpt4_d12ceb0e: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ eeda8a6d: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ gpt4_31ff4165: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 2788b940: ingest failed: Configuration error: embed add_batch: Parse error: error decoding response body
+  ✗ 60bf93ed: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 9d25d4e0: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_194be4b3: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a9f6b44c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [110/500] done (last=5a7937c8)
+  ✗ 5a7937c8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ d851d5ba: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_ab202e7f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_e05b82a6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_731e37d7: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ edced276: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 10d9b85a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e3038f8c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2b8f3739: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1a8a66a6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [120/500] done (last=c2ac3c61)
+  ✗ c2ac3c61: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ bf659f65: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_372c3eed: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_2f91af09: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 81507db6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 88432d0a_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 80ec1f4f_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ eeda8a6d_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 60bf93ed_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_372c3eed_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [130/500] done (last=8a2466db)
+  ✗ 8a2466db: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 06878be2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 75832dbd: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0edc2aef: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 35a27287: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 32260d93: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 195a1a1b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ afdc33df: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ caf03d32: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 54026fce: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [140/500] done (last=06f04340)
+  ✗ 06f04340: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6b7dfb22: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1a1907b4: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 09d032c9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 38146c39: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ d24813b1: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 57f827a0: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 95228167: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 505af2f5: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 75f70248: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [150/500] done (last=d6233ab6)
+  ✗ d6233ab6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1da05512: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ fca70973: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ b6025781: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a89d7624: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ b0479f84: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1d4e3b97: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 07b6f563: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1c0ddc50: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0a34ad58: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [160/500] done (last=d3ab962e)
+  ✗ d3ab962e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2311e44b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ cc06de0d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a11281a2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4f54b7c9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 85fa3a3f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 9aaed6a3: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1f2b8d4f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e6041065: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 51c32626: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [170/500] done (last=d905b33f)
+  ✗ d905b33f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 7405e8b1: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ f35224e0: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6456829e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a4996e51: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 60036106: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 3c1045c8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 681a1674: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e25c3b8d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4adc0475: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [180/500] done (last=4bc144e2)
+  ✗ 4bc144e2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ef66a6e5: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 5025383b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a1cc6108: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 9ee3ecd6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 3fdac837: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 91b15a6e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 27016adc: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 720133ac: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 77eafa52: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [190/500] done (last=8979f9ec)
+  ✗ 8979f9ec: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0100672e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a96c20ee: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 92a0aa75: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 3fe836c9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1c549ce4: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6c49646a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1192316e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0ea62687: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ bb7c3b45: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [200/500] done (last=67e0d0f2)
+  ✗ 67e0d0f2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ba358f49: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 61f8c8f8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 60159905: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ef9cf60a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 73d42213: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ bc149d6b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 099778bb: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 09ba9854: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ d6062bb9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [210/500] done (last=157a136e)
+  ✗ 157a136e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c18a7dc8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a3332713: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 55241a1f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a08a253f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ f0e564bc: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 078150f1: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8cf4d046: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a346bb18: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 37f165cf: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [220/500] done (last=8e91e7d9)
+  ✗ 8e91e7d9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 87f22b4a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e56a43b9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ efc3f7c2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 21d02d0d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2311e44b_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6456829e_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e5ba910e_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a96c20ee_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ba358f49_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [230/500] done (last=09ba9854_abs)
+  ✗ 09ba9854_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_59149c77: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_f49edff3: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 71017276: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ b46e15ed: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_fa19884c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0bc8ad92: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ af082822: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_4929293a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 9a707b81: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [240/500] done (last=gpt4_b5700ca9)
+  ✗ gpt4_b5700ca9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_1d4ab0c9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_e072b769: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0db4c65d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_1d80365e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_7f6b06db: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_6dc9b45b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_8279ba02: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_18c2b244: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_a1b77f9c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [250/500] done (last=gpt4_1916e0ea)
+  ✗ gpt4_1916e0ea: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_7a0daae1: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_468eb063: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_1e4a8aeb: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_7abb270c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_4fc4f797: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_61e13b3c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_45189cb4: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2ebe6c90: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_e061b84f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [260/500] done (last=370a8ff4)
+  ✗ 370a8ff4: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_d6585ce8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_4ef30696: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_ec93e27f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6e984301: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8077ef71: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_f420262c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_8e165409: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_74aed68e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ bcbe585f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [270/500] done (last=5e1b23de)
+  ✗ 5e1b23de: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_21adecb5: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_af6db32f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_98f46fc6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ eac54adc: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_7ddcf75f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_a2d1d1f6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_85da3956: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_b0863698: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_68e94287: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [280/500] done (last=gpt4_e414231e)
+  ✗ gpt4_e414231e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_7ca326fa: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_7bc6cf22: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2ebe6c92: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_e061b84g: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 71017277: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ b46e15ee: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_d6585ce9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_f420262d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_1e4a8aec: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [290/500] done (last=gpt4_e414231f)
+  ✗ gpt4_e414231f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_59149c78: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_468eb064: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_4929293b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_fa19884d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 9a707b82: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ eac54add: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4dfccbf8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6e984302: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0bc8ad93: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [300/500] done (last=gpt4_8279ba03)
+  ✗ gpt4_8279ba03: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_b5700ca0: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_68e94288: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_2655b836: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_2487a7cb: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_76048e76: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_2312f94c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0bb5a684: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 08f4fc43: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2c63a862: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [310/500] done (last=gpt4_385a5000)
+  ✗ gpt4_385a5000: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2a1811e2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ bbf86515: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_5dcc0aab: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_0b2f1d21: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ f0853d11: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_6ed717ea: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_70e84552: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a3838d2b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_93159ced: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [320/500] done (last=gpt4_65aabe59)
+  ✗ gpt4_65aabe59: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_2d58bcd6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 982b5123: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ b9cfe692: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_4edbafa2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c8090214: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_483dd43c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e4e14d04: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c9f37c46: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_2c50253f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [330/500] done (last=dcfa8644)
+  ✗ dcfa8644: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_b4a80587: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_9a159967: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ cc6d1ec1: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_8c8961ae: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_d9af6064: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_7de946e7: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ d01c6aa8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 993da5e2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a3045048: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [340/500] done (last=gpt4_d31cdae3)
+  ✗ gpt4_d31cdae3: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_cd90e484: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_88806d6e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_4cd9eba1: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_93f6379c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ b29f3365: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_2f56ae70: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6613b389: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_78cf46a3: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_0a05b494: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [350/500] done (last=gpt4_1a1dc16d)
+  ✗ gpt4_1a1dc16d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_2f584639: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_213fd887: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_5438fa52: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_c27434e8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_fe651585: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8c18457d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_70e84552_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_93159ced_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 982b5123_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [360/500] done (last=c8090214_abs)
+  ✗ c8090214_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_c27434e8_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ gpt4_fe651585_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6a1eabeb: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6aeb4375: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 830ce83f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 852ce960: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 945e3d21: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ d7c942c3: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 71315a70: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [370/500] done (last=89941a93)
+  ✗ 89941a93: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ce6d2d27: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 9ea5eabc: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 07741c44: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a1eacc2a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 184da446: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 031748ae: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4d6b87c8: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0f05491a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 08e075c7: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [380/500] done (last=f9e8c073)
+  ✗ f9e8c073: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 41698283: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2698e78f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ b6019101: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 5a4f22c0: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6071bd76: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e493bb7c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 618f13b2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 72e3ee87: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c4ea545c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [390/500] done (last=01493427)
+  ✗ 01493427: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6a27ffc2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2133c1b5: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 18bc8abd: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ db467c8c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 7a87bd0c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e61a7584: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1cea1afa: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ed4ddc30: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8fb83627: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [400/500] done (last=b01defab)
+  ✗ b01defab: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 22d2cb42: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0e4e4c46: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4b24c848: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 7e974930: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 603deb26: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 59524333: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 5831f84d: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ eace081b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ affe2881: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [410/500] done (last=50635ada)
+  ✗ 50635ada: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e66b632c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ f685340e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0ddfec37: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ cc5ded98: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ dfde3500: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 7401057b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 69fee5aa: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ cf22b7bf: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a2f3aa27: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [420/500] done (last=c7dc5443)
+  ✗ c7dc5443: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 06db6396: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 3ba21379: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 9bbe84a2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 10e09553: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ dad224aa: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ba61f0b9: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 42ec0761: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 5c40ec5b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c6853660: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [430/500] done (last=26bdc477)
+  ✗ 26bdc477: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0977f2af: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6aeb4375_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 031748ae_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2698e78f_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2133c1b5_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 0ddfec37_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ f685340e_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 89941a94: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 07741c45: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [440/500] done (last=c4f10528)
+  ✗ c4f10528: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 7161e7e2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 89527b6b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e9327a54: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4c36ccef: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6ae235be: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1903aded: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 7e00a6cb: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ f523d9fe: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ceb54acb: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [450/500] done (last=0e5e2d1a)
+  ✗ 0e5e2d1a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ fea54f57: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ cc539528: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ dc439ea3: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 18dcd5a5: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 488d3006: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 58470ed2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8cf51dda: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 129d1232: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8464fc84: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [460/500] done (last=1d4da289)
+  ✗ 1d4da289: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8aef76bc: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 71a3fd6b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 2bf43736: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 70b3e69b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 8752c811: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 3249768e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1b9b7252: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1568498a: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 6222b6eb: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [470/500] done (last=e8a79c70)
+  ✗ e8a79c70: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ d596882b: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e3fc4d6e: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 51b23612: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 3e321797: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ fca762bc: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e982271f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 352ab8bd: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 7a8d0b71: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ a40e080f: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [480/500] done (last=8b9d4367)
+  ✗ 8b9d4367: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 5809eb10: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 41275add: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4388e9dd: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 561fabcd: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4baee567: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ b759caee: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ ac031881: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 28bcfaac: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 16c90bf4: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [490/500] done (last=eaca4986)
+  ✗ eaca4986: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c7cf7dfd: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ c8f1aeed: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ e48988bc: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 1de5cff2: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 65240037: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ edced276_abs: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 4dfccbf7: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 45dc21b6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  ✗ 778164c6: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+  [500/500] done (last=60472f9c)
+  ✗ 60472f9c: ingest failed: Configuration error: embed add_batch: HTTP error: error sending request for url (https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=AIzaSyA3retkzMStg4WxzuL5f_VncRxkIQJoTSk)
+✓ d-hybrid-embed-graph → 0.091 overall (44 correct / 500 total), 0.167 abstention, wrote ./results-gemini/d-hybrid-embed-graph-longmemeval_s.json
+→ ./results-gemini/summary-longmemeval_s.json written with 4 configs

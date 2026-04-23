@@ -17,5 +17,9 @@ async fn openai_store_roundtrip() {
 
     let hits = store.search("compiled languages", 2).await.expect("search");
     assert!(!hits.is_empty());
-    assert_eq!(hits[0].key, 1, "expected programming result first, got {:?}", hits);
+    assert_eq!(
+        hits[0].key, 1,
+        "expected programming result first, got {:?}",
+        hits
+    );
 }

@@ -7,8 +7,8 @@
 //! ANTHROPIC_API_KEY=sk-ant-... cargo run --example streaming_events
 //! ```
 
-use cersei::prelude::*;
 use cersei::events::AgentEvent;
+use cersei::prelude::*;
 use std::time::Instant;
 
 #[tokio::main]
@@ -45,11 +45,25 @@ async fn main() -> anyhow::Result<()> {
                 tool_count += 1;
                 eprint!("\x1b[33m⚙ {}...\x1b[0m ", name);
             }
-            AgentEvent::ToolEnd { name, duration, is_error, .. } => {
-                let status = if is_error { "\x1b[31m✗\x1b[0m" } else { "\x1b[32m✓\x1b[0m" };
+            AgentEvent::ToolEnd {
+                name,
+                duration,
+                is_error,
+                ..
+            } => {
+                let status = if is_error {
+                    "\x1b[31m✗\x1b[0m"
+                } else {
+                    "\x1b[32m✓\x1b[0m"
+                };
                 eprintln!("{} ({}ms)", status, duration.as_millis());
             }
-            AgentEvent::CostUpdate { cumulative_cost, input_tokens, output_tokens, .. } => {
+            AgentEvent::CostUpdate {
+                cumulative_cost,
+                input_tokens,
+                output_tokens,
+                ..
+            } => {
                 if cumulative_cost > 0.0 {
                     eprintln!(
                         "\x1b[2m  cost: ${:.4} | {}in/{}out tokens\x1b[0m",

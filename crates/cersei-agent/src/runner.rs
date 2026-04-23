@@ -164,29 +164,32 @@ pub async fn run_agent_streaming(
 ) -> Result<AgentOutput> {
     // Load session history (skip if messages were pre-populated via with_messages)
     if agent.messages.lock().is_empty() {
-    if let (Some(memory), Some(session_id)) = (&agent.memory, &agent.session_id) {
-        let history = memory.load(session_id).await?;
-        if !history.is_empty() {
-            let count = history.len();
-            agent.messages.lock().extend(history);
-            let _ = event_tx
-                .send(AgentEvent::SessionLoaded {
+        if let (Some(memory), Some(session_id)) = (&agent.memory, &agent.session_id) {
+            let history = memory.load(session_id).await?;
+            if !history.is_empty() {
+                let count = history.len();
+                agent.messages.lock().extend(history);
+                let _ = event_tx
+                    .send(AgentEvent::SessionLoaded {
+                        session_id: session_id.clone(),
+                        message_count: count,
+                    })
+                    .await;
+                agent.emit(AgentEvent::SessionLoaded {
                     session_id: session_id.clone(),
                     message_count: count,
-                })
-                .await;
-            agent.emit(AgentEvent::SessionLoaded {
-                session_id: session_id.clone(),
-                message_count: count,
-            });
+                });
+            }
         }
-    }
     } // end session load guard
 
     // Add user prompt (with exploration hint for analysis tasks)
-    let is_analysis = prompt.contains("index") || prompt.contains("analyze")
-        || prompt.contains("explore") || prompt.contains("understand")
-        || prompt.contains("tell me about") || prompt.contains("summary");
+    let is_analysis = prompt.contains("index")
+        || prompt.contains("analyze")
+        || prompt.contains("explore")
+        || prompt.contains("understand")
+        || prompt.contains("tell me about")
+        || prompt.contains("summary");
 
     let expanded_prompt = if is_analysis {
         format!(
@@ -214,7 +217,8 @@ pub async fn run_agent_streaming(
 
     // Runtime guards
     let mut files_read: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut tool_error_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    let mut tool_error_counts: std::collections::HashMap<String, u32> =
+        std::collections::HashMap::new();
     const MAX_TOOL_ERRORS_PER_TOOL: u32 = 3;
 
     // Build tool context
@@ -253,7 +257,8 @@ pub async fn run_agent_streaming(
 
         // Build completion request
         let messages = agent.messages.lock().clone();
-        let tool_defs: Vec<ToolDefinition> = agent.tools.iter().map(|t| t.to_definition()).collect();
+        let tool_defs: Vec<ToolDefinition> =
+            agent.tools.iter().map(|t| t.to_definition()).collect();
 
         let model = agent
             .model
@@ -269,7 +274,10 @@ pub async fn run_agent_streaming(
         let system_with_nudge = if turn > 2 {
             let session_id = agent.session_id.as_deref().unwrap_or("default");
             let todos = cersei_tools::todo_write::get_todos(session_id);
-            let incomplete = todos.iter().filter(|t| t.status != cersei_tools::todo_write::TodoStatus::Completed).count();
+            let incomplete = todos
+                .iter()
+                .filter(|t| t.status != cersei_tools::todo_write::TodoStatus::Completed)
+                .count();
             if incomplete > 0 {
                 let nudge = format!(
                     "\n\n[system reminder: You have {} incomplete task{} in your TodoWrite list. Make sure to complete all tasks before ending your response. Use tools to make progress on each task.]",
@@ -320,14 +328,24 @@ pub async fn run_agent_streaming(
                     let actual_delay = delay_ms + (rand_jitter() % jitter.max(1));
                     tracing::warn!(
                         "Provider error (retryable, attempt {}/{}): {}. Retrying in {}ms...",
-                        retry_count, MAX_RETRIES, e, actual_delay
+                        retry_count,
+                        MAX_RETRIES,
+                        e,
+                        actual_delay
                     );
-                    let _ = event_tx.send(AgentEvent::Status(format!(
-                        "Rate limited. Retrying in {:.1}s... ({}/{})",
-                        actual_delay as f64 / 1000.0, retry_count, MAX_RETRIES
-                    ))).await;
+                    let _ = event_tx
+                        .send(AgentEvent::Status(format!(
+                            "Rate limited. Retrying in {:.1}s... ({}/{})",
+                            actual_delay as f64 / 1000.0,
+                            retry_count,
+                            MAX_RETRIES
+                        )))
+                        .await;
                     agent.emit(AgentEvent::Status(format!(
-                        "Retrying in {:.1}s ({}/{})", actual_delay as f64 / 1000.0, retry_count, MAX_RETRIES
+                        "Retrying in {:.1}s ({}/{})",
+                        actual_delay as f64 / 1000.0,
+                        retry_count,
+                        MAX_RETRIES
                     )));
                     tokio::time::sleep(std::time::Duration::from_millis(actual_delay)).await;
                     continue;
@@ -418,7 +436,10 @@ pub async fn run_agent_streaming(
         };
         let hook_action = cersei_hooks::run_hooks(&agent.hooks, &hook_ctx).await;
         if let HookAction::Block(reason) = hook_action {
-            return Err(CerseiError::Provider(format!("Blocked by hook: {}", reason)));
+            return Err(CerseiError::Provider(format!(
+                "Blocked by hook: {}",
+                reason
+            )));
         }
 
         let _ = event_tx
@@ -441,10 +462,18 @@ pub async fn run_agent_streaming(
                 // If agent is finishing but hasn't verified its output, nudge once.
                 if agent.benchmark_mode && !completion_verified && turn >= 3 {
                     let recent_has_verify = tool_calls.iter().rev().take(5).any(|tc| {
-                        let cmd = tc.input.get("command").and_then(|v| v.as_str()).unwrap_or("");
-                        cmd.contains("cat ") || cmd.contains("python ") || cmd.contains("test")
-                            || cmd.contains("verify") || cmd.contains("node ")
-                            || cmd.contains("./") || cmd.contains("check")
+                        let cmd = tc
+                            .input
+                            .get("command")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        cmd.contains("cat ")
+                            || cmd.contains("python ")
+                            || cmd.contains("test")
+                            || cmd.contains("verify")
+                            || cmd.contains("node ")
+                            || cmd.contains("./")
+                            || cmd.contains("check")
                     });
                     if !recent_has_verify {
                         completion_verified = true;
@@ -454,9 +483,11 @@ pub async fn run_agent_streaming(
                              2. Run your solution to confirm it produces the right output\n\
                              3. Re-read the original instruction — did you satisfy EVERY requirement?"
                         ));
-                        let _ = event_tx.send(AgentEvent::Status(
-                            "Nudging agent to verify before completion".into()
-                        )).await;
+                        let _ = event_tx
+                            .send(AgentEvent::Status(
+                                "Nudging agent to verify before completion".into(),
+                            ))
+                            .await;
                         continue;
                     }
                 }
@@ -492,9 +523,12 @@ pub async fn run_agent_streaming(
                                          Run it now to check your solution. Look at the instruction again \
                                          for the exact command."
                                     ));
-                                    let _ = event_tx.send(AgentEvent::Status(
-                                        "Benchmark: nudge to run instruction's test command".into()
-                                    )).await;
+                                    let _ = event_tx
+                                        .send(AgentEvent::Status(
+                                            "Benchmark: nudge to run instruction's test command"
+                                                .into(),
+                                        ))
+                                        .await;
                                     continue;
                                 }
                                 break;
@@ -510,9 +544,12 @@ pub async fn run_agent_streaming(
                                         benchmark_retries, BENCHMARK_MAX_RETRIES, truncated
                                     )
                                 ));
-                                let _ = event_tx.send(AgentEvent::Status(
-                                    format!("Benchmark: retry {}/{}", benchmark_retries, BENCHMARK_MAX_RETRIES)
-                                )).await;
+                                let _ = event_tx
+                                    .send(AgentEvent::Status(format!(
+                                        "Benchmark: retry {}/{}",
+                                        benchmark_retries, BENCHMARK_MAX_RETRIES
+                                    )))
+                                    .await;
                                 continue;
                             }
                             BenchmarkVerification::TestsPassed => {
@@ -571,72 +608,76 @@ pub async fn run_agent_streaming(
 
                 // Phase 2: Execute all tools in PARALLEL via join_all
                 let msg_count = agent.messages.lock().len();
-                let exec_futures: Vec<_> = tool_use_blocks.iter().map(|(tool_id, tool_name, tool_input)| {
-                    let tool_name = tool_name.clone();
-                    let tool_id = tool_id.clone();
-                    let tool_input = tool_input.clone();
-                    let tool_ctx = tool_ctx.clone();
-                    let permission_policy = Arc::clone(&agent.permission_policy);
-                    let hooks = agent.hooks.clone();
-                    let cumulative_cost = cumulative.cost_usd.unwrap_or(0.0);
+                let exec_futures: Vec<_> = tool_use_blocks
+                    .iter()
+                    .map(|(tool_id, tool_name, tool_input)| {
+                        let tool_name = tool_name.clone();
+                        let tool_id = tool_id.clone();
+                        let tool_input = tool_input.clone();
+                        let tool_ctx = tool_ctx.clone();
+                        let permission_policy = Arc::clone(&agent.permission_policy);
+                        let hooks = agent.hooks.clone();
+                        let cumulative_cost = cumulative.cost_usd.unwrap_or(0.0);
 
-                    // Find tool reference by name
-                    let tool_idx = agent.tools.iter().position(|t| t.name() == tool_name);
+                        // Find tool reference by name
+                        let tool_idx = agent.tools.iter().position(|t| t.name() == tool_name);
 
-                    async move {
-                        let start = Instant::now();
+                        async move {
+                            let start = Instant::now();
 
-                        let result = if let Some(idx) = tool_idx {
-                            let tool = &agent.tools[idx];
-                            // Check permissions
-                            let perm_req = PermissionRequest {
-                                tool_name: tool_name.clone(),
-                                tool_input: tool_input.clone(),
-                                permission_level: tool.permission_level(),
-                                description: format!("Execute tool '{}'", tool_name),
-                                id: tool_id.clone(),
-                            };
+                            let result = if let Some(idx) = tool_idx {
+                                let tool = &agent.tools[idx];
+                                // Check permissions
+                                let perm_req = PermissionRequest {
+                                    tool_name: tool_name.clone(),
+                                    tool_input: tool_input.clone(),
+                                    permission_level: tool.permission_level(),
+                                    description: format!("Execute tool '{}'", tool_name),
+                                    id: tool_id.clone(),
+                                };
 
-                            let decision = permission_policy.check(&perm_req).await;
+                                let decision = permission_policy.check(&perm_req).await;
 
-                            match decision {
-                                PermissionDecision::Allow
-                                | PermissionDecision::AllowOnce
-                                | PermissionDecision::AllowForSession => {
-                                    let hook_ctx = HookContext {
-                                        event: HookEvent::PreToolUse,
-                                        tool_name: Some(tool_name.clone()),
-                                        tool_input: Some(tool_input.clone()),
-                                        tool_result: None,
-                                        tool_is_error: None,
-                                        turn,
-                                        cumulative_cost_usd: cumulative_cost,
-                                        message_count: msg_count,
-                                    };
-                                    let hook_action = cersei_hooks::run_hooks(&hooks, &hook_ctx).await;
+                                match decision {
+                                    PermissionDecision::Allow
+                                    | PermissionDecision::AllowOnce
+                                    | PermissionDecision::AllowForSession => {
+                                        let hook_ctx = HookContext {
+                                            event: HookEvent::PreToolUse,
+                                            tool_name: Some(tool_name.clone()),
+                                            tool_input: Some(tool_input.clone()),
+                                            tool_result: None,
+                                            tool_is_error: None,
+                                            turn,
+                                            cumulative_cost_usd: cumulative_cost,
+                                            message_count: msg_count,
+                                        };
+                                        let hook_action =
+                                            cersei_hooks::run_hooks(&hooks, &hook_ctx).await;
 
-                                    match hook_action {
-                                        HookAction::Block(reason) => {
-                                            ToolResult::error(format!("Blocked by hook: {}", reason))
+                                        match hook_action {
+                                            HookAction::Block(reason) => ToolResult::error(
+                                                format!("Blocked by hook: {}", reason),
+                                            ),
+                                            HookAction::ModifyInput(new_input) => {
+                                                tool.execute(new_input, &tool_ctx).await
+                                            }
+                                            _ => tool.execute(tool_input.clone(), &tool_ctx).await,
                                         }
-                                        HookAction::ModifyInput(new_input) => {
-                                            tool.execute(new_input, &tool_ctx).await
-                                        }
-                                        _ => tool.execute(tool_input.clone(), &tool_ctx).await,
+                                    }
+                                    PermissionDecision::Deny(reason) => {
+                                        ToolResult::error(format!("Permission denied: {}", reason))
                                     }
                                 }
-                                PermissionDecision::Deny(reason) => {
-                                    ToolResult::error(format!("Permission denied: {}", reason))
-                                }
-                            }
-                        } else {
-                            ToolResult::error(format!("Unknown tool: {}", tool_name))
-                        };
+                            } else {
+                                ToolResult::error(format!("Unknown tool: {}", tool_name))
+                            };
 
-                        let duration = start.elapsed();
-                        (tool_id, tool_name, tool_input, result, duration)
-                    }
-                }).collect();
+                            let duration = start.elapsed();
+                            (tool_id, tool_name, tool_input, result, duration)
+                        }
+                    })
+                    .collect();
 
                 let results = futures::future::join_all(exec_futures).await;
 
@@ -696,6 +737,19 @@ pub async fn run_agent_streaming(
                         duration,
                     });
 
+                    let capped_content = if result.is_error {
+                        result.content.clone()
+                    } else {
+                        let level = *agent.compression_level.lock();
+                        let compressed = cersei_compression::compress_tool_output(
+                            &tool_name,
+                            &tool_input,
+                            &result.content,
+                            level,
+                        );
+                        cap_tool_result(&compressed)
+                    };
+
                     tool_calls.push(ToolCallRecord {
                         name: tool_name,
                         id: tool_id.clone(),
@@ -704,12 +758,6 @@ pub async fn run_agent_streaming(
                         is_error: result.is_error,
                         duration,
                     });
-
-                    let capped_content = if result.is_error {
-                        result.content.clone()
-                    } else {
-                        cap_tool_result(&result.content)
-                    };
                     result_blocks.push(ContentBlock::ToolResult {
                         tool_use_id: tool_id,
                         content: ToolResultContent::Text(capped_content),
@@ -728,20 +776,33 @@ pub async fn run_agent_streaming(
                 // 1. 3+ consecutive identical tool calls that all error
                 // 2. Repeating 2-call pattern [A,B][A,B][A,B] (alternating failures)
                 if !doom_loop_warned && tool_calls.len() >= 6 {
-                    let names: Vec<&str> = tool_calls.iter().rev().take(6)
-                        .map(|tc| tc.name.as_str()).collect();
-                    let errors: Vec<bool> = tool_calls.iter().rev().take(6)
-                        .map(|tc| tc.is_error).collect();
+                    let names: Vec<&str> = tool_calls
+                        .iter()
+                        .rev()
+                        .take(6)
+                        .map(|tc| tc.name.as_str())
+                        .collect();
+                    let errors: Vec<bool> = tool_calls
+                        .iter()
+                        .rev()
+                        .take(6)
+                        .map(|tc| tc.is_error)
+                        .collect();
 
                     // Pattern 1: 3+ identical consecutive failing calls
                     let is_3_identical = names.len() >= 3
-                        && names[0] == names[1] && names[1] == names[2]
-                        && errors[0] && errors[1] && errors[2];
+                        && names[0] == names[1]
+                        && names[1] == names[2]
+                        && errors[0]
+                        && errors[1]
+                        && errors[2];
 
                     // Pattern 2: [A,B][A,B][A,B] alternating pattern
                     let is_2_pattern = names.len() >= 6
-                        && names[0] == names[2] && names[2] == names[4]
-                        && names[1] == names[3] && names[3] == names[5];
+                        && names[0] == names[2]
+                        && names[2] == names[4]
+                        && names[1] == names[3]
+                        && names[3] == names[5];
 
                     if is_3_identical || is_2_pattern {
                         doom_loop_warned = true;
@@ -753,9 +814,11 @@ pub async fn run_agent_streaming(
                              3. Try a different tool, different arguments, or a different algorithm.\n\
                              Do NOT repeat the same commands."
                         ));
-                        let _ = event_tx.send(AgentEvent::Status(
-                            "Doom loop detected — forcing new approach".into()
-                        )).await;
+                        let _ = event_tx
+                            .send(AgentEvent::Status(
+                                "Doom loop detected — forcing new approach".into(),
+                            ))
+                            .await;
                     }
                 }
             }
@@ -815,7 +878,9 @@ pub async fn run_agent_streaming(
                     &model_name_owned,
                     compact::KEEP_RECENT_MESSAGES,
                     None,
-                ).await {
+                )
+                .await
+                {
                     Ok(result) if !result.summary.is_empty() => {
                         let mut msgs = agent.messages.lock();
                         let before = msgs.len();
@@ -825,7 +890,8 @@ pub async fn run_agent_streaming(
                         msgs.extend(recent);
                         tracing::info!(
                             "LLM compact: {before} → {} messages, freed ~{} tokens",
-                            msgs.len(), result.tokens_freed_estimate
+                            msgs.len(),
+                            result.tokens_freed_estimate
                         );
                     }
                     _ => {
@@ -899,9 +965,18 @@ enum BenchmarkVerification {
 /// Analyze tool call history to determine if tests were run and whether they passed.
 fn benchmark_check_tests(tool_calls: &[ToolCallRecord]) -> BenchmarkVerification {
     let test_patterns = [
-        "run-tests", "run_tests", "pytest", "python -m pytest",
-        "bash run-tests.sh", "npm test", "cargo test", "go test",
-        "make test", "jest", "mocha", "unittest",
+        "run-tests",
+        "run_tests",
+        "pytest",
+        "python -m pytest",
+        "bash run-tests.sh",
+        "npm test",
+        "cargo test",
+        "go test",
+        "make test",
+        "jest",
+        "mocha",
+        "unittest",
     ];
 
     let mut found_test_run = false;
@@ -914,7 +989,9 @@ fn benchmark_check_tests(tool_calls: &[ToolCallRecord]) -> BenchmarkVerification
             continue;
         }
 
-        let cmd = tc.input.get("command")
+        let cmd = tc
+            .input
+            .get("command")
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
@@ -948,7 +1025,9 @@ fn benchmark_check_tests(tool_calls: &[ToolCallRecord]) -> BenchmarkVerification
             || result_lower.contains("traceback")
             || result_lower.contains("not ok")
             || result_lower.contains("assertion")
-            || (result_lower.contains("error") && !result_lower.contains("error handling") && !result_lower.contains("error_"));
+            || (result_lower.contains("error")
+                && !result_lower.contains("error handling")
+                && !result_lower.contains("error_"));
 
         if has_failure && !has_pass {
             last_test_failed = true;

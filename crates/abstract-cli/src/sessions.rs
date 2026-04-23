@@ -52,10 +52,7 @@ pub fn list(config: &AppConfig) -> anyhow::Result<()> {
     entries.sort_by(|a, b| {
         b.1.modified()
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-            .cmp(
-                &a.1.modified()
-                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
-            )
+            .cmp(&a.1.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH))
     });
 
     println!("{:<40} {:>10} {:>12}", "SESSION ID", "SIZE", "MODIFIED");
@@ -179,9 +176,7 @@ pub fn last_session_id(config: &AppConfig) -> Option<String> {
             let path = entry.path();
             if path.extension().map(|e| e == "jsonl").unwrap_or(false) {
                 if let Ok(meta) = entry.metadata() {
-                    let modified = meta
-                        .modified()
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    let modified = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
                     let name = path
                         .file_stem()
                         .unwrap_or_default()

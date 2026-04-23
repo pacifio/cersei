@@ -3,9 +3,8 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 
-static CRON_REGISTRY: once_cell::sync::Lazy<
-    dashmap::DashMap<String, CronEntry>,
-> = once_cell::sync::Lazy::new(dashmap::DashMap::new);
+static CRON_REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<String, CronEntry>> =
+    once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CronEntry {
@@ -31,10 +30,18 @@ pub struct CronCreateTool;
 
 #[async_trait]
 impl Tool for CronCreateTool {
-    fn name(&self) -> &str { "CronCreate" }
-    fn description(&self) -> &str { "Schedule a recurring or one-shot prompt to run on a cron schedule." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::Execute }
-    fn category(&self) -> ToolCategory { ToolCategory::Shell }
+    fn name(&self) -> &str {
+        "CronCreate"
+    }
+    fn description(&self) -> &str {
+        "Schedule a recurring or one-shot prompt to run on a cron schedule."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::Execute
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Shell
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -49,7 +56,10 @@ impl Tool for CronCreateTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { schedule: String, prompt: String }
+        struct Input {
+            schedule: String,
+            prompt: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -67,7 +77,10 @@ impl Tool for CronCreateTool {
         };
         CRON_REGISTRY.insert(id.clone(), entry);
 
-        ToolResult::success(format!("Cron job '{}' created: {} → {}", id, input.schedule, input.prompt))
+        ToolResult::success(format!(
+            "Cron job '{}' created: {} → {}",
+            id, input.schedule, input.prompt
+        ))
     }
 }
 
@@ -77,10 +90,18 @@ pub struct CronListTool;
 
 #[async_trait]
 impl Tool for CronListTool {
-    fn name(&self) -> &str { "CronList" }
-    fn description(&self) -> &str { "List all scheduled cron jobs." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
-    fn category(&self) -> ToolCategory { ToolCategory::Shell }
+    fn name(&self) -> &str {
+        "CronList"
+    }
+    fn description(&self) -> &str {
+        "List all scheduled cron jobs."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Shell
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({"type": "object", "properties": {}, "required": []})
@@ -93,7 +114,12 @@ impl Tool for CronListTool {
         }
         let lines: Vec<String> = entries
             .iter()
-            .map(|e| format!("- [{}] {} → {} (runs: {})", e.id, e.schedule, e.prompt, e.run_count))
+            .map(|e| {
+                format!(
+                    "- [{}] {} → {} (runs: {})",
+                    e.id, e.schedule, e.prompt, e.run_count
+                )
+            })
             .collect();
         ToolResult::success(lines.join("\n"))
     }
@@ -105,10 +131,18 @@ pub struct CronDeleteTool;
 
 #[async_trait]
 impl Tool for CronDeleteTool {
-    fn name(&self) -> &str { "CronDelete" }
-    fn description(&self) -> &str { "Delete a scheduled cron job by ID." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::Execute }
-    fn category(&self) -> ToolCategory { ToolCategory::Shell }
+    fn name(&self) -> &str {
+        "CronDelete"
+    }
+    fn description(&self) -> &str {
+        "Delete a scheduled cron job by ID."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::Execute
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Shell
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -122,7 +156,9 @@ impl Tool for CronDeleteTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { id: String }
+        struct Input {
+            id: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -158,10 +194,15 @@ mod tests {
         clear_crons();
 
         let create = CronCreateTool;
-        let result = create.execute(serde_json::json!({
-            "schedule": "*/5 * * * *",
-            "prompt": "Run tests"
-        }), &test_ctx()).await;
+        let result = create
+            .execute(
+                serde_json::json!({
+                    "schedule": "*/5 * * * *",
+                    "prompt": "Run tests"
+                }),
+                &test_ctx(),
+            )
+            .await;
         assert!(!result.is_error);
         assert!(result.content.contains("created"));
 
@@ -174,7 +215,9 @@ mod tests {
         let id = entries[0].id.clone();
 
         let delete = CronDeleteTool;
-        let result = delete.execute(serde_json::json!({"id": id}), &test_ctx()).await;
+        let result = delete
+            .execute(serde_json::json!({"id": id}), &test_ctx())
+            .await;
         assert!(!result.is_error);
 
         assert!(list_crons().is_empty());

@@ -42,36 +42,36 @@ impl Theme {
     pub fn enterprise() -> Self {
         Self {
             // Core
-            bg: Color::Rgb(0, 0, 0),             // #000000
-            fg: Color::Rgb(179, 179, 179),        // #b3b3b3 (editor.foreground)
-            dim: Color::Rgb(88, 88, 88),          // #585858 (text.muted)
-            accent: Color::Rgb(255, 255, 0),      // #ffff00 (text.accent / function)
-            success: Color::Rgb(77, 77, 77),      // #4d4d4d
-            error: Color::Rgb(244, 71, 71),       // #F44747
-            warning: Color::Rgb(205, 151, 49),    // #CD9731
-            info: Color::Rgb(103, 150, 230),      // #6796E6
-            border: Color::Rgb(30, 30, 30),       // #1e1e1e
-            input_bg: Color::Rgb(10, 10, 10),     // #0a0a0a
-            header_bg: Color::Rgb(0, 0, 0),       // #000000
+            bg: Color::Rgb(0, 0, 0),               // #000000
+            fg: Color::Rgb(179, 179, 179),         // #b3b3b3 (editor.foreground)
+            dim: Color::Rgb(88, 88, 88),           // #585858 (text.muted)
+            accent: Color::Rgb(255, 255, 0),       // #ffff00 (text.accent / function)
+            success: Color::Rgb(77, 77, 77),       // #4d4d4d
+            error: Color::Rgb(244, 71, 71),        // #F44747
+            warning: Color::Rgb(205, 151, 49),     // #CD9731
+            info: Color::Rgb(103, 150, 230),       // #6796E6
+            border: Color::Rgb(30, 30, 30),        // #1e1e1e
+            input_bg: Color::Rgb(10, 10, 10),      // #0a0a0a
+            header_bg: Color::Rgb(0, 0, 0),        // #000000
             tool_badge: Color::Rgb(153, 153, 153), // #999999 (terminal.ansi.magenta substitute)
-            thinking: Color::Rgb(51, 51, 51),     // #333333 (text.ghost)
-            user_msg: Color::Rgb(170, 170, 170),  // #aaaaaa (text.secondary)
+            thinking: Color::Rgb(51, 51, 51),      // #333333 (text.ghost)
+            user_msg: Color::Rgb(170, 170, 170),   // #aaaaaa (text.secondary)
 
             // Enterprise extended
-            text_primary: Color::Rgb(255, 255, 255),   // #ffffff
+            text_primary: Color::Rgb(255, 255, 255), // #ffffff
             text_secondary: Color::Rgb(170, 170, 170), // #aaaaaa
-            text_tertiary: Color::Rgb(119, 119, 119),  // #777777
-            text_ghost: Color::Rgb(51, 51, 51),        // #333333
-            text_muted: Color::Rgb(88, 88, 88),        // #585858
-            text_accent: Color::Rgb(255, 255, 0),      // #ffff00
-            bg_raised: Color::Rgb(15, 15, 15),         // #0f0f0f
-            bg_hover: Color::Rgb(10, 10, 10),          // ~rgba(255,255,255,0.04)
-            bg_selected: Color::Rgb(15, 15, 15),       // ~rgba(255,255,255,0.06)
-            border_subtle: Color::Rgb(20, 20, 20),     // #141414
-            border_strong: Color::Rgb(61, 61, 61),     // #3d3d3d
-            diff_added: Color::Rgb(77, 77, 77),        // #4d4d4d
-            diff_removed: Color::Rgb(119, 119, 119),   // #777777
-            diff_modified: Color::Rgb(192, 192, 192),  // #c0c0c0
+            text_tertiary: Color::Rgb(119, 119, 119), // #777777
+            text_ghost: Color::Rgb(51, 51, 51),      // #333333
+            text_muted: Color::Rgb(88, 88, 88),      // #585858
+            text_accent: Color::Rgb(255, 255, 0),    // #ffff00
+            bg_raised: Color::Rgb(15, 15, 15),       // #0f0f0f
+            bg_hover: Color::Rgb(10, 10, 10),        // ~rgba(255,255,255,0.04)
+            bg_selected: Color::Rgb(15, 15, 15),     // ~rgba(255,255,255,0.06)
+            border_subtle: Color::Rgb(20, 20, 20),   // #141414
+            border_strong: Color::Rgb(61, 61, 61),   // #3d3d3d
+            diff_added: Color::Rgb(77, 77, 77),      // #4d4d4d
+            diff_removed: Color::Rgb(119, 119, 119), // #777777
+            diff_modified: Color::Rgb(192, 192, 192), // #c0c0c0
         }
     }
 
@@ -165,7 +165,9 @@ impl Theme {
     }
 
     pub fn bold(&self) -> Style {
-        Style::default().fg(self.text_primary).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(self.text_primary)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn accent_style(&self) -> Style {

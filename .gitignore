@@ -8,6 +8,8 @@ Cargo.lock
 .env
 .env.local
 
+# coding agents
 _inspirations
+.claude
 
 bench/runner-*.sh

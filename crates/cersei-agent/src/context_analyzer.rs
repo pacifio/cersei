@@ -108,17 +108,16 @@ pub fn analyze_context(
                         ContentBlock::ToolResult { content, .. } => {
                             let text = match content {
                                 ToolResultContent::Text(t) => t.len(),
-                                ToolResultContent::Blocks(b) => {
-                                    b.iter()
-                                        .map(|bb| {
-                                            if let ContentBlock::Text { text } = bb {
-                                                text.len()
-                                            } else {
-                                                50
-                                            }
-                                        })
-                                        .sum()
-                                }
+                                ToolResultContent::Blocks(b) => b
+                                    .iter()
+                                    .map(|bb| {
+                                        if let ContentBlock::Text { text } = bb {
+                                            text.len()
+                                        } else {
+                                            50
+                                        }
+                                    })
+                                    .sum(),
                             };
                             tool_result_tokens += (text as u64) / 4;
                         }
@@ -141,10 +140,8 @@ pub fn analyze_context(
         }
     }
 
-    let total = system_prompt_tokens
-        + tool_definitions_tokens
-        + conversation_tokens
-        + tool_result_tokens;
+    let total =
+        system_prompt_tokens + tool_definitions_tokens + conversation_tokens + tool_result_tokens;
 
     // Compressibility: tool results are ~90% compressible, conversation is ~50%
     let compressibility = if total > 0 {
@@ -207,32 +204,45 @@ pub fn format_ctx_viz(analysis: &ContextAnalysis, context_limit: u64) -> String 
 
     let bar_width = 40;
     let filled = ((usage_pct / 100.0) * bar_width as f64).min(bar_width as f64) as usize;
-    let bar: String = format!(
-        "[{}{}]",
-        "#".repeat(filled),
-        ".".repeat(bar_width - filled)
-    );
+    let bar: String = format!("[{}{}]", "#".repeat(filled), ".".repeat(bar_width - filled));
 
     let categories = [
         (ContextCategory::SystemPrompt, analysis.system_prompt_tokens),
-        (ContextCategory::ToolDefinitions, analysis.tool_definitions_tokens),
-        (ContextCategory::ConversationHistory, analysis.conversation_history_tokens),
+        (
+            ContextCategory::ToolDefinitions,
+            analysis.tool_definitions_tokens,
+        ),
+        (
+            ContextCategory::ConversationHistory,
+            analysis.conversation_history_tokens,
+        ),
         (ContextCategory::ToolResults, analysis.tool_results_tokens),
     ];
 
     let mut lines = vec![
-        format!("Context: {} {:.1}% of {} tokens", bar, usage_pct, context_limit),
+        format!(
+            "Context: {} {:.1}% of {} tokens",
+            bar, usage_pct, context_limit
+        ),
         String::new(),
     ];
 
     for (cat, tokens) in &categories {
         if *tokens > 0 {
             let pct = (*tokens as f64 / analysis.total_tokens.max(1) as f64) * 100.0;
-            lines.push(format!("  {:<20} {:>8} tokens ({:.1}%)", cat.label(), tokens, pct));
+            lines.push(format!(
+                "  {:<20} {:>8} tokens ({:.1}%)",
+                cat.label(),
+                tokens,
+                pct
+            ));
         }
     }
 
-    lines.push(format!("\n  Compressibility: {:.0}%", analysis.compressibility * 100.0));
+    lines.push(format!(
+        "\n  Compressibility: {:.0}%",
+        analysis.compressibility * 100.0
+    ));
     lines.join("\n")
 }
 
@@ -246,7 +256,9 @@ mod tests {
         vec![
             Message::user("Read the file src/main.rs"),
             Message::assistant_blocks(vec![
-                ContentBlock::Text { text: "Here's the file:".into() },
+                ContentBlock::Text {
+                    text: "Here's the file:".into(),
+                },
                 ContentBlock::ToolUse {
                     id: "t1".into(),
                     name: "Read".into(),
@@ -326,7 +338,7 @@ mod tests {
     #[test]
     fn test_suggest_collapse_reads() {
         let analysis = ContextAnalysis {
-            total_tokens: 170_000, // 85%
+            total_tokens: 170_000,       // 85%
             tool_results_tokens: 90_000, // >40% of total
             conversation_history_tokens: 70_000,
             compressibility: 0.6,

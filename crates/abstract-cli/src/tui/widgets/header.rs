@@ -26,7 +26,12 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     let mode_str = state.permission_mode.label();
 
     let text = Line::from(vec![
-        Span::styled(" abstract", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " abstract",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" | ", Style::default().fg(theme.dim)),
         Span::styled(&state.model, Style::default().fg(theme.fg)),
         Span::styled(" | ", Style::default().fg(theme.dim)),
@@ -49,7 +54,9 @@ fn mode_style(mode: crate::tui::app::PermissionMode, theme: &Theme) -> Style {
         PermissionMode::Auto => Style::default().fg(theme.success),
         PermissionMode::Plan => Style::default().fg(Color::Cyan),
         PermissionMode::Editor => Style::default().fg(Color::Blue),
-        PermissionMode::Bypass => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        PermissionMode::Bypass => Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
         PermissionMode::BypassAlert => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
     }
 }

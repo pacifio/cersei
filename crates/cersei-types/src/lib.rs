@@ -348,9 +348,7 @@ pub enum CerseiError {
     Permission(String),
 
     #[error("Rate limit exceeded")]
-    RateLimit {
-        retry_after: Option<Duration>,
-    },
+    RateLimit { retry_after: Option<Duration> },
 
     #[error("Context overflow: {used}/{limit} tokens")]
     ContextOverflow { used: u64, limit: u64 },

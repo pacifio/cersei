@@ -1,0 +1,47 @@
+{
+  "config": "d-hybrid-embed-graph",
+  "dataset": "longmemeval_s",
+  "judge_model": "gemini-2.5-flash",
+  "total_questions": 500,
+  "correct_answers": 45,
+  "overall_accuracy": 0.0779313,
+  "accuracy_by_type": {
+    "multi-session": {
+      "correct": 32,
+      "total": 121,
+      "accuracy": 0.2644628
+    },
+    "knowledge-update": {
+      "correct": 0,
+      "total": 72,
+      "accuracy": 0.0
+    },
+    "temporal-reasoning": {
+      "correct": 0,
+      "total": 127,
+      "accuracy": 0.0
+    },
+    "single-session-preference": {
+      "correct": 0,
+      "total": 30,
+      "accuracy": 0.0
+    },
+    "single-session-assistant": {
+      "correct": 0,
+      "total": 56,
+      "accuracy": 0.0
+    },
+    "single-session-user": {
+      "correct": 13,
+      "total": 64,
+      "accuracy": 0.203125
+    }
+  },
+  "abstention_total": 30,
+  "abstention_correct": 0,
+  "abstention_accuracy": 0.0,
+  "avg_elapsed_ms": 25879,
+  "total_input_tokens": 168844,
+  "total_output_tokens": 1420,
+  "total_judge_tokens": 9996
+}

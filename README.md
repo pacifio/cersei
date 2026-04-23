@@ -379,20 +379,42 @@ For an apples-to-apples CLI comparison, see [Abstract CLI benchmarks](crates/abs
 | Graph store | **30μs/node** | N/A (no graph) | — |
 | Topic query | **77μs** | N/A (no graph) | — |
 
-### Run Benchmarks
+### Benchmark suites
+
+Each bench lives in its own self-contained directory with its own runner and result schema. Add new benches as siblings.
+
+| Suite | Path | What it measures | Runner |
+|---|---|---|---|
+| **General-agent frameworks** | [`bench/general-agents/`](bench/general-agents/) | Per-agent memory, instantiation time, max concurrent agents — Cersei vs Agno / PydanticAI / LangGraph / CrewAI. | `./bench/general-agents/run.sh` |
+| **Terminal Bench 2.0** | [`bench/term-bench/`](bench/term-bench/) | End-to-end coding tasks inside Daytona sandboxes using the full `abstract` CLI (Linux x86_64 / arm64 binaries shipped in-tree). | `./bench/term-bench/run.sh` |
+| **LongMemEval (long-term memory)** | [`bench/long-mem/`](bench/long-mem/) | Recall accuracy on the ICLR-25 LongMemEval 500-question benchmark — head-to-head vs Mastra / Zep / Supermemory with identical prompts and LLM-as-judge rubric. Four Cersei configs: full-context baseline, usearch-HNSW semantic, grafeo-graph substring, hybrid w/ LLM fact extraction + RRF fusion. | `cargo run --release -p longmem-bench -- --dataset s --config all` |
+| **Compression (real LLMs)** | `crates/cersei-agent/tests/e2e_openai_compression.rs` | Input-token savings from `cersei-compression` on OpenAI (`gpt-4o-mini`) and Gemini (`gemini-2.5-flash`). `#[ignore]`, runs with real API keys. | `cargo test -p cersei-agent --test e2e_openai_compression -- --ignored --nocapture` |
+| **SDK Tool I/O** | `examples/benchmark_io.rs` | In-process tool dispatch latency for Read / Write / Edit / Grep / Bash / Glob. | `cargo run --example benchmark_io --release` |
+| **SDK Memory I/O** | `crates/abstract-cli/examples/memory_bench.rs` | Graph-memory vs filesystem vs Claude Code-style paths. | `cargo run -p abstract-cli --example memory_bench --release` |
+| **vs Claude Code CLI** | `run_tool_bench_claude.sh` · `run_tool_bench_codex.sh` | CLI-vs-CLI startup, memory, and dispatch overhead. | `./run_tool_bench.sh --iterations 20 --full` |
+
+### Run benchmarks
 
 ```bash
-# Tool I/O benchmark
+# Rust-side SDK benches (no external services)
 cargo run --example benchmark_io --release
-
-# Memory architecture benchmark (graph ON vs OFF + Claude Code comparison)
 cargo run --release -p abstract-cli --example memory_bench
 
-# Full CLI comparison (abstract vs claude, all categories)
+# vs Claude Code / Codex CLIs
 ./run_tool_bench.sh --iterations 20 --full
 
-# Standalone benchmark suite (with Markdown output)
-cd examples/benchmark && cargo run --release
+# Python-harness benches (uv-managed; each dir self-contained)
+./bench/general-agents/run.sh          # Cersei vs Agno / PydanticAI / LangGraph / CrewAI
+./bench/term-bench/run.sh              # Terminal Bench 2.0 via Daytona
+
+# LongMemEval memory benchmark (head-to-head vs Mastra / Zep / Supermemory)
+./bench/long-mem/setup.sh              # downloads oracle + s datasets
+OPENAI_API_KEY=sk-… cargo run --release -p longmem-bench -- \
+  --dataset s --config all --concurrency 8
+
+# Real-LLM compression savings (requires API keys)
+OPENAI_API_KEY=sk-… cargo test -p cersei-agent \
+  --test e2e_openai_compression -- --ignored --nocapture
 ```
 
 ---

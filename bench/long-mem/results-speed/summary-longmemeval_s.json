@@ -1,0 +1,24 @@
+[
+  {
+    "config": "d-hybrid-embed-graph",
+    "dataset": "longmemeval_s",
+    "judge_model": "gpt-4o-mini",
+    "total_questions": 5,
+    "correct_answers": 3,
+    "overall_accuracy": 0.6,
+    "accuracy_by_type": {
+      "single-session-user": {
+        "correct": 3,
+        "total": 5,
+        "accuracy": 0.6
+      }
+    },
+    "abstention_total": 0,
+    "abstention_correct": 0,
+    "abstention_accuracy": 0.0,
+    "avg_elapsed_ms": 28842,
+    "total_input_tokens": 2245,
+    "total_output_tokens": 67,
+    "total_judge_tokens": 1020
+  }
+]

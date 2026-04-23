@@ -1,0 +1,22 @@
+schema_version = 1
+
+[filters.docker-build]
+description = "Collapse buildkit layer progress for `docker build`."
+match_command = '^docker\s+(build|buildx)\b'
+strip_ansi = true
+strip_lines_matching = [
+    '^#\d+\s+\[internal\]',
+    '^#\d+\s+sha256:',
+    '^#\d+\s+extracting',
+    '^#\d+\s+exporting',
+    '^#\d+\s+transferring',
+    '^\s*$',
+]
+max_lines = 200
+
+[filters.zz-docker-generic]
+description = "Generic docker catch-all."
+match_command = '^docker\b'
+strip_ansi = true
+strip_lines_matching = [ '^\s*$' ]
+max_lines = 200

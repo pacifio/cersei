@@ -113,10 +113,7 @@ impl Tool for LspTool {
 
         // Check if we have a server for this file type
         if !mgr.has_server_for(&path) {
-            let ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("?");
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("?");
             return ToolResult::error(format!(
                 "No language server configured for .{ext} files. \
                  Available servers: {}",

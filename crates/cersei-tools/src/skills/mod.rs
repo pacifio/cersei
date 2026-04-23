@@ -93,7 +93,9 @@ pub fn parse_frontmatter(content: &str) -> (std::collections::HashMap<String, St
     let after_open = &content[3..];
     if let Some(close_pos) = after_open.find("\n---") {
         let yaml_block = &after_open[..close_pos].trim();
-        let body = after_open[close_pos + 4..].trim_start_matches('\n').to_string();
+        let body = after_open[close_pos + 4..]
+            .trim_start_matches('\n')
+            .to_string();
 
         // Simple YAML key: value parser (handles single-line values)
         for line in yaml_block.lines() {

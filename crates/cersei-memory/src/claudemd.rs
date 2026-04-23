@@ -241,7 +241,11 @@ mod tests {
     #[test]
     fn test_include_expansion() {
         let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("main.md"), "Before\n@include extra.md\nAfter").unwrap();
+        std::fs::write(
+            tmp.path().join("main.md"),
+            "Before\n@include extra.md\nAfter",
+        )
+        .unwrap();
         std::fs::write(tmp.path().join("extra.md"), "INCLUDED CONTENT").unwrap();
 
         let mut visited = HashSet::new();
@@ -302,10 +306,17 @@ mod tests {
     #[test]
     fn test_frontmatter_stripped() {
         let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("CLAUDE.md"), "---\nscope: project\n---\n\nActual content.").unwrap();
+        std::fs::write(
+            tmp.path().join("CLAUDE.md"),
+            "---\nscope: project\n---\n\nActual content.",
+        )
+        .unwrap();
 
         let files = load_all_memory_files(tmp.path());
-        let project = files.iter().find(|f| f.scope == MemoryScope::Project).unwrap();
+        let project = files
+            .iter()
+            .find(|f| f.scope == MemoryScope::Project)
+            .unwrap();
         assert!(project.content.contains("Actual content"));
         assert!(!project.content.contains("scope: project"));
     }

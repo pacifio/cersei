@@ -24,7 +24,10 @@ pub fn run(config: &AppConfig) -> anyhow::Result<()> {
     let diff = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = diff.lines().collect();
     let display_lines = if lines.len() > 100 {
-        eprintln!("\x1b[90m(showing first 100 of {} lines)\x1b[0m", lines.len());
+        eprintln!(
+            "\x1b[90m(showing first 100 of {} lines)\x1b[0m",
+            lines.len()
+        );
         &lines[..100]
     } else {
         &lines

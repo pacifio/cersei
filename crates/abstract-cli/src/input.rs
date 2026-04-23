@@ -20,8 +20,8 @@ struct AbstractHelper {
 impl AbstractHelper {
     fn new() -> Self {
         let commands = vec![
-            "/help", "/clear", "/compact", "/cost", "/commit", "/review",
-            "/memory", "/model", "/config", "/diff", "/resume", "/exit", "/quit",
+            "/help", "/clear", "/compact", "/cost", "/commit", "/review", "/memory", "/model",
+            "/config", "/diff", "/resume", "/exit", "/quit",
         ]
         .into_iter()
         .map(String::from)

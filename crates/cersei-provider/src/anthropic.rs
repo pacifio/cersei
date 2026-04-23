@@ -53,9 +53,10 @@ impl Anthropic {
         match &self.auth {
             Auth::ApiKey(key) => Ok(vec![("x-api-key".into(), key.clone())]),
             Auth::Bearer(token) => Ok(vec![("authorization".into(), format!("Bearer {}", token))]),
-            Auth::OAuth { token, .. } => {
-                Ok(vec![("authorization".into(), format!("Bearer {}", token.access_token))])
-            }
+            Auth::OAuth { token, .. } => Ok(vec![(
+                "authorization".into(),
+                format!("Bearer {}", token.access_token),
+            )]),
             Auth::Custom(provider) => {
                 let (name, value) = provider.get_credentials().await?;
                 Ok(vec![(name, value)])
@@ -296,22 +297,17 @@ fn parse_sse_event(raw: &str) -> Option<StreamEvent> {
             Some(StreamEvent::ContentBlockStop { index })
         }
         "message_delta" => {
-            let stop_reason = json["delta"]["stop_reason"]
-                .as_str()
-                .and_then(|s| match s {
-                    "end_turn" => Some(StopReason::EndTurn),
-                    "max_tokens" => Some(StopReason::MaxTokens),
-                    "tool_use" => Some(StopReason::ToolUse),
-                    "stop_sequence" => Some(StopReason::StopSequence),
-                    _ => None,
-                });
+            let stop_reason = json["delta"]["stop_reason"].as_str().and_then(|s| match s {
+                "end_turn" => Some(StopReason::EndTurn),
+                "max_tokens" => Some(StopReason::MaxTokens),
+                "tool_use" => Some(StopReason::ToolUse),
+                "stop_sequence" => Some(StopReason::StopSequence),
+                _ => None,
+            });
             let usage = if let Some(u) = json["usage"].as_object() {
                 Some(Usage {
                     input_tokens: u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-                    output_tokens: u
-                        .get("output_tokens")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0),
+                    output_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
                     ..Default::default()
                 })
             } else {
@@ -390,8 +386,12 @@ impl AnthropicBuilder {
 
         Ok(Anthropic {
             auth,
-            base_url: self.base_url.unwrap_or_else(|| ANTHROPIC_API_BASE.to_string()),
-            default_model: self.model.unwrap_or_else(|| "claude-sonnet-4-6".to_string()),
+            base_url: self
+                .base_url
+                .unwrap_or_else(|| ANTHROPIC_API_BASE.to_string()),
+            default_model: self
+                .model
+                .unwrap_or_else(|| "claude-sonnet-4-6".to_string()),
             thinking_budget: self.thinking_budget,
             max_retries: self.max_retries.unwrap_or(5),
             client: reqwest::Client::new(),

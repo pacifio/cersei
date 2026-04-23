@@ -3,11 +3,11 @@
 //! Measures every memory operation with precise timing, both graph-ON and graph-OFF.
 //! Run: cargo run --release --manifest-path crates/abstract-cli/Cargo.toml --example memory_bench
 
+use cersei_agent::auto_dream::AutoDream;
+use cersei_agent::session_memory;
 use cersei_memory::manager::MemoryManager;
 use cersei_memory::memdir::{self, MemoryType};
 use cersei_memory::session_storage;
-use cersei_agent::auto_dream::AutoDream;
-use cersei_agent::session_memory;
 use cersei_types::*;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -180,8 +180,7 @@ fn main() {
         let mem_dir = root.join(format!("recall_{count}"));
         create_memory_files(&mem_dir, count);
 
-        let mm = MemoryManager::new(root)
-            .with_memory_dir(mem_dir);
+        let mm = MemoryManager::new(root).with_memory_dir(mem_dir);
 
         // Recall hit (keyword exists)
         let r = bench(&format!("Recall hit ({} files)", count), 50, || {
@@ -207,8 +206,7 @@ fn main() {
     let ctx_mem = ctx_root.join("memory");
     create_memory_files(&ctx_mem, 100);
 
-    let mm = MemoryManager::new(&ctx_root)
-        .with_memory_dir(ctx_mem);
+    let mm = MemoryManager::new(&ctx_root).with_memory_dir(ctx_mem);
 
     let r = bench("Build full context (100 files)", 100, || {
         let _ = mm.build_context();
@@ -239,8 +237,7 @@ fn main() {
     {
         let session_dir = root.join("session_write");
         std::fs::create_dir_all(&session_dir).unwrap();
-        let mm = MemoryManager::new(root)
-            .with_sessions_dir(session_dir.clone());
+        let mm = MemoryManager::new(root).with_sessions_dir(session_dir.clone());
 
         let r = bench("Session write (single entry)", 200, || {
             let _ = mm.write_user_message("bench-w", Message::user("test message"));
@@ -285,7 +282,11 @@ fn main() {
 
         // Store single
         let r = bench("Graph store (single node)", 100, || {
-            let _ = mm.store_memory("Test memory about Rust performance", MemoryType::Project, 0.8);
+            let _ = mm.store_memory(
+                "Test memory about Rust performance",
+                MemoryType::Project,
+                0.8,
+            );
         });
         print_result(&r);
 
@@ -447,8 +448,7 @@ fn main() {
     create_memory_files(&cmp_mem_dir, 100);
 
     // Graph OFF
-    let mm_off = MemoryManager::new(root)
-        .with_memory_dir(cmp_mem_dir.clone());
+    let mm_off = MemoryManager::new(root).with_memory_dir(cmp_mem_dir.clone());
 
     let r_off_scan = bench("Scan 100 (graph OFF)", 100, || {
         let _ = mm_off.scan();
@@ -500,9 +500,12 @@ fn main() {
 
         // Print comparison
         println!("\n  \x1b[36mComparison:\x1b[0m");
-        let scan_delta = (r_on_scan.avg.as_nanos() as f64 / r_off_scan.avg.as_nanos() as f64 - 1.0) * 100.0;
-        let recall_delta = (r_on_recall.avg.as_nanos() as f64 / r_off_recall.avg.as_nanos() as f64 - 1.0) * 100.0;
-        let ctx_delta = (r_on_ctx.avg.as_nanos() as f64 / r_off_ctx.avg.as_nanos() as f64 - 1.0) * 100.0;
+        let scan_delta =
+            (r_on_scan.avg.as_nanos() as f64 / r_off_scan.avg.as_nanos() as f64 - 1.0) * 100.0;
+        let recall_delta =
+            (r_on_recall.avg.as_nanos() as f64 / r_off_recall.avg.as_nanos() as f64 - 1.0) * 100.0;
+        let ctx_delta =
+            (r_on_ctx.avg.as_nanos() as f64 / r_off_ctx.avg.as_nanos() as f64 - 1.0) * 100.0;
         println!("    Scan:    graph ON is {:+.1}% vs OFF", scan_delta);
         println!("    Recall:  graph ON is {:+.1}% vs OFF", recall_delta);
         println!("    Context: graph ON is {:+.1}% vs OFF", ctx_delta);

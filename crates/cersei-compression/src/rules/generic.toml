@@ -1,0 +1,9 @@
+schema_version = 1
+
+[filters.generic-catchall]
+description = "Last-chance fallback for everything else — drops blank runs and very long lines."
+match_command = '.*'
+strip_ansi = true
+truncate_lines_at = 2000
+strip_lines_matching = [ '^\s*$' ]
+max_lines = 400

@@ -15,10 +15,8 @@ use crate::{EmbeddingError, EmbeddingProvider, GeminiEmbeddings, OpenAiEmbedding
 /// Returns `EmbeddingError::Config` if no key is available.
 pub fn auto_from_model(model: &str) -> Result<Box<dyn EmbeddingProvider>, EmbeddingError> {
     let m = model.to_ascii_lowercase();
-    let is_openai = m.contains("openai")
-        || m.starts_with("gpt")
-        || m.starts_with("o1")
-        || m.starts_with("o3");
+    let is_openai =
+        m.contains("openai") || m.starts_with("gpt") || m.starts_with("o1") || m.starts_with("o3");
     let is_gemini = m.contains("gemini") || m.contains("google");
 
     if is_gemini && !is_openai {

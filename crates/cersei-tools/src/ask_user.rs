@@ -7,11 +7,15 @@ pub struct AskUserQuestionTool;
 
 #[async_trait]
 impl Tool for AskUserQuestionTool {
-    fn name(&self) -> &str { "AskUserQuestion" }
+    fn name(&self) -> &str {
+        "AskUserQuestion"
+    }
     fn description(&self) -> &str {
         "Ask the user a question and wait for their response. Use when you need clarification or input."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -25,7 +29,9 @@ impl Tool for AskUserQuestionTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { question: String }
+        struct Input {
+            question: String,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,

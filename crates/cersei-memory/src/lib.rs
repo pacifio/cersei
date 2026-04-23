@@ -9,6 +9,8 @@
 //! - `session_storage` — JSONL transcript persistence
 
 pub mod claudemd;
+#[cfg(feature = "embed")]
+pub mod embedding_memory;
 pub mod graph;
 pub mod graph_migrate;
 pub mod manager;
@@ -23,7 +25,9 @@ use std::path::PathBuf;
 pub fn strip_frontmatter(content: &str) -> String {
     if content.starts_with("---") {
         if let Some(close_pos) = content[3..].find("\n---") {
-            return content[3 + close_pos + 4..].trim_start_matches('\n').to_string();
+            return content[3 + close_pos + 4..]
+                .trim_start_matches('\n')
+                .to_string();
         }
     }
     content.to_string()

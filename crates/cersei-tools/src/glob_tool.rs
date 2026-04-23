@@ -8,10 +8,18 @@ pub struct GlobTool;
 
 #[async_trait]
 impl Tool for GlobTool {
-    fn name(&self) -> &str { "Glob" }
-    fn description(&self) -> &str { "Find files matching a glob pattern." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::ReadOnly }
-    fn category(&self) -> ToolCategory { ToolCategory::FileSystem }
+    fn name(&self) -> &str {
+        "Glob"
+    }
+    fn description(&self) -> &str {
+        "Find files matching a glob pattern."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::ReadOnly
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::FileSystem
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -54,7 +62,11 @@ impl Tool for GlobTool {
                 } else {
                     let total = paths.len();
                     let truncated = total > max_results;
-                    let output: Vec<String> = paths.iter().take(max_results).map(|p| p.display().to_string()).collect();
+                    let output: Vec<String> = paths
+                        .iter()
+                        .take(max_results)
+                        .map(|p| p.display().to_string())
+                        .collect();
                     let mut result = output.join("\n");
                     if truncated {
                         result.push_str(&format!(

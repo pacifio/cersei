@@ -31,9 +31,17 @@ impl Theme {
             warning: Color::Yellow,
             tool_badge: Color::Magenta,
             thinking: Color::DarkGrey,
-            code_bg: Color::Rgb { r: 30, g: 30, b: 30 },
+            code_bg: Color::Rgb {
+                r: 30,
+                g: 30,
+                b: 30,
+            },
             prompt: Color::Cyan,
-            status_bg: Color::Rgb { r: 30, g: 30, b: 30 },
+            status_bg: Color::Rgb {
+                r: 30,
+                g: 30,
+                b: 30,
+            },
             status_fg: Color::DarkGrey,
             permission_accent: Color::Yellow,
         }
@@ -49,9 +57,17 @@ impl Theme {
             warning: Color::DarkYellow,
             tool_badge: Color::DarkMagenta,
             thinking: Color::Grey,
-            code_bg: Color::Rgb { r: 240, g: 240, b: 240 },
+            code_bg: Color::Rgb {
+                r: 240,
+                g: 240,
+                b: 240,
+            },
             prompt: Color::DarkCyan,
-            status_bg: Color::Rgb { r: 240, g: 240, b: 240 },
+            status_bg: Color::Rgb {
+                r: 240,
+                g: 240,
+                b: 240,
+            },
             status_fg: Color::DarkGrey,
             permission_accent: Color::DarkYellow,
         }

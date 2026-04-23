@@ -162,9 +162,7 @@ impl AutoDream {
     /// Check all gates in order (cheapest first).
     pub fn should_consolidate(&self) -> bool {
         let state = self.load_state();
-        self.time_gate_passes(&state)
-            && self.session_gate_passes(&state)
-            && self.lock_gate_passes()
+        self.time_gate_passes(&state) && self.session_gate_passes(&state) && self.lock_gate_passes()
     }
 
     // ─── Lock management ─────────────────────────────────────────────────

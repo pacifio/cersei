@@ -1,0 +1,6 @@
+# Downloaded datasets (~3 GB all variants) — fetch via ./setup.sh
+data/
+# Local API keys (use env vars at runtime instead)
+.env
+# Prevent accidentally committing any raw OpenAI dump
+*.openai-dump.json

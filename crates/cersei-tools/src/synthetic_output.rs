@@ -6,11 +6,15 @@ pub struct SyntheticOutputTool;
 
 #[async_trait]
 impl Tool for SyntheticOutputTool {
-    fn name(&self) -> &str { "SyntheticOutput" }
+    fn name(&self) -> &str {
+        "SyntheticOutput"
+    }
     fn description(&self) -> &str {
         "Return structured JSON output for programmatic consumption. Used by coordinator mode and SDK integrations."
     }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({

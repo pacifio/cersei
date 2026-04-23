@@ -16,8 +16,13 @@ fn main() {
 
     macro_rules! check {
         ($name:expr, $cond:expr) => {
-            if $cond { passed += 1; println!("  \x1b[32m✓\x1b[0m {}", $name); }
-            else { failed += 1; println!("  \x1b[31m✗\x1b[0m {}", $name); }
+            if $cond {
+                passed += 1;
+                println!("  \x1b[32m✓\x1b[0m {}", $name);
+            } else {
+                failed += 1;
+                println!("  \x1b[31m✗\x1b[0m {}", $name);
+            }
         };
     }
 
@@ -54,10 +59,22 @@ fn main() {
         check!("find 'loop'", find_bundled_skill("loop").is_some());
 
         // Find by alias
-        check!("alias 'mem' → remember", find_bundled_skill("mem").unwrap().name == "remember");
-        check!("alias 'diagnose' → debug", find_bundled_skill("diagnose").unwrap().name == "debug");
-        check!("alias 'help-me' → stuck", find_bundled_skill("help-me").unwrap().name == "stuck");
-        check!("alias 'check' → verify", find_bundled_skill("check").unwrap().name == "verify");
+        check!(
+            "alias 'mem' → remember",
+            find_bundled_skill("mem").unwrap().name == "remember"
+        );
+        check!(
+            "alias 'diagnose' → debug",
+            find_bundled_skill("diagnose").unwrap().name == "debug"
+        );
+        check!(
+            "alias 'help-me' → stuck",
+            find_bundled_skill("help-me").unwrap().name == "stuck"
+        );
+        check!(
+            "alias 'check' → verify",
+            find_bundled_skill("check").unwrap().name == "verify"
+        );
 
         // Case insensitive
         check!("case insensitive", find_bundled_skill("SIMPLIFY").is_some());
@@ -66,16 +83,28 @@ fn main() {
         // Allowed tools
         let debug = find_bundled_skill("debug").unwrap();
         check!("debug has allowed_tools", debug.allowed_tools.is_some());
-        check!("debug allows Read", debug.allowed_tools.unwrap().contains(&"Read"));
+        check!(
+            "debug allows Read",
+            debug.allowed_tools.unwrap().contains(&"Read")
+        );
 
         let simplify = find_bundled_skill("simplify").unwrap();
-        check!("simplify has no tool restriction", simplify.allowed_tools.is_none());
+        check!(
+            "simplify has no tool restriction",
+            simplify.allowed_tools.is_none()
+        );
 
         // Load and expand
         let loaded = load_bundled(debug, None);
         let expanded = loaded.expand(Some("tests are flaky"));
-        check!("expand replaces $ARGUMENTS", expanded.contains("tests are flaky"));
-        check!("expand removes $ARGUMENTS marker", !expanded.contains("$ARGUMENTS"));
+        check!(
+            "expand replaces $ARGUMENTS",
+            expanded.contains("tests are flaky")
+        );
+        check!(
+            "expand removes $ARGUMENTS marker",
+            !expanded.contains("$ARGUMENTS")
+        );
         println!();
     }
 
@@ -90,7 +119,9 @@ fn main() {
         std::fs::create_dir_all(&cmd_dir).unwrap();
 
         // Create test skills
-        std::fs::write(cmd_dir.join("deploy.md"), "\
+        std::fs::write(
+            cmd_dir.join("deploy.md"),
+            "\
 ---
 description: Deploy the application
 argument-hint: <environment>
@@ -101,29 +132,48 @@ Deploy $ARGUMENTS to the target environment.
 1. Run tests first
 2. Build the release
 3. Deploy$ARGUMENTS_SUFFIX
-").unwrap();
+",
+        )
+        .unwrap();
 
-        std::fs::write(cmd_dir.join("review.md"), "\
+        std::fs::write(
+            cmd_dir.join("review.md"),
+            "\
 # Code Review
 
 Review the changes in this PR and provide feedback.
 Focus on: correctness, performance, readability.
-").unwrap();
+",
+        )
+        .unwrap();
 
-        std::fs::write(cmd_dir.join("no-frontmatter.md"), "\
+        std::fs::write(
+            cmd_dir.join("no-frontmatter.md"),
+            "\
 Just a plain skill with no YAML frontmatter.
 It should still be discoverable.
-").unwrap();
+",
+        )
+        .unwrap();
 
         let skills = discover_all(Some(tmp.path()), &[]);
         let deploy = skills.iter().find(|s| s.name == "deploy");
         check!("discover deploy.md", deploy.is_some());
-        check!("deploy has description from FM", deploy.unwrap().description == "Deploy the application");
-        check!("deploy has allowed_tools", deploy.unwrap().allowed_tools.is_some());
+        check!(
+            "deploy has description from FM",
+            deploy.unwrap().description == "Deploy the application"
+        );
+        check!(
+            "deploy has allowed_tools",
+            deploy.unwrap().allowed_tools.is_some()
+        );
 
         let review = skills.iter().find(|s| s.name == "review");
         check!("discover review.md", review.is_some());
-        check!("review description from first line", review.unwrap().description.contains("Code Review"));
+        check!(
+            "review description from first line",
+            review.unwrap().description.contains("Code Review")
+        );
 
         let plain = skills.iter().find(|s| s.name == "no-frontmatter");
         check!("discover no-frontmatter.md", plain.is_some());
@@ -134,7 +184,10 @@ It should still be discoverable.
         let loaded = loaded.unwrap();
         let expanded = loaded.expand(Some("production"));
         check!("expand $ARGUMENTS", expanded.contains("Deploy production"));
-        check!("expand $ARGUMENTS_SUFFIX", expanded.contains(": production"));
+        check!(
+            "expand $ARGUMENTS_SUFFIX",
+            expanded.contains(": production")
+        );
         check!("no leftover markers", !expanded.contains("$ARGUMENTS"));
         println!();
     }
@@ -150,7 +203,9 @@ It should still be discoverable.
         // Create skills format skill
         let skill_dir = tmp.path().join(".claude/skills/cloudflare");
         std::fs::create_dir_all(&skill_dir).unwrap();
-        std::fs::write(skill_dir.join("SKILL.md"), "\
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "\
 ---
 name: cloudflare
 description: Cloudflare platform development skill
@@ -165,12 +220,16 @@ Use this skill for any Cloudflare development.
 
 ## Workers
 Deploy serverless functions to Cloudflare Workers.
-").unwrap();
+",
+        )
+        .unwrap();
 
         // Create agents-sdk skill
         let skill_dir2 = tmp.path().join(".claude/skills/agents-sdk");
         std::fs::create_dir_all(&skill_dir2).unwrap();
-        std::fs::write(skill_dir2.join("SKILL.md"), "\
+        std::fs::write(
+            skill_dir2.join("SKILL.md"),
+            "\
 ---
 name: agents-sdk
 description: Build AI agents with the Agents SDK
@@ -179,12 +238,17 @@ description: Build AI agents with the Agents SDK
 # Agents SDK Skill
 
 Build durable AI agents that survive restarts.
-").unwrap();
+",
+        )
+        .unwrap();
 
         let skills = discover_all(Some(tmp.path()), &[]);
         let cf = skills.iter().find(|s| s.name == "cloudflare");
         check!("discover cloudflare SKILL.md", cf.is_some());
-        check!("cloudflare format is Skills", cf.unwrap().format == cersei_tools::skills::SkillFormat::Skills);
+        check!(
+            "cloudflare format is Skills",
+            cf.unwrap().format == cersei_tools::skills::SkillFormat::Skills
+        );
 
         let agents = skills.iter().find(|s| s.name == "agents-sdk");
         check!("discover agents-sdk SKILL.md", agents.is_some());
@@ -192,7 +256,10 @@ Build durable AI agents that survive restarts.
         // Load
         let loaded = load_skill("cloudflare", Some(tmp.path()), &[]);
         check!("load cloudflare", loaded.is_some());
-        check!("content has Workers section", loaded.unwrap().content.contains("Workers"));
+        check!(
+            "content has Workers section",
+            loaded.unwrap().content.contains("Workers")
+        );
         println!();
     }
 
@@ -207,7 +274,11 @@ Build durable AI agents that survive restarts.
         std::fs::create_dir_all(&cmd_dir).unwrap();
 
         // Create a disk skill with same name as bundled
-        std::fs::write(cmd_dir.join("simplify.md"), "# Overridden simplify\nDisk version.").unwrap();
+        std::fs::write(
+            cmd_dir.join("simplify.md"),
+            "# Overridden simplify\nDisk version.",
+        )
+        .unwrap();
 
         let skills = discover_all(Some(tmp.path()), &[]);
         let simplify = skills.iter().find(|s| s.name == "simplify").unwrap();
@@ -235,23 +306,43 @@ Build durable AI agents that survive restarts.
         };
 
         // List
-        let r = tool.execute(serde_json::json!({"skill": "list"}), &ctx).await;
-        check!("SkillTool list works", r.content.contains("Available skills:"));
+        let r = tool
+            .execute(serde_json::json!({"skill": "list"}), &ctx)
+            .await;
+        check!(
+            "SkillTool list works",
+            r.content.contains("Available skills:")
+        );
         check!("List includes bundled", r.content.contains("simplify"));
         check!("List includes disk skill", r.content.contains("greet"));
 
         // Load bundled
-        let r = tool.execute(serde_json::json!({"skill": "commit"}), &ctx).await;
-        check!("Load bundled 'commit'", !r.is_error && r.content.contains("git"));
+        let r = tool
+            .execute(serde_json::json!({"skill": "commit"}), &ctx)
+            .await;
+        check!(
+            "Load bundled 'commit'",
+            !r.is_error && r.content.contains("git")
+        );
 
         // Load disk
-        let r = tool.execute(serde_json::json!({"skill": "greet", "args": "world"}), &ctx).await;
+        let r = tool
+            .execute(serde_json::json!({"skill": "greet", "args": "world"}), &ctx)
+            .await;
         check!("Load disk 'greet'", !r.is_error);
-        check!("Expand $ARGUMENTS", r.content.contains("Say hello to world"));
+        check!(
+            "Expand $ARGUMENTS",
+            r.content.contains("Say hello to world")
+        );
 
         // Not found with suggestion
-        let r = tool.execute(serde_json::json!({"skill": "simp"}), &ctx).await;
-        check!("Not found gives suggestion", r.is_error && r.content.contains("Did you mean"));
+        let r = tool
+            .execute(serde_json::json!({"skill": "simp"}), &ctx)
+            .await;
+        check!(
+            "Not found gives suggestion",
+            r.is_error && r.content.contains("Did you mean")
+        );
     });
     println!();
 
@@ -266,18 +357,32 @@ Build durable AI agents that survive restarts.
             if dir.exists() {
                 let skills = discover_all(None, &[]);
                 let disk_skills: Vec<_> = skills.iter().filter(|s| !s.bundled).collect();
-                check!(&format!("Found {} user skills", disk_skills.len()), !disk_skills.is_empty());
+                check!(
+                    &format!("Found {} user skills", disk_skills.len()),
+                    !disk_skills.is_empty()
+                );
 
                 for s in &disk_skills {
-                    println!("    {} — {} [{:?}]", s.name, &s.description[..s.description.len().min(50)], s.format);
+                    println!(
+                        "    {} — {} [{:?}]",
+                        s.name,
+                        &s.description[..s.description.len().min(50)],
+                        s.format
+                    );
                 }
 
                 // Try loading the design skill specifically
                 let loaded = load_skill("design", None, &[]);
                 if let Some(loaded) = loaded {
                     check!("Load 'design' skill", true);
-                    check!(&format!("design.md is {} chars", loaded.content.len()), loaded.content.len() > 100);
-                    check!("design has real content", loaded.content.contains("Design") || loaded.content.contains("design"));
+                    check!(
+                        &format!("design.md is {} chars", loaded.content.len()),
+                        loaded.content.len() > 100
+                    );
+                    check!(
+                        "design has real content",
+                        loaded.content.contains("Design") || loaded.content.contains("design")
+                    );
                 } else {
                     println!("    (design skill not found — skipping)");
                 }
@@ -297,23 +402,40 @@ Build durable AI agents that survive restarts.
         let skills = discover_all(None, &[]);
         let formatted = format_skill_list(&skills);
 
-        check!("Formatted list starts with header", formatted.starts_with("Available skills:"));
+        check!(
+            "Formatted list starts with header",
+            formatted.starts_with("Available skills:")
+        );
         check!("Contains [bundled] tag", formatted.contains("[bundled]"));
-        check!("Contains aliases", formatted.contains("aliases:") || skills.iter().all(|s| s.aliases.is_empty()));
+        check!(
+            "Contains aliases",
+            formatted.contains("aliases:") || skills.iter().all(|s| s.aliases.is_empty())
+        );
 
         // Check formatting structure
         let lines: Vec<&str> = formatted.lines().collect();
-        check!(&format!("Has {} lines for {} skills", lines.len(), skills.len()), lines.len() > skills.len());
+        check!(
+            &format!("Has {} lines for {} skills", lines.len(), skills.len()),
+            lines.len() > skills.len()
+        );
         println!();
     }
 
     // ── Summary ──────────────────────────────────────────────────────────
     println!("╔══════════════════════════════════════════════════╗");
     if failed == 0 {
-        println!("║  \x1b[32mALL {} CHECKS PASSED\x1b[0m                              ║", passed);
+        println!(
+            "║  \x1b[32mALL {} CHECKS PASSED\x1b[0m                              ║",
+            passed
+        );
     } else {
-        println!("║  \x1b[31m{} PASSED, {} FAILED\x1b[0m                               ║", passed, failed);
+        println!(
+            "║  \x1b[31m{} PASSED, {} FAILED\x1b[0m                               ║",
+            passed, failed
+        );
     }
     println!("╚══════════════════════════════════════════════════╝\n");
-    if failed > 0 { std::process::exit(1); }
+    if failed > 0 {
+        std::process::exit(1);
+    }
 }

@@ -24,8 +24,13 @@ fn main() {
 
     macro_rules! check {
         ($name:expr, $cond:expr) => {
-            if $cond { passed += 1; println!("  \x1b[32m✓\x1b[0m {}", $name); }
-            else { failed += 1; println!("  \x1b[31m✗\x1b[0m {}", $name); }
+            if $cond {
+                passed += 1;
+                println!("  \x1b[32m✓\x1b[0m {}", $name);
+            } else {
+                failed += 1;
+                println!("  \x1b[31m✗\x1b[0m {}", $name);
+            }
         };
     }
 
@@ -49,30 +54,51 @@ fn main() {
         std::fs::write(mem_dir.join("project_arch.md"),
             "---\nname: Architecture\ndescription: System design\ntype: project\n---\n\nMicroservices with gRPC."
         ).unwrap();
-        std::fs::write(mem_dir.join("feedback_testing.md"),
-            "---\ntype: feedback\n---\n\nAlways run tests before committing."
-        ).unwrap();
-        std::fs::write(mem_dir.join("no_frontmatter.md"),
-            "Just plain content, no YAML."
-        ).unwrap();
-        std::fs::write(mem_dir.join("MEMORY.md"),
+        std::fs::write(
+            mem_dir.join("feedback_testing.md"),
+            "---\ntype: feedback\n---\n\nAlways run tests before committing.",
+        )
+        .unwrap();
+        std::fs::write(
+            mem_dir.join("no_frontmatter.md"),
+            "Just plain content, no YAML.",
+        )
+        .unwrap();
+        std::fs::write(
+            mem_dir.join("MEMORY.md"),
             "- [User Role](user_role.md) — developer preferences\n\
              - [Architecture](project_arch.md) — system design\n\
-             - [Testing](feedback_testing.md) — testing practices"
-        ).unwrap();
+             - [Testing](feedback_testing.md) — testing practices",
+        )
+        .unwrap();
 
         let metas = scan_memory_dir(mem_dir);
         check!("Scan finds 4 files (excludes MEMORY.md)", metas.len() == 4);
-        check!("No MEMORY.md in results", metas.iter().all(|m| m.filename != "MEMORY.md"));
+        check!(
+            "No MEMORY.md in results",
+            metas.iter().all(|m| m.filename != "MEMORY.md")
+        );
 
         let user = metas.iter().find(|m| m.filename == "user_role.md");
         check!("user_role.md found", user.is_some());
-        check!("user_role has name from FM", user.unwrap().name.as_deref() == Some("User Role"));
-        check!("user_role has description", user.unwrap().description.as_deref() == Some("Developer prefs"));
-        check!("user_role type = User", user.unwrap().memory_type == Some(MemoryType::User));
+        check!(
+            "user_role has name from FM",
+            user.unwrap().name.as_deref() == Some("User Role")
+        );
+        check!(
+            "user_role has description",
+            user.unwrap().description.as_deref() == Some("Developer prefs")
+        );
+        check!(
+            "user_role type = User",
+            user.unwrap().memory_type == Some(MemoryType::User)
+        );
 
         let plain = metas.iter().find(|m| m.filename == "no_frontmatter.md");
-        check!("Plain file has no FM metadata", plain.unwrap().name.is_none());
+        check!(
+            "Plain file has no FM metadata",
+            plain.unwrap().name.is_none()
+        );
 
         // MEMORY.md loading
         let index = load_memory_index(mem_dir);
@@ -89,15 +115,30 @@ fn main() {
         check!("Large MEMORY.md truncated", big_index.truncated);
 
         // Staleness
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         check!("Today = no warning", memory_freshness_text(now).is_none());
-        check!("3 days ago = warning", memory_freshness_text(now - 86400 * 3).is_some());
+        check!(
+            "3 days ago = warning",
+            memory_freshness_text(now - 86400 * 3).is_some()
+        );
         check!("Age text: today", memory_age_text(now) == "today");
-        check!("Age text: yesterday", memory_age_text(now - 86400) == "yesterday");
+        check!(
+            "Age text: yesterday",
+            memory_age_text(now - 86400) == "yesterday"
+        );
 
         // Path sanitization
-        check!("Sanitize /Users/foo", sanitize_path_component("/Users/foo") == "_Users_foo");
-        check!("Sanitize safe string", sanitize_path_component("my-project_v2") == "my-project_v2");
+        check!(
+            "Sanitize /Users/foo",
+            sanitize_path_component("/Users/foo") == "_Users_foo"
+        );
+        check!(
+            "Sanitize safe string",
+            sanitize_path_component("my-project_v2") == "my-project_v2"
+        );
 
         // Build prompt
         let prompt = build_memory_prompt_content(mem_dir);
@@ -108,7 +149,10 @@ fn main() {
         check!("Load full file", file.is_some());
         let file = file.unwrap();
         check!("Content has body", file.content.contains("Rust and Vim"));
-        check!("Content strips FM", !file.content.contains("name: User Role"));
+        check!(
+            "Content strips FM",
+            !file.content.contains("name: User Role")
+        );
         println!();
     }
 
@@ -122,18 +166,28 @@ fn main() {
         let root = tmp.path();
 
         // Create project CLAUDE.md
-        std::fs::write(root.join("CLAUDE.md"), "---\nscope: project\n---\n\n# Project Rules\nUse Rust. Write tests.").unwrap();
+        std::fs::write(
+            root.join("CLAUDE.md"),
+            "---\nscope: project\n---\n\n# Project Rules\nUse Rust. Write tests.",
+        )
+        .unwrap();
 
         // Create local override
         let claude_dir = root.join(".claude");
         std::fs::create_dir_all(&claude_dir).unwrap();
-        std::fs::write(claude_dir.join("CLAUDE.md"), "# Local Override\nDebug mode enabled.").unwrap();
+        std::fs::write(
+            claude_dir.join("CLAUDE.md"),
+            "# Local Override\nDebug mode enabled.",
+        )
+        .unwrap();
 
         // Create include file
         std::fs::write(root.join("extra_rules.md"), "INCLUDED: Always use clippy.").unwrap();
-        std::fs::write(root.join("CLAUDE.md"),
-            "# Project Rules\nUse Rust.\n@include extra_rules.md\nEnd of rules."
-        ).unwrap();
+        std::fs::write(
+            root.join("CLAUDE.md"),
+            "# Project Rules\nUse Rust.\n@include extra_rules.md\nEnd of rules.",
+        )
+        .unwrap();
 
         let files = load_all_memory_files(root);
         let project = files.iter().find(|f| f.scope == MemoryScope::Project);
@@ -149,9 +203,18 @@ fn main() {
 
         // Include expansion
         let project_content = &project.unwrap().content;
-        check!("@include expanded", project_content.contains("INCLUDED: Always use clippy"));
-        check!("Content before include present", project_content.contains("Use Rust"));
-        check!("Content after include present", project_content.contains("End of rules"));
+        check!(
+            "@include expanded",
+            project_content.contains("INCLUDED: Always use clippy")
+        );
+        check!(
+            "Content before include present",
+            project_content.contains("Use Rust")
+        );
+        check!(
+            "Content after include present",
+            project_content.contains("End of rules")
+        );
 
         // Circular include test
         let circ_dir = tmp.path().join("circular");
@@ -165,7 +228,10 @@ fn main() {
         }
 
         // FM stripped
-        check!("Frontmatter stripped", !local.unwrap().content.contains("scope:"));
+        check!(
+            "Frontmatter stripped",
+            !local.unwrap().content.contains("scope:")
+        );
 
         // Build prompt
         let prompt = build_memory_prompt(&files);
@@ -185,9 +251,17 @@ fn main() {
 
         // Write entries
         let u1 = write_user_entry(&path, "s1", Message::user("Hello"), "/tmp").unwrap();
-        let a1 = write_assistant_entry(&path, "s1", Message::assistant("Hi there!"), "/tmp", Some(&u1)).unwrap();
+        let a1 = write_assistant_entry(
+            &path,
+            "s1",
+            Message::assistant("Hi there!"),
+            "/tmp",
+            Some(&u1),
+        )
+        .unwrap();
         let u2 = write_user_entry(&path, "s1", Message::user("Fix the bug"), "/tmp").unwrap();
-        let a2 = write_assistant_entry(&path, "s1", Message::assistant("Done!"), "/tmp", Some(&u2)).unwrap();
+        let a2 = write_assistant_entry(&path, "s1", Message::assistant("Done!"), "/tmp", Some(&u2))
+            .unwrap();
         let u3 = write_user_entry(&path, "s1", Message::user("Delete this"), "/tmp").unwrap();
 
         let entries = load_transcript(&path).unwrap();
@@ -201,9 +275,20 @@ fn main() {
         // Messages extraction
         let messages = messages_from_transcript(&entries);
         check!("4 messages extracted", messages.len() == 4);
-        check!("First message correct", messages[0].get_text().unwrap() == "Hello");
-        check!("Last message correct", messages[3].get_text().unwrap() == "Done!");
-        check!("Tombstoned message gone", messages.iter().all(|m| m.get_text().unwrap() != "Delete this"));
+        check!(
+            "First message correct",
+            messages[0].get_text().unwrap() == "Hello"
+        );
+        check!(
+            "Last message correct",
+            messages[3].get_text().unwrap() == "Done!"
+        );
+        check!(
+            "Tombstoned message gone",
+            messages
+                .iter()
+                .all(|m| m.get_text().unwrap() != "Delete this")
+        );
 
         // Multiple tombstones
         tombstone_entry(&path, &a2).unwrap();
@@ -213,7 +298,10 @@ fn main() {
         // Round-trip integrity
         let messages = messages_from_transcript(&entries);
         for msg in &messages {
-            check!(&format!("Message has text: '{}'", msg.get_text().unwrap()), msg.get_text().is_some());
+            check!(
+                &format!("Message has text: '{}'", msg.get_text().unwrap()),
+                msg.get_text().is_some()
+            );
         }
 
         // Summary entry
@@ -237,18 +325,32 @@ fn main() {
         use cersei_agent::session_memory::*;
 
         // Threshold checks
-        let small: Vec<Message> = (0..10).map(|i| Message::user(format!("Msg {}", i))).collect();
+        let small: Vec<Message> = (0..10)
+            .map(|i| Message::user(format!("Msg {}", i)))
+            .collect();
         let state = SessionMemoryState::default();
         check!("10 msgs = no extract", !should_extract(&small, &state));
 
-        let large: Vec<Message> = (0..30).map(|i| {
-            if i % 2 == 0 { Message::user(format!("Q{}", i)) }
-            else { Message::assistant(format!("A{}", i)) }
-        }).collect();
+        let large: Vec<Message> = (0..30)
+            .map(|i| {
+                if i % 2 == 0 {
+                    Message::user(format!("Q{}", i))
+                } else {
+                    Message::assistant(format!("A{}", i))
+                }
+            })
+            .collect();
         check!("30 msgs = extract", should_extract(&large, &state));
 
-        let cooldown_state = SessionMemoryState { extraction_count: 1, tool_calls_since_last: 1, ..Default::default() };
-        check!("Cooldown blocks extract", !should_extract(&large, &cooldown_state));
+        let cooldown_state = SessionMemoryState {
+            extraction_count: 1,
+            tool_calls_since_last: 1,
+            ..Default::default()
+        };
+        check!(
+            "Cooldown blocks extract",
+            !should_extract(&large, &cooldown_state)
+        );
 
         // Parse extraction output
         let output = "\
@@ -260,16 +362,28 @@ not a memory line
 MEMORY: bad format
 ";
         let memories = parse_extraction_output(output);
-        check!(&format!("Parsed {} memories", memories.len()), memories.len() == 4);
-        check!("First memory content", memories[0].content == "User prefers dark mode UI");
-        check!("Confidence normalized", (memories[0].confidence - 0.8).abs() < 0.01);
+        check!(
+            &format!("Parsed {} memories", memories.len()),
+            memories.len() == 4
+        );
+        check!(
+            "First memory content",
+            memories[0].content == "User prefers dark mode UI"
+        );
+        check!(
+            "Confidence normalized",
+            (memories[0].confidence - 0.8).abs() < 0.01
+        );
 
         // Persistence
         let tmp = tempfile::tempdir().unwrap();
         let target = tmp.path().join("extracted.md");
         persist_memories(&memories, &target).unwrap();
         let content = std::fs::read_to_string(&target).unwrap();
-        check!("Persisted has section header", content.contains("Auto-extracted memories"));
+        check!(
+            "Persisted has section header",
+            content.contains("Auto-extracted memories")
+        );
         check!("Persisted has memories", content.contains("dark mode"));
         check!("Persisted has confidence", content.contains("80%"));
 
@@ -302,22 +416,39 @@ MEMORY: bad format
 
         // Time gate
         let empty_state = ConsolidationState::default();
-        check!("Never consolidated → time gate passes", dream.time_gate_passes(&empty_state));
+        check!(
+            "Never consolidated → time gate passes",
+            dream.time_gate_passes(&empty_state)
+        );
 
         let recent_state = ConsolidationState {
-            last_consolidated_at: Some(std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() - 3600),
+            last_consolidated_at: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+                    - 3600,
+            ),
             ..Default::default()
         };
-        check!("1 hour ago → time gate fails", !dream.time_gate_passes(&recent_state));
+        check!(
+            "1 hour ago → time gate fails",
+            !dream.time_gate_passes(&recent_state)
+        );
 
         // Session gate
-        check!("No sessions → session gate fails", !dream.session_gate_passes(&empty_state));
+        check!(
+            "No sessions → session gate fails",
+            !dream.session_gate_passes(&empty_state)
+        );
 
         for i in 0..6 {
             std::fs::write(conv_dir.join(format!("s{}.jsonl", i)), "{}").unwrap();
         }
-        check!("6 sessions → session gate passes", dream.session_gate_passes(&empty_state));
+        check!(
+            "6 sessions → session gate passes",
+            dream.session_gate_passes(&empty_state)
+        );
 
         // Lock gate
         check!("No lock → lock gate passes", dream.lock_gate_passes());
@@ -333,7 +464,10 @@ MEMORY: bad format
 
         // Consolidation prompt
         let prompt = dream.consolidation_prompt();
-        check!("Prompt has phases", prompt.contains("Orient") && prompt.contains("Prune"));
+        check!(
+            "Prompt has phases",
+            prompt.contains("Orient") && prompt.contains("Prune")
+        );
         println!();
     }
 
@@ -370,9 +504,21 @@ MEMORY: bad format
         std::fs::write(root.join("CLAUDE.md"), "# Rules\nUse Rust only.").unwrap();
         let mem_dir = root.join("memory");
         std::fs::create_dir_all(&mem_dir).unwrap();
-        std::fs::write(mem_dir.join("MEMORY.md"), "- [tips](rust_tips.md) — Rust tips").unwrap();
-        std::fs::write(mem_dir.join("rust_tips.md"), "---\nname: Rust Tips\n---\n\nUse clippy. Use cargo fmt.").unwrap();
-        std::fs::write(mem_dir.join("python_tips.md"), "---\nname: Python Tips\n---\n\nUse ruff. Use black.").unwrap();
+        std::fs::write(
+            mem_dir.join("MEMORY.md"),
+            "- [tips](rust_tips.md) — Rust tips",
+        )
+        .unwrap();
+        std::fs::write(
+            mem_dir.join("rust_tips.md"),
+            "---\nname: Rust Tips\n---\n\nUse clippy. Use cargo fmt.",
+        )
+        .unwrap();
+        std::fs::write(
+            mem_dir.join("python_tips.md"),
+            "---\nname: Python Tips\n---\n\nUse ruff. Use black.",
+        )
+        .unwrap();
 
         let sessions_dir = root.join("sessions");
         let manager = MemoryManager::new(root)
@@ -386,7 +532,10 @@ MEMORY: bad format
 
         // Scan
         let metas = manager.scan();
-        check!(&format!("Scan finds {} memory files", metas.len()), metas.len() == 2);
+        check!(
+            &format!("Scan finds {} memory files", metas.len()),
+            metas.len() == 2
+        );
 
         // Recall (fallback text matching)
         let results = manager.recall("clippy", 10);
@@ -400,9 +549,15 @@ MEMORY: bad format
         check!("Recall no match", results.is_empty());
 
         // Session write/load
-        manager.write_user_message("test-sess", Message::user("Hello")).unwrap();
-        manager.write_assistant_message("test-sess", Message::assistant("Hi"), None).unwrap();
-        manager.write_user_message("test-sess", Message::user("Bye")).unwrap();
+        manager
+            .write_user_message("test-sess", Message::user("Hello"))
+            .unwrap();
+        manager
+            .write_assistant_message("test-sess", Message::assistant("Hi"), None)
+            .unwrap();
+        manager
+            .write_user_message("test-sess", Message::user("Bye"))
+            .unwrap();
 
         let messages = manager.load_session_messages("test-sess").unwrap();
         check!("Session has 3 messages", messages.len() == 3);
@@ -429,8 +584,8 @@ MEMORY: bad format
     println!("  8. Performance Benchmarks");
     println!("  ─────────────────────────");
     {
-        use cersei_memory::memdir::*;
         use cersei_memory::manager::MemoryManager;
+        use cersei_memory::memdir::*;
 
         let tmp = tempfile::tempdir().unwrap();
         let mem_dir = tmp.path().join("perf_mem");
@@ -443,9 +598,14 @@ MEMORY: bad format
                 format!("---\nname: Memory {}\ntype: project\n---\n\nContent for memory {} with keywords: rust, testing, deploy, api, database.", i, i)
             ).unwrap();
         }
-        std::fs::write(mem_dir.join("MEMORY.md"),
-            (0..100).map(|i| format!("- [mem_{}](mem_{:03}.md) — memory {}", i, i, i)).collect::<Vec<_>>().join("\n")
-        ).unwrap();
+        std::fs::write(
+            mem_dir.join("MEMORY.md"),
+            (0..100)
+                .map(|i| format!("- [mem_{}](mem_{:03}.md) — memory {}", i, i, i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .unwrap();
 
         // Benchmark scan
         let start = Instant::now();
@@ -454,7 +614,10 @@ MEMORY: bad format
             scan_memory_dir(&mem_dir);
         }
         let scan_us = start.elapsed().as_micros() / iters as u128;
-        check!(&format!("Scan 100 files: {}μs (target < 5000μs)", scan_us), scan_us < 5000);
+        check!(
+            &format!("Scan 100 files: {}μs (target < 5000μs)", scan_us),
+            scan_us < 5000
+        );
 
         // Benchmark recall
         let manager = MemoryManager::new(tmp.path()).with_memory_dir(mem_dir.clone());
@@ -463,7 +626,10 @@ MEMORY: bad format
             manager.recall("testing", 5);
         }
         let recall_us = start.elapsed().as_micros() / iters as u128;
-        check!(&format!("Recall from 100 files: {}μs (target < 10000μs)", recall_us), recall_us < 10000);
+        check!(
+            &format!("Recall from 100 files: {}μs (target < 10000μs)", recall_us),
+            recall_us < 10000
+        );
 
         // Benchmark MEMORY.md load
         let start = Instant::now();
@@ -471,18 +637,28 @@ MEMORY: bad format
             load_memory_index(&mem_dir);
         }
         let index_us = start.elapsed().as_micros() / iters as u128;
-        check!(&format!("Load MEMORY.md: {}μs (target < 1000μs)", index_us), index_us < 1000);
+        check!(
+            &format!("Load MEMORY.md: {}μs (target < 1000μs)", index_us),
+            index_us < 1000
+        );
 
         // Benchmark session write
         let session_path = tmp.path().join("perf.jsonl");
         let start = Instant::now();
         for i in 0..100 {
             cersei_memory::session_storage::write_user_entry(
-                &session_path, "perf", Message::user(format!("Message {}", i)), "/tmp"
-            ).unwrap();
+                &session_path,
+                "perf",
+                Message::user(format!("Message {}", i)),
+                "/tmp",
+            )
+            .unwrap();
         }
         let write_us = start.elapsed().as_micros() / 100;
-        check!(&format!("Session write: {}μs/entry (target < 500μs)", write_us), write_us < 500);
+        check!(
+            &format!("Session write: {}μs/entry (target < 500μs)", write_us),
+            write_us < 500
+        );
 
         // Benchmark session load
         let start = Instant::now();
@@ -490,7 +666,13 @@ MEMORY: bad format
             cersei_memory::session_storage::load_transcript(&session_path).unwrap();
         }
         let load_us = start.elapsed().as_micros() / 10;
-        check!(&format!("Session load (100 entries): {}μs (target < 5000μs)", load_us), load_us < 5000);
+        check!(
+            &format!(
+                "Session load (100 entries): {}μs (target < 5000μs)",
+                load_us
+            ),
+            load_us < 5000
+        );
 
         println!();
     }
@@ -507,8 +689,12 @@ MEMORY: bad format
                 // CLAUDE.md
                 let claude_md = home.join(".claude").join("CLAUDE.md");
                 if claude_md.exists() {
-                    let files = cersei_memory::claudemd::load_all_memory_files(&std::env::current_dir().unwrap());
-                    let user_file = files.iter().find(|f| f.scope == cersei_memory::claudemd::MemoryScope::User);
+                    let files = cersei_memory::claudemd::load_all_memory_files(
+                        &std::env::current_dir().unwrap(),
+                    );
+                    let user_file = files
+                        .iter()
+                        .find(|f| f.scope == cersei_memory::claudemd::MemoryScope::User);
                     check!("Load real ~/.claude/CLAUDE.md", user_file.is_some());
                     if let Some(f) = user_file {
                         println!("    User CLAUDE.md: {} chars", f.content.len());
@@ -523,7 +709,10 @@ MEMORY: bad format
                     let count = std::fs::read_dir(&projects_dir)
                         .map(|e| e.count())
                         .unwrap_or(0);
-                    println!("    Found {} project directories in ~/.claude/projects/", count);
+                    println!(
+                        "    Found {} project directories in ~/.claude/projects/",
+                        count
+                    );
                     check!("Projects dir accessible", count > 0 || true); // don't fail if empty
                 }
 
@@ -547,10 +736,18 @@ MEMORY: bad format
     // ── Summary ──────────────────────────────────────────────────────────
     println!("╔════════════════════════════════════════════════════╗");
     if failed == 0 {
-        println!("║  \x1b[32mALL {} CHECKS PASSED\x1b[0m                                ║", passed);
+        println!(
+            "║  \x1b[32mALL {} CHECKS PASSED\x1b[0m                                ║",
+            passed
+        );
     } else {
-        println!("║  \x1b[31m{} PASSED, {} FAILED\x1b[0m                                 ║", passed, failed);
+        println!(
+            "║  \x1b[31m{} PASSED, {} FAILED\x1b[0m                                 ║",
+            passed, failed
+        );
     }
     println!("╚════════════════════════════════════════════════════╝\n");
-    if failed > 0 { std::process::exit(1); }
+    if failed > 0 {
+        std::process::exit(1);
+    }
 }

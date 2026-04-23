@@ -8,7 +8,9 @@ pub struct ApplyPatchTool;
 
 #[async_trait]
 impl Tool for ApplyPatchTool {
-    fn name(&self) -> &str { "ApplyPatch" }
+    fn name(&self) -> &str {
+        "ApplyPatch"
+    }
 
     fn description(&self) -> &str {
         "Apply a unified diff patch to one or more files. The patch should be in standard \
@@ -16,8 +18,12 @@ impl Tool for ApplyPatchTool {
          new files and deleting files."
     }
 
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::Write }
-    fn category(&self) -> ToolCategory { ToolCategory::FileSystem }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::Write
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::FileSystem
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -51,7 +57,11 @@ impl Tool for ApplyPatchTool {
                     ToolResult::success(format!(
                         "Patch applied to {} file(s):\n{}",
                         files.len(),
-                        files.iter().map(|f| format!("  {}", f.display())).collect::<Vec<_>>().join("\n")
+                        files
+                            .iter()
+                            .map(|f| format!("  {}", f.display()))
+                            .collect::<Vec<_>>()
+                            .join("\n")
                     ))
                 }
             }
@@ -61,7 +71,10 @@ impl Tool for ApplyPatchTool {
 }
 
 /// Apply a unified diff patch. Returns list of modified files.
-fn apply_unified_patch(patch: &str, working_dir: &std::path::Path) -> std::result::Result<Vec<PathBuf>, String> {
+fn apply_unified_patch(
+    patch: &str,
+    working_dir: &std::path::Path,
+) -> std::result::Result<Vec<PathBuf>, String> {
     let mut modified = Vec::new();
     let mut current_file: Option<PathBuf> = None;
     let mut original_lines: Vec<String> = Vec::new();
@@ -156,7 +169,9 @@ fn parse_hunk_header(line: &str) -> Option<(usize, usize, usize, usize)> {
     let line = line.strip_prefix("@@ -")?;
     let (old, rest) = line.split_once(' ')?;
     let rest = rest.strip_prefix('+')?;
-    let (new, _) = rest.split_once(' ').unwrap_or((rest.trim_end_matches(" @@"), ""));
+    let (new, _) = rest
+        .split_once(' ')
+        .unwrap_or((rest.trim_end_matches(" @@"), ""));
     let new = new.trim_end_matches(" @@");
 
     let parse_range = |s: &str| -> (usize, usize) {
@@ -172,7 +187,11 @@ fn parse_hunk_header(line: &str) -> Option<(usize, usize, usize, usize)> {
     Some((os, oc, ns, nc))
 }
 
-fn apply_hunks(file: &std::path::Path, original: &[String], hunks: &[Hunk]) -> std::result::Result<(), String> {
+fn apply_hunks(
+    file: &std::path::Path,
+    original: &[String],
+    hunks: &[Hunk],
+) -> std::result::Result<(), String> {
     let mut result = original.to_vec();
     let mut offset: isize = 0;
 
@@ -204,8 +223,7 @@ fn apply_hunks(file: &std::path::Path, original: &[String], hunks: &[Hunk]) -> s
 
     // Write result
     if let Some(parent) = file.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Cannot create directory: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("Cannot create directory: {e}"))?;
     }
     std::fs::write(file, result.join("\n") + "\n")
         .map_err(|e| format!("Cannot write {}: {e}", file.display()))?;

@@ -9,8 +9,8 @@ use crate::theme::Theme;
 use crate::Cli;
 
 use cersei_agent::effort::EffortLevel;
-use cersei_memory::manager::MemoryManager;
 use cersei_mcp::McpServerConfig;
+use cersei_memory::manager::MemoryManager;
 use cersei_tools::permissions::AllowAll;
 use cersei_types::Message;
 use std::sync::atomic::AtomicBool;
@@ -134,13 +134,19 @@ fn detect_proxy(config: &AppConfig) -> Option<String> {
     }
 
     // Quick TCP check on proxy port
-    let base = config.proxy.url.trim_end_matches("/v1").trim_end_matches('/');
+    let base = config
+        .proxy
+        .url
+        .trim_end_matches("/v1")
+        .trim_end_matches('/');
     let addr = base
         .trim_start_matches("http://")
         .trim_start_matches("https://");
 
     if let Ok(addr) = addr.parse::<std::net::SocketAddr>() {
-        if std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(200)).is_ok() {
+        if std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(200))
+            .is_ok()
+        {
             return Some(config.proxy.url.clone());
         }
     } else {
@@ -148,7 +154,12 @@ fn detect_proxy(config: &AppConfig) -> Option<String> {
         use std::net::ToSocketAddrs;
         if let Ok(mut addrs) = addr.to_socket_addrs() {
             if let Some(sock_addr) = addrs.next() {
-                if std::net::TcpStream::connect_timeout(&sock_addr, std::time::Duration::from_millis(200)).is_ok() {
+                if std::net::TcpStream::connect_timeout(
+                    &sock_addr,
+                    std::time::Duration::from_millis(200),
+                )
+                .is_ok()
+                {
                     return Some(config.proxy.url.clone());
                 }
             }
@@ -171,17 +182,23 @@ pub fn build_agent(
 ) -> anyhow::Result<(cersei::Agent, String)> {
     // Check for proxy (VibeProxy or compatible) before resolving provider
     let (provider, resolved_model) = if let Some(proxy_url) = detect_proxy(config) {
-        let model = if model_string == "auto" { "claude-sonnet-4-6" } else { model_string };
+        let model = if model_string == "auto" {
+            "claude-sonnet-4-6"
+        } else {
+            model_string
+        };
         let provider = cersei_provider::OpenAi::builder()
             .api_key("vibeproxy")
             .base_url(&proxy_url)
             .model(model)
             .build()
             .map_err(|e| anyhow::anyhow!("{e}"))?;
-        (Box::new(provider) as Box<dyn cersei_provider::Provider>, format!("{model} via proxy"))
+        (
+            Box::new(provider) as Box<dyn cersei_provider::Provider>,
+            format!("{model} via proxy"),
+        )
     } else {
-        cersei_provider::from_model_string(model_string)
-            .map_err(|e| anyhow::anyhow!("{e}"))?
+        cersei_provider::from_model_string(model_string).map_err(|e| anyhow::anyhow!("{e}"))?
     };
 
     let system_prompt = prompt::build_cli_system_prompt(config, memory_manager, &resolved_model);
@@ -200,20 +217,33 @@ pub fn build_agent(
 
     // Build tool list: built-in + LSP + optional embedding-enhanced CodeSearch
     let mut tools = cersei_tools::all();
-    tools.push(Box::new(cersei_tools::lsp_tool::LspTool::new(&config.working_dir)));
+    tools.push(Box::new(cersei_tools::lsp_tool::LspTool::new(
+        &config.working_dir,
+    )));
 
     // If --embedding-api is enabled, upgrade CodeSearch with embedding reranking
     if config.embedding_api {
         match cersei_embeddings::auto_from_model(&resolved_model) {
             Ok(provider) => {
                 tools.retain(|t| t.name() != "CodeSearch");
-                tools.push(Box::new(cersei_tools::code_search::CodeSearchTool::with_embeddings(
-                    Arc::from(provider),
-                )));
+                tools.push(Box::new(
+                    cersei_tools::code_search::CodeSearchTool::with_embeddings(Arc::from(provider)),
+                ));
             }
             Err(e) => tracing::warn!("Embedding provider unavailable, BM25 only: {e}"),
         }
     }
+
+    let compression_level = config
+        .compression_level
+        .parse::<cersei_compression::CompressionLevel>()
+        .unwrap_or_else(|e| {
+            tracing::warn!(
+                "invalid compression_level '{}': {e}; using off",
+                config.compression_level
+            );
+            cersei_compression::CompressionLevel::Off
+        });
 
     let mut builder = cersei::Agent::builder()
         .provider(provider)
@@ -223,6 +253,7 @@ pub fn build_agent(
         .max_turns(config.max_turns)
         .max_tokens(config.max_tokens)
         .auto_compact(config.auto_compact)
+        .compression_level(compression_level)
         .enable_broadcast(512)
         .cancel_token(cancel_token)
         .session_id(session_id)
@@ -234,9 +265,7 @@ pub fn build_agent(
         builder = builder.permission_policy(AllowAll);
     } else if let (Some(mode), Some(tx)) = (shared_mode, perm_tx) {
         // TUI mode: use channel-based permission flow (no stdin conflict)
-        builder = builder.permission_policy(
-            crate::permissions::TuiPermissionPolicy::new(mode, tx)
-        );
+        builder = builder.permission_policy(crate::permissions::TuiPermissionPolicy::new(mode, tx));
     } else {
         builder = builder.permission_policy(CliPermissionPolicy::new());
     }

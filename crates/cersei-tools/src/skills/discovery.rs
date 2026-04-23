@@ -15,10 +15,7 @@ const SKILLS_DIRS: &[&str] = &[".claude/skills", ".agents/skills"];
 ///
 /// Order: bundled > project-level > home-level > extra paths.
 /// Deduplicates by name (first found wins).
-pub fn discover_all(
-    project_root: Option<&Path>,
-    extra_paths: &[PathBuf],
-) -> Vec<SkillMeta> {
+pub fn discover_all(project_root: Option<&Path>, extra_paths: &[PathBuf]) -> Vec<SkillMeta> {
     let mut skills: Vec<SkillMeta> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
 
@@ -34,7 +31,9 @@ pub fn discover_all(
             path: None,
             bundled: true,
             aliases: skill.aliases.iter().map(|s| s.to_string()).collect(),
-            allowed_tools: skill.allowed_tools.map(|t| t.iter().map(|s| s.to_string()).collect()),
+            allowed_tools: skill
+                .allowed_tools
+                .map(|t| t.iter().map(|s| s.to_string()).collect()),
             argument_hint: skill.argument_hint.map(|s| s.to_string()),
             format: SkillFormat::Bundled,
         });
@@ -70,12 +69,10 @@ pub fn discover_all(
 }
 
 /// Scan a commands format directory: `dir/*.md`
-fn scan_claude_code_dir(
-    dir: &Path,
-    skills: &mut Vec<SkillMeta>,
-    seen: &mut HashSet<String>,
-) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+fn scan_claude_code_dir(dir: &Path, skills: &mut Vec<SkillMeta>, seen: &mut HashSet<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -104,7 +101,10 @@ fn scan_claude_code_dir(
             .unwrap_or_else(|| extract_description(&body));
 
         let allowed_tools = fm.get("allowed-tools").map(|v| {
-            v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+            v.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
         });
 
         seen.insert(name.to_lowercase());
@@ -122,12 +122,10 @@ fn scan_claude_code_dir(
 }
 
 /// Scan a skills format directory: `dir/<name>/SKILL.md`
-fn scan_skills_dir(
-    dir: &Path,
-    skills: &mut Vec<SkillMeta>,
-    seen: &mut HashSet<String>,
-) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+fn scan_skills_dir(dir: &Path, skills: &mut Vec<SkillMeta>, seen: &mut HashSet<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -148,15 +146,12 @@ fn scan_skills_dir(
         let (fm, body) = parse_frontmatter(&content);
 
         // Skills format requires name in frontmatter
-        let name = fm
-            .get("name")
-            .cloned()
-            .unwrap_or_else(|| {
-                path.file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string()
-            });
+        let name = fm.get("name").cloned().unwrap_or_else(|| {
+            path.file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string()
+        });
 
         if name.is_empty() || seen.contains(&name.to_lowercase()) {
             continue;
@@ -204,7 +199,10 @@ pub fn load_skill(
         if cc_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&cc_path) {
                 let (fm, body) = parse_frontmatter(&content);
-                let description = fm.get("description").cloned().unwrap_or_else(|| extract_description(&body));
+                let description = fm
+                    .get("description")
+                    .cloned()
+                    .unwrap_or_else(|| extract_description(&body));
                 return Some(LoadedSkill {
                     meta: SkillMeta {
                         name: name.to_string(),
@@ -213,7 +211,10 @@ pub fn load_skill(
                         bundled: false,
                         aliases: vec![],
                         allowed_tools: fm.get("allowed-tools").map(|v| {
-                            v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+                            v.split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect()
                         }),
                         argument_hint: fm.get("argument-hint").cloned(),
                         format: SkillFormat::Commands,
@@ -228,7 +229,10 @@ pub fn load_skill(
         if oc_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&oc_path) {
                 let (fm, body) = parse_frontmatter(&content);
-                let description = fm.get("description").cloned().unwrap_or_else(|| extract_description(&body));
+                let description = fm
+                    .get("description")
+                    .cloned()
+                    .unwrap_or_else(|| extract_description(&body));
                 return Some(LoadedSkill {
                     meta: SkillMeta {
                         name: name.to_string(),
@@ -316,7 +320,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let cmd_dir = tmp.path().join(".claude/commands");
         fs::create_dir_all(&cmd_dir).unwrap();
-        fs::write(cmd_dir.join("my-skill.md"), "---\ndescription: My custom skill\n---\n\nDo $ARGUMENTS please.").unwrap();
+        fs::write(
+            cmd_dir.join("my-skill.md"),
+            "---\ndescription: My custom skill\n---\n\nDo $ARGUMENTS please.",
+        )
+        .unwrap();
 
         let skills = discover_all(Some(tmp.path()), &[]);
         let custom = skills.iter().find(|s| s.name == "my-skill");
@@ -330,7 +338,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let skill_dir = tmp.path().join(".claude/skills/my-oc-skill");
         fs::create_dir_all(&skill_dir).unwrap();
-        fs::write(skill_dir.join("SKILL.md"), "---\nname: my-oc-skill\ndescription: Skills format skill\n---\n\n# Skill content").unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-oc-skill\ndescription: Skills format skill\n---\n\n# Skill content",
+        )
+        .unwrap();
 
         let skills = discover_all(Some(tmp.path()), &[]);
         let custom = skills.iter().find(|s| s.name == "my-oc-skill");
@@ -365,7 +377,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let cmd_dir = tmp.path().join(".claude/commands");
         fs::create_dir_all(&cmd_dir).unwrap();
-        fs::write(cmd_dir.join("deploy.md"), "---\ndescription: Deploy to prod\n---\n\nRun deploy for $ARGUMENTS").unwrap();
+        fs::write(
+            cmd_dir.join("deploy.md"),
+            "---\ndescription: Deploy to prod\n---\n\nRun deploy for $ARGUMENTS",
+        )
+        .unwrap();
 
         let loaded = load_skill("deploy", Some(tmp.path()), &[]);
         assert!(loaded.is_some());
@@ -392,7 +408,10 @@ mod tests {
             if dir.exists() {
                 let skills = discover_all(None, &[]);
                 let disk_skills: Vec<_> = skills.iter().filter(|s| !s.bundled).collect();
-                println!("Found {} disk skills from ~/.claude/commands/", disk_skills.len());
+                println!(
+                    "Found {} disk skills from ~/.claude/commands/",
+                    disk_skills.len()
+                );
                 for s in &disk_skills {
                     println!("  {} — {} ({:?})", s.name, s.description, s.format);
                 }

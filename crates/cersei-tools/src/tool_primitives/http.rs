@@ -63,7 +63,9 @@ fn build_client(opts: &HttpOptions) -> Result<reqwest::Client, HttpError> {
         builder = builder.user_agent(ua);
     }
 
-    builder.build().map_err(|e| HttpError::ClientBuild(e.to_string()))
+    builder
+        .build()
+        .map_err(|e| HttpError::ClientBuild(e.to_string()))
 }
 
 /// Send a GET request.
@@ -94,7 +96,10 @@ pub async fn get(url: &str, opts: HttpOptions) -> Result<HttpResponse, HttpError
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
         .collect();
-    let body = resp.text().await.map_err(|e| HttpError::RequestFailed(e.to_string()))?;
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| HttpError::RequestFailed(e.to_string()))?;
 
     Ok(HttpResponse {
         status,
@@ -132,7 +137,10 @@ pub async fn post(url: &str, body: &str, opts: HttpOptions) -> Result<HttpRespon
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
         .collect();
-    let body = resp.text().await.map_err(|e| HttpError::RequestFailed(e.to_string()))?;
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| HttpError::RequestFailed(e.to_string()))?;
 
     Ok(HttpResponse {
         status,

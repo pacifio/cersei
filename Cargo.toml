@@ -13,11 +13,13 @@ members = [
     "crates/cersei-mcp",
     "crates/cersei-lsp",
     "crates/cersei-embeddings",
+    "crates/cersei-compression",
     "crates/abstract-cli",
+    "bench/long-mem",
 ]
 
 [workspace.package]
-version = "0.1.6-patch.2"
+version = "0.1.7"
 edition = "2021"
 authors = ["Adib Mohsin"]
 license = "MIT"
@@ -97,6 +99,7 @@ cersei-memory = { path = "crates/cersei-memory" }
 cersei-hooks = { path = "crates/cersei-hooks" }
 cersei-mcp = { path = "crates/cersei-mcp" }
 cersei-embeddings = { path = "crates/cersei-embeddings" }
+cersei-compression = { path = "crates/cersei-compression" }
 
 [profile.release]
 strip = true

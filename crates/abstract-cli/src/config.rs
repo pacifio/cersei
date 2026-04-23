@@ -40,9 +40,16 @@ pub struct AppConfig {
     pub embedding_api: bool,
     #[serde(default = "default_output_format")]
     pub output_format: String,
+    #[serde(default = "default_compression")]
+    pub compression_level: String,
 }
 
-fn default_output_format() -> String { "text".into() }
+fn default_output_format() -> String {
+    "text".into()
+}
+fn default_compression() -> String {
+    "off".into()
+}
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -65,6 +72,7 @@ impl Default for AppConfig {
             benchmark_mode: false,
             embedding_api: false,
             output_format: "text".into(),
+            compression_level: "off".into(),
         }
     }
 }
@@ -93,8 +101,12 @@ impl Default for ProxyConfig {
     }
 }
 
-fn default_true() -> bool { true }
-fn default_proxy_url() -> String { "http://localhost:8317/v1".into() }
+fn default_true() -> bool {
+    true
+}
+fn default_proxy_url() -> String {
+    "http://localhost:8317/v1".into()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerEntry {
@@ -216,6 +228,9 @@ fn merge(base: &mut AppConfig, overlay: AppConfig) {
     if !overlay.hooks.is_empty() {
         base.hooks = overlay.hooks;
     }
+    if overlay.compression_level != AppConfig::default().compression_level {
+        base.compression_level = overlay.compression_level;
+    }
 }
 
 fn apply_env(config: &mut AppConfig) {
@@ -232,12 +247,19 @@ fn apply_env(config: &mut AppConfig) {
         config.theme = v;
     }
     if let Ok(v) = std::env::var("ABSTRACT_FALLBACK_MODELS") {
-        config.fallback_models = v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        config.fallback_models = v
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
     }
     if let Ok(v) = std::env::var("ABSTRACT_MAX_TURNS") {
         if let Ok(n) = v.parse() {
             config.max_turns = n;
         }
+    }
+    if let Ok(v) = std::env::var("ABSTRACT_COMPRESSION") {
+        config.compression_level = v;
     }
 }
 

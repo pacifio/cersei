@@ -77,15 +77,27 @@ pub fn analyze_command(source: &str) -> BashAnalysis {
         match kind {
             // Command substitution: $(cmd) or `cmd`
             "command_substitution" => {
-                raise(&mut analysis, BashRiskLevel::Moderate, "command substitution detected");
+                raise(
+                    &mut analysis,
+                    BashRiskLevel::Moderate,
+                    "command substitution detected",
+                );
             }
             // Process substitution: <(cmd) or >(cmd)
             "process_substitution" => {
-                raise(&mut analysis, BashRiskLevel::Moderate, "process substitution detected");
+                raise(
+                    &mut analysis,
+                    BashRiskLevel::Moderate,
+                    "process substitution detected",
+                );
             }
             // Redirections: could overwrite files
             "file_redirect" | "heredoc_redirect" => {
-                raise(&mut analysis, BashRiskLevel::Moderate, "file redirection detected");
+                raise(
+                    &mut analysis,
+                    BashRiskLevel::Moderate,
+                    "file redirection detected",
+                );
                 // Try to extract target path
                 if let Some(dest) = node.child_by_field_name("destination") {
                     if let Ok(path) = dest.utf8_text(bytes) {
@@ -142,8 +154,15 @@ fn classify_command(
         "rm" => {
             // Check for -rf or dangerous flags
             let args = extract_arguments(node, bytes);
-            if args.iter().any(|a| a.contains("rf") || a == "/" || a == "/*") {
-                raise(analysis, BashRiskLevel::Forbidden, "rm -rf or root deletion");
+            if args
+                .iter()
+                .any(|a| a.contains("rf") || a == "/" || a == "/*")
+            {
+                raise(
+                    analysis,
+                    BashRiskLevel::Forbidden,
+                    "rm -rf or root deletion",
+                );
             } else {
                 raise(analysis, BashRiskLevel::High, "file deletion (rm)");
             }
@@ -154,13 +173,21 @@ fn classify_command(
             }
         }
         "chmod" | "chown" | "chgrp" => {
-            raise(analysis, BashRiskLevel::High, &format!("permission change ({name})"));
+            raise(
+                analysis,
+                BashRiskLevel::High,
+                &format!("permission change ({name})"),
+            );
         }
         "kill" | "killall" | "pkill" => {
             raise(analysis, BashRiskLevel::High, "process termination");
         }
         "dd" | "mkfs" | "fdisk" | "mount" | "umount" => {
-            raise(analysis, BashRiskLevel::Forbidden, &format!("disk operation ({name})"));
+            raise(
+                analysis,
+                BashRiskLevel::Forbidden,
+                &format!("disk operation ({name})"),
+            );
         }
         "curl" | "wget" => {
             raise(analysis, BashRiskLevel::High, "network download");
@@ -171,7 +198,11 @@ fn classify_command(
 
         // ── Moderate risk: writes ──
         "cp" | "mv" | "install" => {
-            raise(analysis, BashRiskLevel::Moderate, &format!("file operation ({name})"));
+            raise(
+                analysis,
+                BashRiskLevel::Moderate,
+                &format!("file operation ({name})"),
+            );
             for arg in extract_arguments(node, bytes) {
                 if !arg.starts_with('-') {
                     analysis.write_paths.push(arg);
@@ -179,7 +210,11 @@ fn classify_command(
             }
         }
         "mkdir" | "rmdir" | "touch" => {
-            raise(analysis, BashRiskLevel::Moderate, &format!("directory/file creation ({name})"));
+            raise(
+                analysis,
+                BashRiskLevel::Moderate,
+                &format!("directory/file creation ({name})"),
+            );
         }
         "git" => {
             let args = extract_arguments(node, bytes);
@@ -192,7 +227,11 @@ fn classify_command(
                     // Read-only git commands are safe
                 }
                 _ => {
-                    raise(analysis, BashRiskLevel::Moderate, &format!("git {subcommand}"));
+                    raise(
+                        analysis,
+                        BashRiskLevel::Moderate,
+                        &format!("git {subcommand}"),
+                    );
                 }
             }
         }
@@ -201,29 +240,39 @@ fn classify_command(
             let subcommand = args.first().map(|s| s.as_str()).unwrap_or("");
             match subcommand {
                 "install" | "add" | "remove" | "uninstall" | "publish" => {
-                    raise(analysis, BashRiskLevel::Moderate, &format!("{name} {subcommand}"));
+                    raise(
+                        analysis,
+                        BashRiskLevel::Moderate,
+                        &format!("{name} {subcommand}"),
+                    );
                 }
                 "run" | "exec" | "test" | "build" | "check" | "clippy" | "fmt" => {
-                    raise(analysis, BashRiskLevel::Moderate, &format!("{name} {subcommand}"));
+                    raise(
+                        analysis,
+                        BashRiskLevel::Moderate,
+                        &format!("{name} {subcommand}"),
+                    );
                 }
                 _ => {}
             }
         }
 
         // ── Safe: read-only ──
-        "ls" | "cat" | "head" | "tail" | "less" | "more" | "wc" | "file" | "stat"
-        | "find" | "grep" | "rg" | "ag" | "fd" | "tree" | "du" | "df"
-        | "echo" | "printf" | "date" | "whoami" | "hostname" | "uname"
-        | "env" | "printenv" | "which" | "type" | "command"
-        | "pwd" | "cd" | "pushd" | "popd" | "true" | "false"
-        | "test" | "expr" | "seq" | "sort" | "uniq" | "tr" | "cut"
-        | "awk" | "sed" | "jq" | "yq" | "xargs" | "tee" => {
+        "ls" | "cat" | "head" | "tail" | "less" | "more" | "wc" | "file" | "stat" | "find"
+        | "grep" | "rg" | "ag" | "fd" | "tree" | "du" | "df" | "echo" | "printf" | "date"
+        | "whoami" | "hostname" | "uname" | "env" | "printenv" | "which" | "type" | "command"
+        | "pwd" | "cd" | "pushd" | "popd" | "true" | "false" | "test" | "expr" | "seq" | "sort"
+        | "uniq" | "tr" | "cut" | "awk" | "sed" | "jq" | "yq" | "xargs" | "tee" => {
             // These are generally safe (read-only or formatting)
         }
 
         // ── Unknown: moderate by default ──
         _ => {
-            raise(analysis, BashRiskLevel::Moderate, &format!("unknown command: {name}"));
+            raise(
+                analysis,
+                BashRiskLevel::Moderate,
+                &format!("unknown command: {name}"),
+            );
         }
     }
 }

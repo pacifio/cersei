@@ -18,11 +18,11 @@ pub fn compute(area: Rect, input_height: u16, side_panel_open: bool) -> LayoutFu
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),           // header
-            Constraint::Min(3),             // messages (fills remaining)
-            Constraint::Length(1),           // status bar
+            Constraint::Length(1),            // header
+            Constraint::Min(3),               // messages (fills remaining)
+            Constraint::Length(1),            // status bar
             Constraint::Length(input_height), // input area
-            Constraint::Length(1),           // footer
+            Constraint::Length(1),            // footer
         ])
         .split(main_area);
 

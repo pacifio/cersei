@@ -61,13 +61,25 @@ async fn run() {
         let sched = cersei::tools::scheduling();
         let orch = cersei::tools::orchestration();
 
-        check!(&format!("all() returns {} tools", all.len()), all.len() >= 24);
+        check!(
+            &format!("all() returns {} tools", all.len()),
+            all.len() >= 24
+        );
         check!(&format!("filesystem() = {} tools", fs.len()), fs.len() == 6);
         check!(&format!("shell() = {} tools", sh.len()), sh.len() == 2);
         check!(&format!("web() = {} tools", web.len()), web.len() == 2);
-        check!(&format!("planning() = {} tools", plan.len()), plan.len() == 3);
-        check!(&format!("scheduling() = {} tools", sched.len()), sched.len() == 5);
-        check!(&format!("orchestration() = {} tools", orch.len()), orch.len() == 3);
+        check!(
+            &format!("planning() = {} tools", plan.len()),
+            plan.len() == 3
+        );
+        check!(
+            &format!("scheduling() = {} tools", sched.len()),
+            sched.len() == 5
+        );
+        check!(
+            &format!("orchestration() = {} tools", orch.len()),
+            orch.len() == 3
+        );
         check!("none() is empty", cersei::tools::none().is_empty());
 
         // All tools have valid schemas
@@ -84,12 +96,20 @@ async fn run() {
         // All tools have unique names
         let names: Vec<String> = all.iter().map(|t| t.name().to_string()).collect();
         let unique: std::collections::HashSet<&String> = names.iter().collect();
-        check!(&format!("All {} tool names unique", names.len()), names.len() == unique.len());
+        check!(
+            &format!("All {} tool names unique", names.len()),
+            names.len() == unique.len()
+        );
 
         // Print tool inventory
         println!("\n    Tool inventory:");
         for tool in &all {
-            println!("      {:<18} {:?} / {:?}", tool.name(), tool.permission_level(), tool.category());
+            println!(
+                "      {:<18} {:?} / {:?}",
+                tool.name(),
+                tool.permission_level(),
+                tool.category()
+            );
         }
         println!();
     }
@@ -101,51 +121,88 @@ async fn run() {
         // Write a file
         let tools = cersei::tools::filesystem();
         let write_tool = tools.iter().find(|t| t.name() == "Write").unwrap();
-        let r = write_tool.execute(serde_json::json!({
-            "file_path": tmp.path().join("test.txt").display().to_string(),
-            "content": "Hello, Phase 2!\nLine 2\nLine 3\n"
-        }), &ctx).await;
+        let r = write_tool
+            .execute(
+                serde_json::json!({
+                    "file_path": tmp.path().join("test.txt").display().to_string(),
+                    "content": "Hello, Phase 2!\nLine 2\nLine 3\n"
+                }),
+                &ctx,
+            )
+            .await;
         check!("Write creates file", !r.is_error);
 
         // Read it back
         let read_tool = tools.iter().find(|t| t.name() == "Read").unwrap();
-        let r = read_tool.execute(serde_json::json!({
-            "file_path": tmp.path().join("test.txt").display().to_string()
-        }), &ctx).await;
-        check!("Read returns content", r.content.contains("Hello, Phase 2!"));
+        let r = read_tool
+            .execute(
+                serde_json::json!({
+                    "file_path": tmp.path().join("test.txt").display().to_string()
+                }),
+                &ctx,
+            )
+            .await;
+        check!(
+            "Read returns content",
+            r.content.contains("Hello, Phase 2!")
+        );
 
         // Edit it
         let edit_tool = tools.iter().find(|t| t.name() == "Edit").unwrap();
-        let r = edit_tool.execute(serde_json::json!({
-            "file_path": tmp.path().join("test.txt").display().to_string(),
-            "old_string": "Hello, Phase 2!",
-            "new_string": "Hello, Cersei!"
-        }), &ctx).await;
+        let r = edit_tool
+            .execute(
+                serde_json::json!({
+                    "file_path": tmp.path().join("test.txt").display().to_string(),
+                    "old_string": "Hello, Phase 2!",
+                    "new_string": "Hello, Cersei!"
+                }),
+                &ctx,
+            )
+            .await;
         check!("Edit replaces string", !r.is_error);
 
         // Verify edit
-        let r = read_tool.execute(serde_json::json!({
-            "file_path": tmp.path().join("test.txt").display().to_string()
-        }), &ctx).await;
+        let r = read_tool
+            .execute(
+                serde_json::json!({
+                    "file_path": tmp.path().join("test.txt").display().to_string()
+                }),
+                &ctx,
+            )
+            .await;
         check!("Edit persisted", r.content.contains("Cersei"));
 
         // Glob
         for i in 0..5 {
-            std::fs::write(tmp.path().join(format!("mod_{}.rs", i)), format!("fn f{}() {{}}", i)).unwrap();
+            std::fs::write(
+                tmp.path().join(format!("mod_{}.rs", i)),
+                format!("fn f{}() {{}}", i),
+            )
+            .unwrap();
         }
         let glob_tool = tools.iter().find(|t| t.name() == "Glob").unwrap();
-        let r = glob_tool.execute(serde_json::json!({
-            "pattern": "**/*.rs",
-            "path": tmp.path().display().to_string()
-        }), &ctx).await;
+        let r = glob_tool
+            .execute(
+                serde_json::json!({
+                    "pattern": "**/*.rs",
+                    "path": tmp.path().display().to_string()
+                }),
+                &ctx,
+            )
+            .await;
         check!("Glob finds .rs files", r.content.contains("mod_0.rs"));
 
         // Grep
         let grep_tool = tools.iter().find(|t| t.name() == "Grep").unwrap();
-        let r = grep_tool.execute(serde_json::json!({
-            "pattern": "fn f",
-            "path": tmp.path().display().to_string()
-        }), &ctx).await;
+        let r = grep_tool
+            .execute(
+                serde_json::json!({
+                    "pattern": "fn f",
+                    "path": tmp.path().display().to_string()
+                }),
+                &ctx,
+            )
+            .await;
         check!("Grep finds pattern", r.content.contains("fn f"));
 
         // NotebookEdit
@@ -155,11 +212,16 @@ async fn run() {
             "cells": [{"cell_type": "code", "source": ["x = 1\n"], "outputs": [], "metadata": {}}]
         }).to_string()).unwrap();
         let nb_tool = tools.iter().find(|t| t.name() == "NotebookEdit").unwrap();
-        let r = nb_tool.execute(serde_json::json!({
-            "file_path": nb_path.display().to_string(),
-            "cell_index": 0,
-            "new_source": "x = 42"
-        }), &ctx).await;
+        let r = nb_tool
+            .execute(
+                serde_json::json!({
+                    "file_path": nb_path.display().to_string(),
+                    "cell_index": 0,
+                    "new_source": "x = 42"
+                }),
+                &ctx,
+            )
+            .await;
         check!("NotebookEdit updates cell", !r.is_error);
         println!();
     }
@@ -170,10 +232,14 @@ async fn run() {
     {
         let tools = cersei::tools::shell();
         let bash = tools.iter().find(|t| t.name() == "Bash").unwrap();
-        let r = bash.execute(serde_json::json!({"command": "echo 'Phase2 OK'"}), &ctx).await;
+        let r = bash
+            .execute(serde_json::json!({"command": "echo 'Phase2 OK'"}), &ctx)
+            .await;
         check!("Bash executes", r.content.contains("Phase2 OK"));
 
-        let r = bash.execute(serde_json::json!({"command": "false"}), &ctx).await;
+        let r = bash
+            .execute(serde_json::json!({"command": "false"}), &ctx)
+            .await;
         check!("Bash reports errors", r.is_error);
         println!();
     }
@@ -185,19 +251,30 @@ async fn run() {
         cersei_tools::plan_mode::set_plan_mode(false);
         let enter = cersei_tools::plan_mode::EnterPlanModeTool;
         enter.execute(serde_json::json!({}), &ctx).await;
-        check!("EnterPlanMode sets flag", cersei_tools::plan_mode::is_plan_mode());
+        check!(
+            "EnterPlanMode sets flag",
+            cersei_tools::plan_mode::is_plan_mode()
+        );
 
         let exit = cersei_tools::plan_mode::ExitPlanModeTool;
         exit.execute(serde_json::json!({}), &ctx).await;
-        check!("ExitPlanMode clears flag", !cersei_tools::plan_mode::is_plan_mode());
+        check!(
+            "ExitPlanMode clears flag",
+            !cersei_tools::plan_mode::is_plan_mode()
+        );
 
         let todo = cersei_tools::todo_write::TodoWriteTool;
-        let r = todo.execute(serde_json::json!({
-            "todos": [
-                {"content": "Task A", "status": "in_progress", "activeForm": "Doing A"},
-                {"content": "Task B", "status": "pending", "activeForm": "Doing B"},
-            ]
-        }), &ctx).await;
+        let r = todo
+            .execute(
+                serde_json::json!({
+                    "todos": [
+                        {"content": "Task A", "status": "in_progress", "activeForm": "Doing A"},
+                        {"content": "Task B", "status": "pending", "activeForm": "Doing B"},
+                    ]
+                }),
+                &ctx,
+            )
+            .await;
         check!("TodoWrite creates items", r.content.contains("2 items"));
         let todos = cersei_tools::todo_write::get_todos("phase2-test");
         check!("Todos persisted in registry", todos.len() == 2);
@@ -210,36 +287,57 @@ async fn run() {
     {
         cersei_tools::cron::clear_crons();
         let create = cersei_tools::cron::CronCreateTool;
-        let r = create.execute(serde_json::json!({
-            "schedule": "*/10 * * * *",
-            "prompt": "Check build status"
-        }), &ctx).await;
+        let r = create
+            .execute(
+                serde_json::json!({
+                    "schedule": "*/10 * * * *",
+                    "prompt": "Check build status"
+                }),
+                &ctx,
+            )
+            .await;
         check!("CronCreate succeeds", !r.is_error);
 
         let list = cersei_tools::cron::CronListTool;
         let r = list.execute(serde_json::json!({}), &ctx).await;
-        check!("CronList shows entry", r.content.contains("Check build status"));
+        check!(
+            "CronList shows entry",
+            r.content.contains("Check build status")
+        );
 
         let entries = cersei_tools::cron::list_crons();
         let id = entries[0].id.clone();
         let delete = cersei_tools::cron::CronDeleteTool;
         delete.execute(serde_json::json!({"id": id}), &ctx).await;
-        check!("CronDelete removes entry", cersei_tools::cron::list_crons().is_empty());
+        check!(
+            "CronDelete removes entry",
+            cersei_tools::cron::list_crons().is_empty()
+        );
 
         let sleep = cersei_tools::sleep::SleepTool;
         let start = std::time::Instant::now();
-        sleep.execute(serde_json::json!({"duration_ms": 50}), &ctx).await;
+        sleep
+            .execute(serde_json::json!({"duration_ms": 50}), &ctx)
+            .await;
         check!("Sleep waits correctly", start.elapsed().as_millis() >= 40);
 
         let trigger = cersei_tools::remote_trigger::RemoteTriggerTool;
-        let r = trigger.execute(serde_json::json!({
-            "target_session": "other",
-            "event_type": "deploy",
-            "payload": {"env": "staging"}
-        }), &ctx).await;
+        let r = trigger
+            .execute(
+                serde_json::json!({
+                    "target_session": "other",
+                    "event_type": "deploy",
+                    "payload": {"env": "staging"}
+                }),
+                &ctx,
+            )
+            .await;
         check!("RemoteTrigger sends", !r.is_error);
         let events = cersei_tools::remote_trigger::drain_triggers("other");
-        check!("Trigger received", events.len() == 1 && events[0].event_type == "deploy");
+        check!(
+            "Trigger received",
+            events.len() == 1 && events[0].event_type == "deploy"
+        );
         println!();
     }
 
@@ -248,12 +346,23 @@ async fn run() {
     println!("  ──────────────────────");
     {
         let send = cersei_tools::send_message::SendMessageTool;
-        let r = send.execute(serde_json::json!({"to": "worker-1", "content": "Start task"}), &ctx).await;
+        let r = send
+            .execute(
+                serde_json::json!({"to": "worker-1", "content": "Start task"}),
+                &ctx,
+            )
+            .await;
         check!("SendMessage delivers", !r.is_error);
         let msgs = cersei_tools::send_message::peek_inbox("worker-1");
-        check!("Inbox has message", msgs.len() == 1 && msgs[0].content == "Start task");
+        check!(
+            "Inbox has message",
+            msgs.len() == 1 && msgs[0].content == "Start task"
+        );
         let drained = cersei_tools::send_message::drain_inbox("worker-1");
-        check!("Drain clears inbox", drained.len() == 1 && cersei_tools::send_message::peek_inbox("worker-1").is_empty());
+        check!(
+            "Drain clears inbox",
+            drained.len() == 1 && cersei_tools::send_message::peek_inbox("worker-1").is_empty()
+        );
         println!();
     }
 
@@ -262,17 +371,30 @@ async fn run() {
     println!("  ─────────────────────────");
     {
         let cfg = cersei_tools::config_tool::ConfigTool;
-        cfg.execute(serde_json::json!({"action": "set", "key": "model", "value": "claude-opus"}), &ctx).await;
-        let r = cfg.execute(serde_json::json!({"action": "get", "key": "model"}), &ctx).await;
+        cfg.execute(
+            serde_json::json!({"action": "set", "key": "model", "value": "claude-opus"}),
+            &ctx,
+        )
+        .await;
+        let r = cfg
+            .execute(serde_json::json!({"action": "get", "key": "model"}), &ctx)
+            .await;
         check!("Config set/get works", r.content.contains("claude-opus"));
 
         let so = cersei_tools::synthetic_output::SyntheticOutputTool;
-        let r = so.execute(serde_json::json!({"data": {"status": "ok", "count": 42}}), &ctx).await;
+        let r = so
+            .execute(
+                serde_json::json!({"data": {"status": "ok", "count": 42}}),
+                &ctx,
+            )
+            .await;
         check!("SyntheticOutput returns JSON", r.content.contains("42"));
         check!("SyntheticOutput has metadata", r.metadata.is_some());
 
         let ask = cersei_tools::ask_user::AskUserQuestionTool;
-        let r = ask.execute(serde_json::json!({"question": "Continue?"}), &ctx).await;
+        let r = ask
+            .execute(serde_json::json!({"question": "Continue?"}), &ctx)
+            .await;
         check!("AskUser returns question", r.content.contains("Continue?"));
         println!();
     }
@@ -282,12 +404,24 @@ async fn run() {
     println!("  ────────────────────────────────");
     {
         let wf = cersei_tools::web_fetch::WebFetchTool;
-        check!("WebFetch has url in schema", wf.input_schema()["properties"]["url"].is_object());
-        check!("WebFetch is ReadOnly", wf.permission_level() == PermissionLevel::ReadOnly);
+        check!(
+            "WebFetch has url in schema",
+            wf.input_schema()["properties"]["url"].is_object()
+        );
+        check!(
+            "WebFetch is ReadOnly",
+            wf.permission_level() == PermissionLevel::ReadOnly
+        );
 
         let ws = cersei_tools::web_search::WebSearchTool;
-        check!("WebSearch has query in schema", ws.input_schema()["properties"]["query"].is_object());
-        check!("WebSearch is ReadOnly", ws.permission_level() == PermissionLevel::ReadOnly);
+        check!(
+            "WebSearch has query in schema",
+            ws.input_schema()["properties"]["query"].is_object()
+        );
+        check!(
+            "WebSearch is ReadOnly",
+            ws.permission_level() == PermissionLevel::ReadOnly
+        );
         println!();
     }
 
@@ -297,17 +431,31 @@ async fn run() {
     {
         let all = cersei::tools::all();
         let search = cersei_tools::tool_search::ToolSearchTool::new(&all);
-        let r = search.execute(serde_json::json!({"query": "file"}), &ctx).await;
-        check!("ToolSearch finds file tools", r.content.contains("Read") && r.content.contains("Write"));
+        let r = search
+            .execute(serde_json::json!({"query": "file"}), &ctx)
+            .await;
+        check!(
+            "ToolSearch finds file tools",
+            r.content.contains("Read") && r.content.contains("Write")
+        );
 
-        let r = search.execute(serde_json::json!({"query": "bash"}), &ctx).await;
+        let r = search
+            .execute(serde_json::json!({"query": "bash"}), &ctx)
+            .await;
         check!("ToolSearch finds Bash", r.content.contains("Bash"));
 
-        let r = search.execute(serde_json::json!({"query": "cron"}), &ctx).await;
+        let r = search
+            .execute(serde_json::json!({"query": "cron"}), &ctx)
+            .await;
         check!("ToolSearch finds Cron", r.content.contains("Cron"));
 
-        let r = search.execute(serde_json::json!({"query": "xyznonexistent"}), &ctx).await;
-        check!("ToolSearch handles no results", r.content.contains("No tools found"));
+        let r = search
+            .execute(serde_json::json!({"query": "xyznonexistent"}), &ctx)
+            .await;
+        check!(
+            "ToolSearch handles no results",
+            r.content.contains("No tools found")
+        );
         println!();
     }
 
@@ -325,43 +473,71 @@ async fn run() {
         let iters = 100u32;
         let start = std::time::Instant::now();
         for _ in 0..iters {
-            read.execute(serde_json::json!({"file_path": test_file.display().to_string()}), &ctx).await;
+            read.execute(
+                serde_json::json!({"file_path": test_file.display().to_string()}),
+                &ctx,
+            )
+            .await;
         }
         let avg_us = start.elapsed().as_micros() / iters as u128;
-        check!(&format!("Read avg {}μs (< 500μs target)", avg_us), avg_us < 500);
+        check!(
+            &format!("Read avg {}μs (< 500μs target)", avg_us),
+            avg_us < 500
+        );
 
         let edit = tools.iter().find(|t| t.name() == "Edit").unwrap();
         let start = std::time::Instant::now();
         for _ in 0..iters {
             std::fs::write(&test_file, "Hello, world!\nLine 2\n").unwrap();
-            edit.execute(serde_json::json!({
-                "file_path": test_file.display().to_string(),
-                "old_string": "Hello, world!",
-                "new_string": "Hello, Cersei!"
-            }), &ctx).await;
+            edit.execute(
+                serde_json::json!({
+                    "file_path": test_file.display().to_string(),
+                    "old_string": "Hello, world!",
+                    "new_string": "Hello, Cersei!"
+                }),
+                &ctx,
+            )
+            .await;
         }
         let avg_us = start.elapsed().as_micros() / iters as u128;
-        check!(&format!("Edit avg {}μs (< 500μs target)", avg_us), avg_us < 500);
+        check!(
+            &format!("Edit avg {}μs (< 500μs target)", avg_us),
+            avg_us < 500
+        );
 
         let glob_tool = tools.iter().find(|t| t.name() == "Glob").unwrap();
         let start = std::time::Instant::now();
         for _ in 0..iters {
-            glob_tool.execute(serde_json::json!({
-                "pattern": "**/*.rs",
-                "path": tmp.path().display().to_string()
-            }), &ctx).await;
+            glob_tool
+                .execute(
+                    serde_json::json!({
+                        "pattern": "**/*.rs",
+                        "path": tmp.path().display().to_string()
+                    }),
+                    &ctx,
+                )
+                .await;
         }
         let avg_us = start.elapsed().as_micros() / iters as u128;
-        check!(&format!("Glob avg {}μs (< 500μs target)", avg_us), avg_us < 500);
+        check!(
+            &format!("Glob avg {}μs (< 500μs target)", avg_us),
+            avg_us < 500
+        );
         println!();
     }
 
     // ── Summary ──────────────────────────────────────────────────────────
     println!("╔══════════════════════════════════════════════════╗");
     if failed == 0 {
-        println!("║  \x1b[32mALL {} CHECKS PASSED\x1b[0m                              ║", passed);
+        println!(
+            "║  \x1b[32mALL {} CHECKS PASSED\x1b[0m                              ║",
+            passed
+        );
     } else {
-        println!("║  \x1b[31m{} PASSED, {} FAILED\x1b[0m                               ║", passed, failed);
+        println!(
+            "║  \x1b[31m{} PASSED, {} FAILED\x1b[0m                               ║",
+            passed, failed
+        );
     }
     println!("╚══════════════════════════════════════════════════╝\n");
 

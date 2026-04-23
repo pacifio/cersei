@@ -29,6 +29,7 @@ cersei-agent = { path = "../cersei-agent" }
 cersei-memory = { path = "../cersei-memory" }
 cersei-hooks = { path = "../cersei-hooks" }
 cersei-mcp = { path = "../cersei-mcp" }
+cersei-compression = { path = "../cersei-compression" }
 
 # CLI
 clap = { version = "4", features = ["derive"] }

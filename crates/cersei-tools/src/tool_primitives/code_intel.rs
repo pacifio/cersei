@@ -86,7 +86,9 @@ pub fn analyze_file(path: &Path, source: &str) -> Option<FileIntel> {
     let mut parser = Parser::new();
     let ts_lang = match lang {
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
-        Language::TypeScript | Language::JavaScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Language::TypeScript | Language::JavaScript => {
+            tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
+        }
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::Go => tree_sitter_go::LANGUAGE.into(),
         Language::Unknown => return None,
@@ -114,42 +116,66 @@ pub fn analyze_file(path: &Path, source: &str) -> Option<FileIntel> {
                 "function_item" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Function, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Function,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "struct_item" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Struct, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Struct,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "enum_item" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Enum, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Enum,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "mod_item" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Module, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Module,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "trait_item" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Interface, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Interface,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "type_item" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Type, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Type,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
@@ -166,35 +192,55 @@ pub fn analyze_file(path: &Path, source: &str) -> Option<FileIntel> {
                 "function_declaration" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Function, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Function,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "class_declaration" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Class, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Class,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "interface_declaration" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Interface, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Interface,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "type_alias_declaration" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Type, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Type,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "enum_declaration" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Enum, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Enum,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
@@ -215,14 +261,22 @@ pub fn analyze_file(path: &Path, source: &str) -> Option<FileIntel> {
                 "function_definition" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Function, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Function,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "class_definition" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Class, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Class,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
@@ -237,14 +291,22 @@ pub fn analyze_file(path: &Path, source: &str) -> Option<FileIntel> {
                 "function_declaration" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Function, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Function,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
                 "method_declaration" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            symbols.push(Symbol { name: n.to_string(), kind: SymbolKind::Function, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: SymbolKind::Function,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
@@ -254,14 +316,26 @@ pub fn analyze_file(path: &Path, source: &str) -> Option<FileIntel> {
                 "type_spec" => {
                     if let Some(name) = node.child_by_field_name("name") {
                         if let Ok(n) = name.utf8_text(bytes) {
-                            let sk = if node.child_by_field_name("type").map(|t| t.kind() == "struct_type").unwrap_or(false) {
+                            let sk = if node
+                                .child_by_field_name("type")
+                                .map(|t| t.kind() == "struct_type")
+                                .unwrap_or(false)
+                            {
                                 SymbolKind::Struct
-                            } else if node.child_by_field_name("type").map(|t| t.kind() == "interface_type").unwrap_or(false) {
+                            } else if node
+                                .child_by_field_name("type")
+                                .map(|t| t.kind() == "interface_type")
+                                .unwrap_or(false)
+                            {
                                 SymbolKind::Interface
                             } else {
                                 SymbolKind::Type
                             };
-                            symbols.push(Symbol { name: n.to_string(), kind: sk, line: node.start_position().row + 1 });
+                            symbols.push(Symbol {
+                                name: n.to_string(),
+                                kind: sk,
+                                line: node.start_position().row + 1,
+                            });
                         }
                     }
                 }
@@ -290,11 +364,17 @@ pub fn analyze_file(path: &Path, source: &str) -> Option<FileIntel> {
 
 /// Only descend into container nodes (not function bodies, etc.)
 fn is_container_node(kind: &str) -> bool {
-    matches!(kind,
-        "source_file" | "program" | "module"
-        | "declaration_list" | "block" | "statement_block"
-        | "export_statement" | "type_declaration"
-        | "impl_item"  // Rust impl blocks contain methods
+    matches!(
+        kind,
+        "source_file"
+            | "program"
+            | "module"
+            | "declaration_list"
+            | "block"
+            | "statement_block"
+            | "export_statement"
+            | "type_declaration"
+            | "impl_item" // Rust impl blocks contain methods
     )
 }
 
@@ -331,28 +411,57 @@ pub fn scan_project(root: &Path, max_files: usize) -> Vec<FileIntel> {
             let path_str = intel.path.display().to_string();
 
             // Entry points get highest score
-            let filename = intel.path.file_name().and_then(|f| f.to_str()).unwrap_or("");
-            if matches!(filename, "main.rs" | "lib.rs" | "mod.rs" | "index.ts" | "index.tsx"
-                | "App.tsx" | "App.ts" | "main.ts" | "main.tsx" | "main.py" | "__init__.py"
-                | "main.go" | "app.go") {
+            let filename = intel
+                .path
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or("");
+            if matches!(
+                filename,
+                "main.rs"
+                    | "lib.rs"
+                    | "mod.rs"
+                    | "index.ts"
+                    | "index.tsx"
+                    | "App.tsx"
+                    | "App.ts"
+                    | "main.ts"
+                    | "main.tsx"
+                    | "main.py"
+                    | "__init__.py"
+                    | "main.go"
+                    | "app.go"
+            ) {
                 score += 100;
             }
 
             // Config files
-            if matches!(filename, "package.json" | "Cargo.toml" | "tsconfig.json"
-                | "pyproject.toml" | "go.mod" | "vite.config.ts") {
+            if matches!(
+                filename,
+                "package.json"
+                    | "Cargo.toml"
+                    | "tsconfig.json"
+                    | "pyproject.toml"
+                    | "go.mod"
+                    | "vite.config.ts"
+            ) {
                 score += 80;
             }
 
             // Store/state files (key architectural files)
-            if path_str.contains("store") || path_str.contains("state")
-                || path_str.contains("context") || path_str.contains("reducer") {
+            if path_str.contains("store")
+                || path_str.contains("state")
+                || path_str.contains("context")
+                || path_str.contains("reducer")
+            {
                 score += 60;
             }
 
             // Type definition files
-            if path_str.contains("types") || path_str.contains("interfaces")
-                || filename.ends_with(".d.ts") {
+            if path_str.contains("types")
+                || path_str.contains("interfaces")
+                || filename.ends_with(".d.ts")
+            {
                 score += 40;
             }
 
@@ -398,8 +507,10 @@ fn discover_source_files(root: &Path, max: usize) -> Vec<PathBuf> {
                 .lines()
                 .filter(|l| {
                     let ext = l.rsplit('.').next().unwrap_or("");
-                    matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "go"
-                        | "mjs" | "cjs" | "mts")
+                    matches!(
+                        ext,
+                        "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "go" | "mjs" | "cjs" | "mts"
+                    )
                 })
                 .take(max)
                 .map(|l| root.join(l))
@@ -420,16 +531,34 @@ fn discover_source_files(root: &Path, max: usize) -> Vec<PathBuf> {
 }
 
 fn walkdir_source_files(root: &Path, max: usize) -> Vec<PathBuf> {
-    let excluded = ["node_modules", "target", ".git", "__pycache__", "venv", ".venv", "dist", "build"];
+    let excluded = [
+        "node_modules",
+        "target",
+        ".git",
+        "__pycache__",
+        "venv",
+        ".venv",
+        "dist",
+        "build",
+    ];
     let mut files = Vec::new();
 
     fn walk(dir: &Path, excluded: &[&str], files: &mut Vec<PathBuf>, max: usize) {
-        if files.len() >= max { return; }
-        let entries = match std::fs::read_dir(dir) { Ok(e) => e, Err(_) => return };
+        if files.len() >= max {
+            return;
+        }
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
         for entry in entries.flatten() {
-            if files.len() >= max { return; }
+            if files.len() >= max {
+                return;
+            }
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') || excluded.contains(&name.as_str()) { continue; }
+            if name.starts_with('.') || excluded.contains(&name.as_str()) {
+                continue;
+            }
             let path = entry.path();
             if path.is_file() {
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -451,27 +580,30 @@ pub fn format_project_intel(intels: &[FileIntel]) -> String {
     let mut out = String::new();
 
     for intel in intels {
-        let rel_path = intel.path.file_name()
+        let rel_path = intel
+            .path
+            .file_name()
             .and_then(|f| f.to_str())
             .unwrap_or("?");
 
         // Format: path (lang) — symbols: fn foo, struct Bar; imports: ...
-        let symbols_str: Vec<String> = intel.symbols.iter()
+        let symbols_str: Vec<String> = intel
+            .symbols
+            .iter()
             .take(8)
             .map(|s| format!("{} {}", s.kind.label(), s.name))
             .collect();
 
-        let imports_str: Vec<String> = intel.imports.iter()
-            .take(5)
-            .cloned()
-            .collect();
+        let imports_str: Vec<String> = intel.imports.iter().take(5).cloned().collect();
 
         out.push_str(&format!("• {} — ", intel.path.display()));
         if !symbols_str.is_empty() {
             out.push_str(&symbols_str.join(", "));
         }
         if !imports_str.is_empty() {
-            if !symbols_str.is_empty() { out.push_str(" | imports: "); }
+            if !symbols_str.is_empty() {
+                out.push_str(" | imports: ");
+            }
             out.push_str(&imports_str.join(", "));
         }
         out.push('\n');
@@ -503,8 +635,14 @@ enum Mode { Fast, Slow }
         let intel = analyze_file(Path::new("test.rs"), source).unwrap();
         assert_eq!(intel.language, Language::Rust);
         assert!(intel.imports.len() >= 2);
-        assert!(intel.symbols.iter().any(|s| s.name == "Config" && s.kind == SymbolKind::Struct));
-        assert!(intel.symbols.iter().any(|s| s.name == "load_config" && s.kind == SymbolKind::Function));
+        assert!(intel
+            .symbols
+            .iter()
+            .any(|s| s.name == "Config" && s.kind == SymbolKind::Struct));
+        assert!(intel
+            .symbols
+            .iter()
+            .any(|s| s.name == "load_config" && s.kind == SymbolKind::Function));
     }
 
     #[test]
@@ -526,8 +664,14 @@ export type Config = { name: string };
         let intel = analyze_file(Path::new("test.ts"), source).unwrap();
         assert_eq!(intel.language, Language::TypeScript);
         assert!(intel.imports.iter().any(|i| i.contains("react")));
-        assert!(intel.symbols.iter().any(|s| s.name == "AppState" && s.kind == SymbolKind::Interface));
-        assert!(intel.symbols.iter().any(|s| s.name == "increment" && s.kind == SymbolKind::Function));
+        assert!(intel
+            .symbols
+            .iter()
+            .any(|s| s.name == "AppState" && s.kind == SymbolKind::Interface));
+        assert!(intel
+            .symbols
+            .iter()
+            .any(|s| s.name == "increment" && s.kind == SymbolKind::Function));
     }
 
     #[test]
@@ -545,8 +689,14 @@ def train():
         let intel = analyze_file(Path::new("test.py"), source).unwrap();
         assert_eq!(intel.language, Language::Python);
         assert!(intel.imports.len() >= 2);
-        assert!(intel.symbols.iter().any(|s| s.name == "MyModel" && s.kind == SymbolKind::Class));
-        assert!(intel.symbols.iter().any(|s| s.name == "train" && s.kind == SymbolKind::Function));
+        assert!(intel
+            .symbols
+            .iter()
+            .any(|s| s.name == "MyModel" && s.kind == SymbolKind::Class));
+        assert!(intel
+            .symbols
+            .iter()
+            .any(|s| s.name == "train" && s.kind == SymbolKind::Function));
     }
 
     #[test]

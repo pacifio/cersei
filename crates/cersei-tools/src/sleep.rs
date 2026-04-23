@@ -7,9 +7,15 @@ pub struct SleepTool;
 
 #[async_trait]
 impl Tool for SleepTool {
-    fn name(&self) -> &str { "Sleep" }
-    fn description(&self) -> &str { "Pause execution for the specified number of milliseconds." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn name(&self) -> &str {
+        "Sleep"
+    }
+    fn description(&self) -> &str {
+        "Pause execution for the specified number of milliseconds."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -23,7 +29,9 @@ impl Tool for SleepTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        struct Input { duration_ms: u64 }
+        struct Input {
+            duration_ms: u64,
+        }
 
         let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
@@ -57,7 +65,9 @@ mod tests {
     async fn test_sleep_100ms() {
         let tool = SleepTool;
         let start = std::time::Instant::now();
-        let result = tool.execute(serde_json::json!({"duration_ms": 100}), &test_ctx()).await;
+        let result = tool
+            .execute(serde_json::json!({"duration_ms": 100}), &test_ctx())
+            .await;
         assert!(!result.is_error);
         assert!(start.elapsed().as_millis() >= 90);
     }
@@ -66,7 +76,9 @@ mod tests {
     async fn test_sleep_capped() {
         let tool = SleepTool;
         // Should cap at 60000ms, not actually sleep that long in test
-        let result = tool.execute(serde_json::json!({"duration_ms": 1}), &test_ctx()).await;
+        let result = tool
+            .execute(serde_json::json!({"duration_ms": 1}), &test_ctx())
+            .await;
         assert!(result.content.contains("1ms"));
     }
 }

@@ -74,7 +74,9 @@ pub fn should_extract(messages: &[Message], state: &SessionMemoryState) -> bool 
     }
 
     // Need enough tool calls since last extraction
-    if state.extraction_count > 0 && state.tool_calls_since_last < MIN_TOOL_CALLS_BETWEEN_EXTRACTIONS {
+    if state.extraction_count > 0
+        && state.tool_calls_since_last < MIN_TOOL_CALLS_BETWEEN_EXTRACTIONS
+    {
         return false;
     }
 
@@ -144,10 +146,7 @@ pub fn parse_extraction_output(output: &str) -> Vec<ExtractedMemory> {
 // ─── Persistence ─────────────────────────────────────────────────────────────
 
 /// Persist extracted memories to a file under `## Auto-extracted memories`.
-pub fn persist_memories(
-    memories: &[ExtractedMemory],
-    target_path: &Path,
-) -> std::io::Result<()> {
+pub fn persist_memories(memories: &[ExtractedMemory], target_path: &Path) -> std::io::Result<()> {
     if memories.is_empty() {
         return Ok(());
     }
@@ -176,10 +175,7 @@ pub fn persist_memories(
         // Append under existing section
         if existing.contains(&date_header) {
             // Append to existing date block
-            existing.replace(
-                &date_header,
-                &format!("{}\n{}", date_header, new_entries),
-            )
+            existing.replace(&date_header, &format!("{}\n{}", date_header, new_entries))
         } else {
             // Add new date block at end of section
             let insert_pos = existing.find(section_header).unwrap() + section_header.len();
@@ -191,7 +187,13 @@ pub fn persist_memories(
         if existing.is_empty() {
             format!("{}\n\n{}\n{}", section_header, date_header, new_entries)
         } else {
-            format!("{}\n\n{}\n\n{}\n{}", existing.trim(), section_header, date_header, new_entries)
+            format!(
+                "{}\n\n{}\n\n{}\n{}",
+                existing.trim(),
+                section_header,
+                date_header,
+                new_entries
+            )
         }
     };
 
@@ -205,10 +207,15 @@ mod tests {
     use super::*;
 
     fn make_messages(n: usize) -> Vec<Message> {
-        (0..n).map(|i| {
-            if i % 2 == 0 { Message::user(format!("Msg {}", i)) }
-            else { Message::assistant(format!("Response {}", i)) }
-        }).collect()
+        (0..n)
+            .map(|i| {
+                if i % 2 == 0 {
+                    Message::user(format!("Msg {}", i))
+                } else {
+                    Message::assistant(format!("Response {}", i))
+                }
+            })
+            .collect()
     }
 
     #[test]

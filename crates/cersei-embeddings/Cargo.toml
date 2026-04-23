@@ -9,6 +9,7 @@ description = "Provider-agnostic text embeddings with a pluggable vector index f
 
 [dependencies]
 async-trait = { workspace = true }
+futures = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

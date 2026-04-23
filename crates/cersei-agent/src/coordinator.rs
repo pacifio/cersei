@@ -37,10 +37,7 @@ pub fn is_coordinator_mode() -> bool {
 
 /// Filter tools based on agent mode.
 /// Workers lose coordinator-only tools. Coordinators and Normal keep everything.
-pub fn filter_tools_for_mode(
-    tools: Vec<Box<dyn Tool>>,
-    mode: AgentMode,
-) -> Vec<Box<dyn Tool>> {
+pub fn filter_tools_for_mode(tools: Vec<Box<dyn Tool>>, mode: AgentMode) -> Vec<Box<dyn Tool>> {
     match mode {
         AgentMode::Worker => tools
             .into_iter()
@@ -71,10 +68,7 @@ pub fn coordinator_context(tools: &[Box<dyn Tool>]) -> String {
         .map(|t| format!("- {}: {}", t.name(), t.description()))
         .collect();
 
-    format!(
-        "Available tools for workers:\n{}",
-        tool_list.join("\n")
-    )
+    format!("Available tools for workers:\n{}", tool_list.join("\n"))
 }
 
 #[cfg(test)]
@@ -88,7 +82,9 @@ mod tests {
         let filtered = filter_tools_for_mode(tools, AgentMode::Worker);
         // Workers should have fewer tools (coordinator-only removed)
         assert!(filtered.len() <= original_count);
-        assert!(filtered.iter().all(|t| !COORDINATOR_ONLY_TOOLS.contains(&t.name())));
+        assert!(filtered
+            .iter()
+            .all(|t| !COORDINATOR_ONLY_TOOLS.contains(&t.name())));
     }
 
     #[test]

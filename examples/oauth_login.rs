@@ -195,11 +195,21 @@ async fn run_callback_server(
     }
 
     // Parse: GET /callback?code=XXX&state=YYY HTTP/1.1
-    let path = request_line.split_whitespace().nth(1).unwrap_or("").to_string();
+    let path = request_line
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or("")
+        .to_string();
     let parsed = url::Url::parse(&format!("http://localhost{}", path))?;
 
-    let code = parsed.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.to_string());
-    let recv_state = parsed.query_pairs().find(|(k, _)| k == "state").map(|(_, v)| v.to_string());
+    let code = parsed
+        .query_pairs()
+        .find(|(k, _)| k == "code")
+        .map(|(_, v)| v.to_string());
+    let recv_state = parsed
+        .query_pairs()
+        .find(|(k, _)| k == "state")
+        .map(|(_, v)| v.to_string());
 
     // Redirect browser to success page
     let response = format!(
@@ -235,7 +245,9 @@ async fn exchange_code(
         "state": state,
     });
 
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
     let resp = client
         .post(TOKEN_URL)
         .header("content-type", "application/json")
@@ -253,7 +265,9 @@ async fn exchange_code(
 }
 
 async fn create_api_key(access_token: &str) -> anyhow::Result<String> {
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
     let resp = client
         .post(API_KEY_URL)
         .header("authorization", format!("Bearer {}", access_token))
@@ -267,7 +281,8 @@ async fn create_api_key(access_token: &str) -> anyhow::Result<String> {
     }
 
     let data: ApiKeyResponse = resp.json().await?;
-    data.raw_key.ok_or_else(|| anyhow::anyhow!("No API key in response"))
+    data.raw_key
+        .ok_or_else(|| anyhow::anyhow!("No API key in response"))
 }
 
 // ─── Token refresh ───────────────────────────────────────────────────────────
@@ -285,7 +300,9 @@ async fn refresh_token(tokens: &OAuthTokens) -> anyhow::Result<OAuthTokens> {
         "scope": ALL_SCOPES.join(" "),
     });
 
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
     let resp = client.post(TOKEN_URL).json(&body).send().await?;
 
     if !resp.status().is_success() {
@@ -296,7 +313,13 @@ async fn refresh_token(tokens: &OAuthTokens) -> anyhow::Result<OAuthTokens> {
 
     let data: TokenExchangeResponse = resp.json().await?;
     let expires_at_ms = chrono::Utc::now().timestamp_millis() + (data.expires_in as i64 * 1000);
-    let scopes: Vec<String> = data.scope.as_deref().unwrap_or("").split_whitespace().map(String::from).collect();
+    let scopes: Vec<String> = data
+        .scope
+        .as_deref()
+        .unwrap_or("")
+        .split_whitespace()
+        .map(String::from)
+        .collect();
 
     let mut updated = tokens.clone();
     updated.access_token = data.access_token;
@@ -347,12 +370,20 @@ async fn login(use_claude_ai: bool) -> anyhow::Result<OAuthTokens> {
     let port = listener.local_addr()?.port();
 
     // 3. Build URLs
-    let base = if use_claude_ai { CLAUDE_AI_AUTHORIZE_URL } else { CONSOLE_AUTHORIZE_URL };
+    let base = if use_claude_ai {
+        CLAUDE_AI_AUTHORIZE_URL
+    } else {
+        CONSOLE_AUTHORIZE_URL
+    };
     let manual_url = build_auth_url(base, &challenge, &state, port, true);
     let auto_url = build_auth_url(base, &challenge, &state, port, false);
 
     // 4. Open browser
-    let mode = if use_claude_ai { "Claude.ai" } else { "Anthropic Console" };
+    let mode = if use_claude_ai {
+        "Claude.ai"
+    } else {
+        "Anthropic Console"
+    };
     println!("\n  Opening browser for {} authentication...", mode);
     println!("  If the browser did not open, visit:\n");
     println!("  {}\n", manual_url);
@@ -400,12 +431,28 @@ async fn login(use_claude_ai: bool) -> anyhow::Result<OAuthTokens> {
     let token_resp = exchange_code(&auth_code, &state, &verifier, port).await?;
     println!(" done.");
 
-    let expires_at_ms = chrono::Utc::now().timestamp_millis() + (token_resp.expires_in as i64 * 1000);
-    let scopes: Vec<String> = token_resp.scope.as_deref().unwrap_or("").split_whitespace().map(String::from).collect();
+    let expires_at_ms =
+        chrono::Utc::now().timestamp_millis() + (token_resp.expires_in as i64 * 1000);
+    let scopes: Vec<String> = token_resp
+        .scope
+        .as_deref()
+        .unwrap_or("")
+        .split_whitespace()
+        .map(String::from)
+        .collect();
 
-    let account_uuid = token_resp.account.as_ref().and_then(|a| a["uuid"].as_str().map(String::from));
-    let email = token_resp.account.as_ref().and_then(|a| a["email_address"].as_str().map(String::from));
-    let org_uuid = token_resp.organization.as_ref().and_then(|o| o["uuid"].as_str().map(String::from));
+    let account_uuid = token_resp
+        .account
+        .as_ref()
+        .and_then(|a| a["uuid"].as_str().map(String::from));
+    let email = token_resp
+        .account
+        .as_ref()
+        .and_then(|a| a["email_address"].as_str().map(String::from));
+    let org_uuid = token_resp
+        .organization
+        .as_ref()
+        .and_then(|o| o["uuid"].as_str().map(String::from));
     let uses_bearer = scopes.iter().any(|s| s == INFERENCE_SCOPE);
 
     // 7. Console flow: create API key
@@ -413,8 +460,14 @@ async fn login(use_claude_ai: bool) -> anyhow::Result<OAuthTokens> {
         print!("  Creating API key...");
         std::io::stdout().flush().ok();
         match create_api_key(&token_resp.access_token).await {
-            Ok(key) => { println!(" done."); Some(key) }
-            Err(e) => { println!(" failed: {}", e); None }
+            Ok(key) => {
+                println!(" done.");
+                Some(key)
+            }
+            Err(e) => {
+                println!(" failed: {}", e);
+                None
+            }
         }
     } else {
         None
@@ -433,11 +486,25 @@ async fn login(use_claude_ai: bool) -> anyhow::Result<OAuthTokens> {
     };
     tokens.save().await?;
 
-    println!("\n  Authenticated as: {}", email.as_deref().unwrap_or("(unknown)"));
-    println!("  Auth mode: {}", if uses_bearer { "Bearer (Claude.ai)" } else { "API Key (Console)" });
+    println!(
+        "\n  Authenticated as: {}",
+        email.as_deref().unwrap_or("(unknown)")
+    );
+    println!(
+        "  Auth mode: {}",
+        if uses_bearer {
+            "Bearer (Claude.ai)"
+        } else {
+            "API Key (Console)"
+        }
+    );
     println!("  Token saved to: {}", OAuthTokens::token_path().display());
-    println!("  Expires: {}", chrono::DateTime::from_timestamp_millis(expires_at_ms)
-        .map(|dt| dt.to_rfc3339()).unwrap_or_else(|| "unknown".into()));
+    println!(
+        "  Expires: {}",
+        chrono::DateTime::from_timestamp_millis(expires_at_ms)
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_else(|| "unknown".into())
+    );
 
     Ok(tokens)
 }
@@ -481,13 +548,12 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        _ => {
-            login(!use_console).await?
-        }
+        _ => login(!use_console).await?,
     };
 
     // Build provider from the obtained credential
-    let (credential, uses_bearer) = tokens.credential()
+    let (credential, uses_bearer) = tokens
+        .credential()
         .ok_or_else(|| anyhow::anyhow!("No usable credential in tokens"))?;
 
     let auth = if uses_bearer {
@@ -520,7 +586,10 @@ async fn main() -> anyhow::Result<()> {
         Ok(out) => {
             println!("\n");
             println!("  Agent response: {}", out.text().trim());
-            println!("  Tokens used: {}in / {}out", out.usage.input_tokens, out.usage.output_tokens);
+            println!(
+                "  Tokens used: {}in / {}out",
+                out.usage.input_tokens, out.usage.output_tokens
+            );
             println!("  Turns: {}", out.turns);
             println!("\n  Authentication verified successfully.");
         }

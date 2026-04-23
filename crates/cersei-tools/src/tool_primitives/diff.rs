@@ -204,7 +204,10 @@ mod tests {
         let new = "a\nB\nc\n";
         let lines = line_diff(old, new);
 
-        let removed: Vec<_> = lines.iter().filter(|l| l.tag == ChangeTag::Removed).collect();
+        let removed: Vec<_> = lines
+            .iter()
+            .filter(|l| l.tag == ChangeTag::Removed)
+            .collect();
         let added: Vec<_> = lines.iter().filter(|l| l.tag == ChangeTag::Added).collect();
 
         assert_eq!(removed.len(), 1);

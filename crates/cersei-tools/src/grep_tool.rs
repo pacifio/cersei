@@ -8,10 +8,18 @@ pub struct GrepTool;
 
 #[async_trait]
 impl Tool for GrepTool {
-    fn name(&self) -> &str { "Grep" }
-    fn description(&self) -> &str { "Search file contents using regex patterns." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::ReadOnly }
-    fn category(&self) -> ToolCategory { ToolCategory::FileSystem }
+    fn name(&self) -> &str {
+        "Grep"
+    }
+    fn description(&self) -> &str {
+        "Search file contents using regex patterns."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::ReadOnly
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::FileSystem
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -55,7 +63,9 @@ impl Tool for GrepTool {
                 } else {
                     let output: Vec<String> = matches
                         .iter()
-                        .map(|m| format!("{}:{}:{}", m.file.display(), m.line_number, m.line_content))
+                        .map(|m| {
+                            format!("{}:{}:{}", m.file.display(), m.line_number, m.line_content)
+                        })
                         .collect();
                     ToolResult::success(output.join("\n"))
                 }

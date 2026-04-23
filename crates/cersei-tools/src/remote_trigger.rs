@@ -4,9 +4,8 @@ use super::*;
 use serde::Deserialize;
 
 /// Global event registry for cross-session triggers.
-static TRIGGER_REGISTRY: once_cell::sync::Lazy<
-    dashmap::DashMap<String, Vec<TriggerEvent>>,
-> = once_cell::sync::Lazy::new(dashmap::DashMap::new);
+static TRIGGER_REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<String, Vec<TriggerEvent>>> =
+    once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TriggerEvent {
@@ -29,10 +28,18 @@ pub struct RemoteTriggerTool;
 
 #[async_trait]
 impl Tool for RemoteTriggerTool {
-    fn name(&self) -> &str { "RemoteTrigger" }
-    fn description(&self) -> &str { "Send an event to another session or agent." }
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::Execute }
-    fn category(&self) -> ToolCategory { ToolCategory::Orchestration }
+    fn name(&self) -> &str {
+        "RemoteTrigger"
+    }
+    fn description(&self) -> &str {
+        "Send an event to another session or agent."
+    }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::Execute
+    }
+    fn category(&self) -> ToolCategory {
+        ToolCategory::Orchestration
+    }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
@@ -99,11 +106,16 @@ mod tests {
     #[tokio::test]
     async fn test_trigger_send_receive() {
         let tool = RemoteTriggerTool;
-        let result = tool.execute(serde_json::json!({
-            "target_session": "receiver",
-            "event_type": "tests_complete",
-            "payload": {"passed": 42}
-        }), &test_ctx()).await;
+        let result = tool
+            .execute(
+                serde_json::json!({
+                    "target_session": "receiver",
+                    "event_type": "tests_complete",
+                    "payload": {"passed": 42}
+                }),
+                &test_ctx(),
+            )
+            .await;
 
         assert!(!result.is_error);
         assert!(result.content.contains("sent"));

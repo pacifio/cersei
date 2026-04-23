@@ -63,17 +63,20 @@ impl VectorIndex {
         };
         let inner = usearch::Index::new(&options)
             .map_err(|e| EmbeddingError::Index(format!("usearch init: {e}")))?;
-        Ok(Self { inner, metric, dimensions })
+        Ok(Self {
+            inner,
+            metric,
+            dimensions,
+        })
     }
 
     /// Build an index and populate it in one call, sized exactly for the
     /// input. Vector `i` is stored under key `i as u64`.
-    pub fn from_vectors(
-        vectors: &[Vec<f32>],
-        metric: Metric,
-    ) -> Result<Self, EmbeddingError> {
+    pub fn from_vectors(vectors: &[Vec<f32>], metric: Metric) -> Result<Self, EmbeddingError> {
         if vectors.is_empty() {
-            return Err(EmbeddingError::Index("cannot build index from empty vectors".into()));
+            return Err(EmbeddingError::Index(
+                "cannot build index from empty vectors".into(),
+            ));
         }
         let dim = vectors[0].len();
         let index = Self::new(dim, metric)?;
@@ -118,14 +121,22 @@ impl VectorIndex {
     }
 
     /// Number of vectors in the index.
-    pub fn len(&self) -> usize { self.inner.size() }
+    pub fn len(&self) -> usize {
+        self.inner.size()
+    }
 
     /// Whether the index is empty.
-    pub fn is_empty(&self) -> bool { self.len() == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     /// The configured dimensionality.
-    pub fn dimensions(&self) -> usize { self.dimensions }
+    pub fn dimensions(&self) -> usize {
+        self.dimensions
+    }
 
     /// The configured metric.
-    pub fn metric(&self) -> Metric { self.metric }
+    pub fn metric(&self) -> Metric {
+        self.metric
+    }
 }

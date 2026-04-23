@@ -49,7 +49,9 @@ impl EffortLevel {
 }
 
 impl Default for EffortLevel {
-    fn default() -> Self { Self::Medium }
+    fn default() -> Self {
+        Self::Medium
+    }
 }
 
 #[cfg(test)]
@@ -58,8 +60,12 @@ mod tests {
 
     #[test]
     fn test_thinking_budget() {
-        assert!(EffortLevel::Low.thinking_budget_tokens() < EffortLevel::High.thinking_budget_tokens());
-        assert!(EffortLevel::High.thinking_budget_tokens() < EffortLevel::Max.thinking_budget_tokens());
+        assert!(
+            EffortLevel::Low.thinking_budget_tokens() < EffortLevel::High.thinking_budget_tokens()
+        );
+        assert!(
+            EffortLevel::High.thinking_budget_tokens() < EffortLevel::Max.thinking_budget_tokens()
+        );
     }
 
     #[test]

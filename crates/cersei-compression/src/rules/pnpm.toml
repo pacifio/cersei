@@ -1,0 +1,24 @@
+schema_version = 1
+
+[filters.pnpm-install]
+description = "Collapse pnpm install progress and resolution spam."
+match_command = '^pnpm\s+(install|i|add|up|update)\b'
+strip_ansi = true
+strip_lines_matching = [
+    '^\s*(Progress|Downloading|Resolving|Fetching):',
+    '^\s*Packages:',
+    '^\s*dependencies:',
+    '^\s*devDependencies:',
+    '^\s*$',
+]
+max_lines = 150
+
+[filters.zz-pnpm-generic]
+description = "Generic pnpm catch-all."
+match_command = '^pnpm\b'
+strip_ansi = true
+strip_lines_matching = [
+    '^\s*(Progress|Downloading|Fetching):',
+    '^\s*$',
+]
+max_lines = 200
