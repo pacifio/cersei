@@ -14,34 +14,42 @@ const ANSWERER_BASE_SYSTEM: &str = "You are a helpful assistant. Answer the user
 If the information does not contain the answer, say so plainly — do NOT guess. \
 Be concise: one or two short sentences is ideal. Do NOT quote or restate the context.";
 
-/// Answer one question given a retrieved-context string. The `context` is
-/// wrapped with Mastra's `OBSERVATION_CONTEXT_PROMPT` + `<observations>` tags
-/// + `OBSERVATION_CONTEXT_INSTRUCTIONS`, which carry Mastra's
-/// LongMemEval-specific guidance (KNOWLEDGE UPDATES, PLANNED ACTIONS, MOST
-/// RECENT USER INPUT, SYSTEM REMINDERS) into the system prompt every time.
-/// This is the difference between naive RAG scoring and Mastra-OM scoring on
-/// knowledge-update + temporal-reasoning question types.
+/// Answer one question given a retrieved-context string.
+///
+/// Prompt stack (from 0.1.8):
+///   1. System: `ANSWERER_BASE_SYSTEM` + Mastra's `OBSERVATION_CONTEXT_INSTRUCTIONS`
+///      (KNOWLEDGE UPDATES / PLANNED ACTIONS / MOST RECENT USER INPUT —
+///      carries Mastra's LongMemEval-specific guidance).
+///   2. User: Omega-memory's **per-category RAG prompt** (VANILLA / ENHANCED /
+///      MULTISESSION / PREFERENCE / TEMPORAL) filled with the retrieved
+///      context as `{sessions}`.
+///
+/// The Mastra system clauses reinforce Omega's STEP scaffolding (both push
+/// "most recent wins"), so stacking them is additive.
 pub async fn answer<P: Provider + ?Sized>(
     provider: &P,
     model: &str,
     q: &Question,
     context: &str,
 ) -> Result<(String, u64, u64)> {
-    let wrapped_memory = crate::mastra_prompts::wrap_observations_for_answerer(context);
-    let full_system = format!("{}\n\n{wrapped_memory}", ANSWERER_BASE_SYSTEM);
-
-    let prompt = format!(
-        "QUESTION (asked on {date}):\n{question}\n\nANSWER:",
-        date = q.question_date,
-        question = q.question,
+    let system = format!(
+        "{}\n\n{}",
+        ANSWERER_BASE_SYSTEM,
+        crate::mastra_prompts::OBSERVATION_CONTEXT_INSTRUCTIONS
     );
 
+    let template = crate::omega_prompts::prompt_for(q.question_type);
+    let user_prompt =
+        crate::omega_prompts::fill(template, context, &q.question_date, &q.question);
+
     let mut req = CompletionRequest::new(model);
-    req.system = Some(full_system);
-    req.messages.push(Message::user(prompt));
+    req.system = Some(system);
+    req.messages.push(Message::user(user_prompt));
     req.temperature = Some(0.0);
     // Leave headroom for Gemini 2.5 Flash's thinking tokens. On OpenAI the
-    // extra budget is ignored once the model stops.
+    // extra budget is ignored once the model stops. Omega's per-category
+    // configs budget 512 (vanilla) or 2048 (enhanced/multisession/temporal) —
+    // we pick the generous setting so thinking tokens have room.
     req.max_tokens = 2048;
 
     let resp = provider

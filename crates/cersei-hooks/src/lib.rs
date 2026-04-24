@@ -35,6 +35,11 @@ pub enum HookEvent {
     PostModelTurn,
     Stop,
     Error,
+    /// Fires every N turns (agent-configured cadence, default 10). Used by
+    /// the skills-nudge hook to trigger background skill review/creation
+    /// without blocking the agent loop. `HookContext::turn` carries the
+    /// current turn counter.
+    TurnsElapsed,
 }
 
 // ─── Hook context ────────────────────────────────────────────────────────────

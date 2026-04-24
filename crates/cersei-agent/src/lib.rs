@@ -6,6 +6,8 @@ pub mod auto_dream;
 pub mod compact;
 pub mod context_analyzer;
 pub mod coordinator;
+pub mod delegate;
+pub mod delegate_tool;
 pub mod effort;
 pub mod events;
 pub mod reporters;
@@ -87,6 +89,10 @@ pub struct Agent {
     auto_compact: bool,
     compact_threshold: f64,
     tool_result_budget: usize,
+    /// Cadence (in turns) at which `HookEvent::TurnsElapsed` fires. Default
+    /// 10. Setting to 0 disables the event entirely. Used by the
+    /// `SkillNudgeHook` for agent-curated skill review.
+    pub(crate) turns_elapsed_cadence: u32,
     pub(crate) compression_level: Arc<parking_lot::Mutex<cersei_compression::CompressionLevel>>,
     pub benchmark_mode: bool,
     messages: Arc<parking_lot::Mutex<Vec<Message>>>,
@@ -221,6 +227,7 @@ pub struct AgentBuilder {
     auto_compact: bool,
     compact_threshold: f64,
     tool_result_budget: usize,
+    turns_elapsed_cadence: u32,
     compression_level: cersei_compression::CompressionLevel,
     initial_messages: Option<Vec<Message>>,
     benchmark_mode: bool,
@@ -252,6 +259,7 @@ impl Default for AgentBuilder {
             auto_compact: true,
             compact_threshold: 0.9,
             tool_result_budget: 50_000,
+            turns_elapsed_cadence: 10,
             compression_level: cersei_compression::CompressionLevel::Off,
             initial_messages: None,
             benchmark_mode: false,
@@ -262,6 +270,14 @@ impl Default for AgentBuilder {
 impl AgentBuilder {
     pub fn provider(mut self, p: impl Provider + 'static) -> Self {
         self.provider = Some(Box::new(p));
+        self
+    }
+
+    /// Accept a pre-boxed provider. Useful when the caller already has a
+    /// `Box<dyn Provider>` (e.g., the delegation primitive, which builds
+    /// child providers via a factory closure).
+    pub fn provider_boxed(mut self, p: Box<dyn Provider>) -> Self {
+        self.provider = Some(p);
         self
     }
 
@@ -383,6 +399,13 @@ impl AgentBuilder {
     /// Set the tool-output compression level (default `Off`). Compression is
     /// applied to each tool result before the per-result cap and the overall
     /// tool-result budget run.
+    /// How often `HookEvent::TurnsElapsed` fires (default 10). Set to 0 to
+    /// disable. Used by skill-nudge hooks for agent-curated skill review.
+    pub fn turns_elapsed_cadence(mut self, n: u32) -> Self {
+        self.turns_elapsed_cadence = n;
+        self
+    }
+
     pub fn compression_level(mut self, level: cersei_compression::CompressionLevel) -> Self {
         self.compression_level = level;
         self
@@ -438,6 +461,11 @@ impl AgentBuilder {
             auto_compact: self.auto_compact,
             compact_threshold: self.compact_threshold,
             tool_result_budget: self.tool_result_budget,
+            turns_elapsed_cadence: if self.turns_elapsed_cadence == 0 {
+                u32::MAX
+            } else {
+                self.turns_elapsed_cadence
+            },
             compression_level: Arc::new(parking_lot::Mutex::new(self.compression_level)),
             benchmark_mode: self.benchmark_mode,
             messages: Arc::new(parking_lot::Mutex::new(

@@ -29,6 +29,57 @@ use std::collections::HashMap;
 /// wide range of rank-list lengths.
 const RRF_K: f32 = 60.0;
 
+/// Weight discount applied to rank-list contributions that come from
+/// expansion variants (as opposed to the primary query). 0.8× matches
+/// Omega-memory's `_EXPANSION_WEIGHT_DISCOUNT`.
+const EXPANSION_WEIGHT: f32 = 0.8;
+
+/// Omega-memory's empirical abstention floors (v0.1.8). Hits below these
+/// thresholds are discarded before RRF fusion — prevents noise-ridden
+/// candidates from winning on an otherwise empty haystack. Source:
+/// `_inspirations/omega-memory/src/omega/sqlite_store/_types.py:73-80`.
+const VEC_MIN_SIM: f32 = 0.35;
+const GRAPH_MIN_SCORE: f32 = 0.30;
+
+/// Cosine-similarity threshold for treating two embedded facts as duplicates
+/// at ingestion. Matches Omega's default (`SEMANTIC_DEDUP_COSINE = 0.85`).
+#[allow(dead_code)]
+const DEDUP_COSINE: f32 = 0.85;
+
+/// Jaccard word-overlap threshold for treating two facts as duplicates at
+/// ingestion. Text-only proxy for cosine dedup — avoids a 2-pass embed-
+/// then-compare. 0.85 is Omega's per-type default for `lesson_learned`.
+const DEDUP_JACCARD: f32 = 0.85;
+
+/// Minimum token length of a fact worth keeping. Shorter strings are often
+/// empty parse artifacts ("* ", ">", etc.) and pollute retrieval.
+const MIN_FACT_TOKENS: usize = 3;
+
+fn normalize_for_dedup(s: &str) -> String {
+    s.chars()
+        .flat_map(char::to_lowercase)
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn word_set(s: &str) -> std::collections::HashSet<&str> {
+    s.split_whitespace().filter(|w| w.len() > 2).collect()
+}
+
+fn jaccard(a: &str, b: &str) -> f32 {
+    let sa = word_set(a);
+    let sb = word_set(b);
+    if sa.is_empty() || sb.is_empty() {
+        return 0.0;
+    }
+    let inter = sa.intersection(&sb).count();
+    let uni = sa.union(&sb).count();
+    inter as f32 / uni as f32
+}
+
 /// Hard cap on observations stored per session. Mastra's Observer produces
 /// 1-5 per exchange; a long session can easily yield 20-30. The cap is a
 /// safety net against runaway output, not a pruning hint — set high.
@@ -46,6 +97,9 @@ pub struct HybridConfig<P: EmbeddingProvider + Send + Sync, E: Provider + Send +
     extractor: std::sync::Arc<E>,
     extractor_model: String,
     top_k: usize,
+    /// Whether to expand the query into lex/vec/HyDE variants at retrieval
+    /// time (Omega-memory lever — +1–2 pp lift on multi-session / vague).
+    use_query_expansion: bool,
     /// Cached for reporting.
     extracted_fact_count: usize,
 }
@@ -67,12 +121,18 @@ impl<
             extractor,
             extractor_model: extractor_model.into(),
             top_k: DEFAULT_TOP_K,
+            use_query_expansion: true,
             extracted_fact_count: 0,
         }
     }
 
     pub fn with_top_k(mut self, k: usize) -> Self {
         self.top_k = k;
+        self
+    }
+
+    pub fn with_query_expansion(mut self, on: bool) -> Self {
+        self.use_query_expansion = on;
         self
     }
 
@@ -207,6 +267,11 @@ impl<
 
         let mut fact_count = 0usize;
         let mut embed_items: Vec<(String, String)> = Vec::new();
+        // Normalized form → canonical tagged string, for exact-match dedup.
+        let mut seen_normalized: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+        // Parallel vec of normalized strings for Jaccard fuzzy dedup.
+        let mut normalized_items: Vec<String> = Vec::new();
 
         while let Some(joined) = set.join_next().await {
             let (date, sid, session, facts) =
@@ -215,8 +280,7 @@ impl<
             // Store BOTH the raw turns AND the extracted facts. The facts
             // give RRF a high-signal summary to rank against; the raw turns
             // rescue us when the extractor drops specifics ("Summer Vibes",
-            // "The Glass Menagerie", etc.). Dedup is handled downstream by
-            // the RRF key (content string).
+            // "The Glass Menagerie", etc.).
             let raw: Vec<String> = session
                 .iter()
                 .map(|t| format!("{}: {}", t.role, t.content))
@@ -224,6 +288,29 @@ impl<
 
             for item in raw.iter().chain(facts.iter()) {
                 let tagged = format!("[{date}] {item}");
+                let norm = normalize_for_dedup(&tagged);
+                let token_count = norm.split_whitespace().count();
+                if token_count < MIN_FACT_TOKENS {
+                    continue;
+                }
+
+                // (1) Exact-match dedup: identical normalized form already
+                //     stored. Skip silently.
+                if seen_normalized.contains_key(&norm) {
+                    continue;
+                }
+                // (2) Jaccard near-duplicate. Linear scan is O(n²) but n is
+                //     small (≤ a few thousand per question) and tokens are
+                //     already set-ified inside `jaccard`. Fine for a bench.
+                let near_dup = normalized_items
+                    .iter()
+                    .any(|existing| jaccard(existing, &norm) >= DEDUP_JACCARD);
+                if near_dup {
+                    continue;
+                }
+
+                seen_normalized.insert(norm.clone(), embed_items.len());
+                normalized_items.push(norm);
                 embed_items.push((tagged.clone(), sid.clone()));
                 let _ = graph.store_memory(&tagged, MemoryType::Project, 0.85);
                 fact_count += 1;
@@ -239,25 +326,95 @@ impl<
     }
 
     async fn retrieve(&self, q: &Question) -> Result<String> {
-        let embed_hits = match &self.embed_mem {
-            Some(m) => m.search(&q.question, self.top_k).await.unwrap_or_default(),
-            None => Vec::new(),
-        };
-        let graph_hits = match &self.graph_mem {
-            Some(m) => m.recall_top_k(&q.question, self.top_k),
-            None => Vec::new(),
+        // Pull a generous candidate pool (2×top_k) so that the abstention
+        // filter has room before RRF truncation.
+        let pool = self.top_k.saturating_mul(2).max(self.top_k);
+
+        // Optional: expand the question into lex/vec/HyDE variants before
+        // retrieval. Runs one LLM call on the extractor model (Omega-memory
+        // lever). Disabled on trivially-short queries where expansion adds
+        // cost without recall gain.
+        let variants = if self.use_query_expansion && q.question.trim().len() >= 3 {
+            let include_hyde = crate::query_expand::looks_vague(&q.question);
+            crate::query_expand::expand_query(
+                &*self.extractor,
+                &self.extractor_model,
+                &q.question,
+                include_hyde,
+            )
+            .await
+            .unwrap_or_default()
+        } else {
+            crate::query_expand::QueryVariants::default()
         };
 
-        // Reciprocal Rank Fusion. Key by content string (facts are already
-        // stored verbatim, so identical facts across lists merge naturally).
+        // Fused scores, keyed by canonical content (facts are stored
+        // verbatim so same content merges naturally across rank lists).
         let mut fused: HashMap<String, f32> = HashMap::new();
-        for (rank, hit) in embed_hits.iter().enumerate() {
-            let score = 1.0 / (RRF_K + (rank as f32 + 1.0));
-            *fused.entry(hit.content.clone()).or_insert(0.0) += score;
+
+        // Helper: apply Omega's RRF to a ranked list with a channel weight.
+        let apply_rrf =
+            |fused: &mut HashMap<String, f32>, list: &[String], weight: f32| {
+                for (rank, content) in list.iter().enumerate() {
+                    let score = weight / (RRF_K + (rank as f32 + 1.0));
+                    *fused.entry(content.clone()).or_insert(0.0) += score;
+                }
+            };
+
+        // --- Primary query (embed + graph) ---
+        if let Some(m) = &self.embed_mem {
+            let raw = m.search(&q.question, pool).await.unwrap_or_default();
+            let list: Vec<String> = raw
+                .into_iter()
+                .filter(|h| h.relevance >= VEC_MIN_SIM)
+                .take(self.top_k)
+                .map(|h| h.content)
+                .collect();
+            apply_rrf(&mut fused, &list, 1.0);
         }
-        for (rank, (content, _)) in graph_hits.iter().enumerate() {
-            let score = 1.0 / (RRF_K + (rank as f32 + 1.0));
-            *fused.entry(content.clone()).or_insert(0.0) += score;
+        if let Some(m) = &self.graph_mem {
+            let raw = m.recall_top_k(&q.question, pool);
+            let list: Vec<String> = raw
+                .into_iter()
+                .filter(|(_, s)| *s >= GRAPH_MIN_SCORE)
+                .take(self.top_k)
+                .map(|(c, _)| c)
+                .collect();
+            apply_rrf(&mut fused, &list, 1.0);
+        }
+
+        // --- Semantic variants (vec + HyDE) fuse at EXPANSION_WEIGHT ---
+        if let Some(m) = &self.embed_mem {
+            for variant in variants.semantic_variants() {
+                if variant.trim().is_empty() {
+                    continue;
+                }
+                let raw = m.search(&variant, pool).await.unwrap_or_default();
+                let list: Vec<String> = raw
+                    .into_iter()
+                    .filter(|h| h.relevance >= VEC_MIN_SIM)
+                    .take(self.top_k)
+                    .map(|h| h.content)
+                    .collect();
+                apply_rrf(&mut fused, &list, EXPANSION_WEIGHT);
+            }
+        }
+
+        // --- Lexical variants through graph substring at EXPANSION_WEIGHT ---
+        if let Some(m) = &self.graph_mem {
+            for lex in &variants.lex {
+                if lex.trim().is_empty() {
+                    continue;
+                }
+                let raw = m.recall_top_k(lex, pool);
+                let list: Vec<String> = raw
+                    .into_iter()
+                    .filter(|(_, s)| *s >= GRAPH_MIN_SCORE)
+                    .take(self.top_k)
+                    .map(|(c, _)| c)
+                    .collect();
+                apply_rrf(&mut fused, &list, EXPANSION_WEIGHT);
+            }
         }
 
         let mut ranked: Vec<(String, f32)> = fused.into_iter().collect();

@@ -1,0 +1,23 @@
+[package]
+name = "cersei-skills"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "agentskills.io-compatible skill registry for the Cersei SDK"
+
+[dependencies]
+cersei-types = { workspace = true }
+anyhow       = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+serde_yaml   = "0.9"
+thiserror    = { workspace = true }
+walkdir      = { workspace = true }
+chrono       = { workspace = true }
+dirs         = { workspace = true }
+tracing      = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

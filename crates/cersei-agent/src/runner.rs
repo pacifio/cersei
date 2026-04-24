@@ -442,6 +442,24 @@ pub async fn run_agent_streaming(
             )));
         }
 
+        // Fire TurnsElapsed every `turns_elapsed_cadence` turns (default 10).
+        // Callers can register a SkillNudgeHook here for agent-curated skill
+        // creation without blocking the agent loop.
+        if turn > 0 && turn % agent.turns_elapsed_cadence == 0 {
+            let cadence_ctx = HookContext {
+                event: HookEvent::TurnsElapsed,
+                tool_name: None,
+                tool_input: None,
+                tool_result: None,
+                tool_is_error: None,
+                turn,
+                cumulative_cost_usd: cumulative.cost_usd.unwrap_or(0.0),
+                message_count: agent.messages.lock().len(),
+            };
+            // Don't block on TurnsElapsed hooks — best-effort, fire and forget.
+            let _ = cersei_hooks::run_hooks(&agent.hooks, &cadence_ctx).await;
+        }
+
         let _ = event_tx
             .send(AgentEvent::TurnComplete {
                 turn,

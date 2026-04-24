@@ -14,12 +14,13 @@ members = [
     "crates/cersei-lsp",
     "crates/cersei-embeddings",
     "crates/cersei-compression",
+    "crates/cersei-skills",
     "crates/abstract-cli",
     "bench/long-mem",
 ]
 
 [workspace.package]
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 authors = ["Adib Mohsin"]
 license = "MIT"

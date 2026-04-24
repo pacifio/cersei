@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.1.8] - 2026-04-25
+
+### Added
+
+- **Workstream A — Memory++ (partial).** Targeted retrieval improvements aimed at LongMemEval multi-session / temporal weak spots, on top of the 0.1.7 85.7 % hybrid baseline.
+  - **Omega-style per-question-type RAG prompts** (`bench/long-mem/src/omega_prompts.rs`) — verbatim ports of Omega-memory's 5 answerer templates (vanilla, enhanced-confident, multi-session-aggregation, temporal, preference), routed by `QuestionType`. Stacks on top of Mastra's `OBSERVATION_CONTEXT_INSTRUCTIONS` in the system prompt, Omega template in the user turn.
+  - **LLM-driven query expansion** (`bench/long-mem/src/query_expand.rs`) — Omega's verbatim `OMEGA_EXPANSION_SYSTEM` prompt producing `{lex, vec, hyde}` variants. HyDE gated by a `looks_vague` heuristic (≥ 80 chars or synthesis keyword). Tolerant JSON parser (fenced / chatty). Variants fused into RRF at `EXPANSION_WEIGHT = 0.8`.
+  - **Abstention floors** (`VEC_MIN_SIM = 0.35`, `GRAPH_MIN_SCORE = 0.30`) in `HybridConfig::retrieve` — drops low-confidence hits before RRF.
+  - **Semantic dedup at ingest** — normalized Jaccard ≥ 0.85 collapses near-duplicate facts to keep the retrieval set crisp.
+  - **500Q `longmemeval_s` numbers on `gemini-2.5-flash` (2026-04-25):**
+    - a-baseline-jsonl: **87.56 %** overall
+    - b-embed-only: **86.56 %**
+    - d-hybrid-embed-graph: **86.28 %** overall, **81.0 % multi-session (+2.5 pp vs 0.1.7 hybrid)**, 82.7 % temporal-reasoning, 90.3 % knowledge-update
+    - A2 FTS5 channel and A3 three-way RRF deferred to 0.1.9 — that pair is what closes the remaining gap to the 90 % stretch target.
+- **Workstream B — Skills primitive.** New leaf crate `cersei-skills` for loading [agentskills.io](https://agentskills.io/)-compatible SKILL.md files.
+  - **`SkillRegistry`** — loads from `~/.cersei/skills/` (global) and `.cersei/skills/` (project); project-over-global merge; progressive-disclosure `list()` / `view()` / `by_tag()` surface.
+  - **`Skill` parser** — YAML frontmatter (name ≤ 64 ASCII, description ≤ 1024, version, license, platforms, prerequisites) + markdown body. 100 KB size cap.
+  - **Security scanner** — `SkillSecurityIssue::{PromptInjection, DestructiveCommand, CredentialExfil, InvisibleUnicode, SudoersOrSetuid}`; skills refuse to load until reviewed.
+  - **`HookEvent::TurnsElapsed`** added to `cersei-hooks`; `cersei-agent::runner` emits it every `turns_elapsed_cadence` turns (default 10, 0 disables). Intended for background skill review nudges without blocking the agent loop. `AgentBuilder::turns_elapsed_cadence(n)`.
+- **Workstream C — Delegation / parallel subagents.** Port of hermes-agent's `delegate_tool.py`.
+  - **`cersei_agent::delegate`** module — `DelegateConfig`, `DelegateTask`, `DelegateResult`, `run_batch`. Bounded parallelism via `tokio::task::JoinSet` + semaphore (`DEFAULT_MAX_CONCURRENT = 3`). Depth cap `MAX_DEPTH = 2` (parent = 0, child = 1, no grandchildren). Default blocklist `{delegate, clarify, memory, memory_write, send_message, ask_user, AskUserQuestion}` stripped from child toolsets at depth ≥ 1. Child system prompt is a verbatim port of `_inspirations/hermes-agent/tools/delegate_tool.py::_build_child_system_prompt`.
+  - **`cersei_agent::delegate_tool::DelegateTool`** — `impl Tool` wrapper. Accepts either a single `goal` or a `tasks` array. Fresh provider + toolset per child via `ProviderFactory` / `ToolsetFactory` `Arc<dyn Fn() -> Box<...>>` closures (the non-cloneable trait-object workaround).
+  - **`AgentBuilder::provider_boxed(Box<dyn Provider>)`** — builder extension needed by the delegation pathway.
+  - Best-effort semantics: one child failure doesn't abort the batch; the parent gets a per-task error summary.
+
+### Changed
+
+- `bench/long-mem/src/runner.rs` — answerer system prompt now splices `ANSWERER_BASE_SYSTEM` + Mastra `OBSERVATION_CONTEXT_INSTRUCTIONS`; user turn uses the Omega per-type template via `omega_prompts::prompt_for(question_type)`.
+- `HybridConfig::retrieve` rewritten to perform multi-query RRF over `{primary, lex, vec, hyde}` with abstention floors; variants contribute at `EXPANSION_WEIGHT = 0.8`.
+
+### Deferred to 0.1.9
+
+- **Workstream A2/A3** — FTS5 channel on `cersei-memory` (behind new `fts` feature) and three-way RRF with per-type `RetrievalProfile` TOML. The biggest lever still unused.
+- **Python RPC code-exec tool** — collapses multi-step tool chains into one LLM turn (terminal-bench unlock). Requires Rust-side UDS server + Python stub generator.
+- **Workstream D** — `cersei-session-search` (FTS5), `HonchoMemoryProvider`, `cersei-cron`.
+
 ## [LongMemEval Benchmark] - 2026-04-24
 
 ### Added

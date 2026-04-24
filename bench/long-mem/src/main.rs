@@ -15,6 +15,8 @@ mod configs;
 mod dataset;
 mod judge;
 mod mastra_prompts;
+mod omega_prompts;
+mod query_expand;
 mod report;
 mod runner;
 
