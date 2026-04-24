@@ -111,7 +111,15 @@ impl EmbeddingProvider for GeminiEmbeddings {
                 let key = key.clone();
                 let model = model.clone();
                 async move {
-                    let url = format!("{API_BASE}/models/{model}:embedContent?key={key}");
+                    // SECURITY: the API key goes in the `x-goog-api-key`
+                    // header, NEVER in the URL query string. Query-string
+                    // keys surface in every reqwest `Display` error, every
+                    // traced span, every log line — leaks are unavoidable.
+                    // Header auth keeps the URL (and any error mentioning it)
+                    // secret-free. `redact_url_key` below is belt-and-braces
+                    // for older logs that still contain `?key=…`.
+                    let url = format!("{API_BASE}/models/{model}:embedContent");
+                    let safe_url = url.clone();
                     // Char-boundary-safe truncation.
                     let mut end = t.len().min(truncate);
                     while end > 0 && !t.is_char_boundary(end) {
@@ -137,13 +145,20 @@ impl EmbeddingProvider for GeminiEmbeddings {
                         }
                         match client
                             .post(&url)
+                            .header("x-goog-api-key", &key)
                             .header("Content-Type", "application/json")
                             .json(&body)
                             .send()
                             .await
                         {
                             Err(e) => {
-                                last_err = Some(EmbeddingError::from(e));
+                                // IMPORTANT: reqwest's Display format for
+                                // errors includes the full URL (`?key=...`).
+                                // We construct a KEY-SAFE string manually.
+                                last_err = Some(EmbeddingError::Api(format!(
+                                    "Gemini embedding transport error ({safe_url}): {}",
+                                    redact_errors(&e)
+                                )));
                                 continue;
                             }
                             Ok(resp) => {
@@ -156,8 +171,9 @@ impl EmbeddingProvider for GeminiEmbeddings {
                                             );
                                         }
                                         Err(e) => {
-                                            last_err =
-                                                Some(EmbeddingError::Parse(e.to_string()));
+                                            last_err = Some(EmbeddingError::Parse(
+                                                redact_errors(&e),
+                                            ));
                                             continue;
                                         }
                                     }
@@ -166,7 +182,8 @@ impl EmbeddingProvider for GeminiEmbeddings {
                                 let retryable =
                                     status.as_u16() == 429 || status.is_server_error();
                                 last_err = Some(EmbeddingError::Api(format!(
-                                    "Gemini embedding failed ({status}): {body_text}"
+                                    "Gemini embedding failed ({status}, {safe_url}): {}",
+                                    redact_url_key(&body_text)
                                 )));
                                 if !retryable {
                                     break;
@@ -190,6 +207,68 @@ impl EmbeddingProvider for GeminiEmbeddings {
 #[derive(Deserialize)]
 struct SingleResp {
     embedding: Emb,
+}
+
+/// Replace any `key=<value>` query-string segment with `key=REDACTED`.
+///
+/// The Gemini REST API takes the API key in the URL query string. `reqwest`'s
+/// default error formatter includes the URL, which means any transient network
+/// error would otherwise leak the key into logs, result files, panic messages,
+/// and anywhere else the error string is persisted. This helper is applied to
+/// any string (URL, response body, error `Display`) that might contain one.
+pub(crate) fn redact_url_key(s: &str) -> String {
+    // Match `key=<chars that are URL-safe but not `&` or whitespace>`.
+    // We don't pull in a regex dep for one pattern — a manual scan is fine.
+    let mut out = String::with_capacity(s.len());
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        // Look for `key=` at byte position i.
+        if i + 4 <= bytes.len() && &bytes[i..i + 4] == b"key=" {
+            out.push_str("key=REDACTED");
+            i += 4;
+            // Skip until a delimiter: &, whitespace, or quote.
+            while i < bytes.len() {
+                let b = bytes[i];
+                if b == b'&' || b == b' ' || b == b'\n' || b == b'\r' || b == b'"' || b == b'\t' {
+                    break;
+                }
+                i += 1;
+            }
+        } else {
+            out.push(bytes[i] as char);
+            i += 1;
+        }
+    }
+    out
+}
+
+fn redact_errors<E: std::fmt::Display>(e: &E) -> String {
+    redact_url_key(&e.to_string())
+}
+
+#[cfg(test)]
+mod redact_tests {
+    use super::redact_url_key;
+
+    #[test]
+    fn strips_key_from_query_string() {
+        let raw = "GET https://generativelanguage.googleapis.com/v1beta/models/x:embedContent?key=AIzaSy123 failed";
+        let redacted = redact_url_key(raw);
+        assert!(!redacted.contains("AIzaSy123"));
+        assert!(redacted.contains("key=REDACTED"));
+    }
+
+    #[test]
+    fn preserves_non_key_text() {
+        assert_eq!(redact_url_key("hello world"), "hello world");
+    }
+
+    #[test]
+    fn handles_key_followed_by_ampersand() {
+        let s = redact_url_key("?key=ABC&foo=bar");
+        assert_eq!(s, "?key=REDACTED&foo=bar");
+    }
 }
 #[derive(Deserialize)]
 struct Emb {

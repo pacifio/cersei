@@ -1,94 +1,0 @@
-Hit:1 http://deb.debian.org/debian bookworm InRelease
-Hit:2 http://deb.debian.org/debian bookworm-updates InRelease
-Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
-Fetched 48.0 kB in 4s (11.2 kB/s)
-Reading package lists...
-Reading package lists...
-Building dependency tree...
-Reading state information...
-The following NEW packages will be installed:
-  curl
-0 upgraded, 1 newly installed, 0 to remove and 22 not upgraded.
-Need to get 316 kB of archives.
-After this operation, 501 kB of additional disk space will be used.
-Get:1 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10+deb12u14 [316 kB]
-debconf: delaying package configuration, since apt-utils is not installed
-Fetched 316 kB in 0s (2740 kB/s)
-Selecting previously unselected package curl.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 20147 files and directories currently installed.)
-Preparing to unpack .../curl_7.88.1-10+deb12u14_amd64.deb ...
-Unpacking curl (7.88.1-10+deb12u14) ...
-Setting up curl (7.88.1-10+deb12u14) ...
-downloading uv 0.9.5 x86_64-unknown-linux-gnu
-no checksums to verify
-installing to /root/.local/bin
-  uv
-  uvx
-everything's installed!
-
-To add $HOME/.local/bin to your PATH, either restart your shell or run:
-
-    source $HOME/.local/bin/env (sh, bash, zsh)
-    source $HOME/.local/bin/env.fish (fish)
-tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
-Downloading cpython-3.11.14-linux-x86_64-gnu (download) (28.7MiB)
- Downloading cpython-3.11.14-linux-x86_64-gnu (download)
-Downloading scipy (35.9MiB)
-Downloading pygments (1.2MiB)
-Downloading scikit-learn (12.3MiB)
-Downloading numpy (16.5MiB)
-Downloading fasttext-wheel (4.2MiB)
- Downloading fasttext-wheel
- Downloading pygments
- Downloading numpy
- Downloading scikit-learn
- Downloading scipy
-Installed 14 packages in 1.40s
-============================= test session starts ==============================
-platform linux -- Python 3.11.14, pytest-8.4.1, pluggy-1.6.0
-rootdir: /tests
-plugins: json-ctrf-0.3.5
-collected 2 items
-
-../tests/test_outputs.py FF                                              [100%]
-
-=================================== FAILURES ===================================
-________________________________ test_accuracy _________________________________
-
-    def test_accuracy():
-        """Test accuracy of the fasttext model on the test set."""
-        model = fasttext.load_model("/app/model.bin")
-    
-        true_labels = []
-        predicted_labels = []
-    
-        with open("/tests/private_test.txt", "r", encoding="utf-8") as f:
-            for line in f:
-                parts = line.strip().split(" ", 1)
-                if len(parts) == 2:
-                    true_label = parts[0]
-                    text = parts[1]
-                    prediction = model.predict(text)[0][0]
-                    true_labels.append(true_label)
-                    predicted_labels.append(prediction)
-    
-        accuracy = accuracy_score(true_labels, predicted_labels)
->       assert accuracy > ACCURACY_THRESHOLD
-E       assert 0.602075 > 0.62
-
-/tests/test_outputs.py:30: AssertionError
------------------------------ Captured stderr call -----------------------------
-Warning : `load_model` does not return WordVectorModel or SupervisedModel any more, but a `FastText` object which is very similar.
-_______________________________ test_model_size ________________________________
-
-    def test_model_size():
-        """Test the size of the model."""
-        model_size = os.path.getsize("/app/model.bin")
->       assert model_size < MAX_MODEL_SIZE
-E       assert 398759923 < 157286400
-
-/tests/test_outputs.py:36: AssertionError
-=========================== short test summary info ============================
-FAILED ../tests/test_outputs.py::test_accuracy - assert 0.602075 > 0.62
-FAILED ../tests/test_outputs.py::test_model_size - assert 398759923 < 157286400
-============================== 2 failed in 48.70s ==============================

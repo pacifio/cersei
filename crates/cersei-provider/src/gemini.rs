@@ -261,9 +261,13 @@ impl Provider for Gemini {
             { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH" },
         ]);
 
+        // SECURITY: never put the API key in the URL. Use the
+        // `x-goog-api-key` header so that reqwest's error `Display` (which
+        // prints the URL) cannot leak the secret into logs or error-wrapped
+        // output.
         let url = format!(
-            "{}/models/{}:streamGenerateContent?alt=sse&key={}",
-            self.base_url, model, self.api_key
+            "{}/models/{}:streamGenerateContent?alt=sse",
+            self.base_url, model
         );
 
         let (tx, rx) = mpsc::channel(256);
@@ -271,6 +275,7 @@ impl Provider for Gemini {
         let req = self
             .client
             .post(&url)
+            .header("x-goog-api-key", &self.api_key)
             .header("content-type", "application/json")
             .json(&body)
             .build()

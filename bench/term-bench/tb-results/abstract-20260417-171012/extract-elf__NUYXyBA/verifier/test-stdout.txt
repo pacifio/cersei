@@ -1,77 +1,0 @@
-Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
-Get:2 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
-Get:3 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
-Get:4 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
-Get:5 http://archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Packages [38.4 kB]
-Get:6 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [2156 kB]
-Get:7 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [2402 kB]
-Get:8 http://archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [3752 kB]
-Get:9 http://archive.ubuntu.com/ubuntu noble-backports/main amd64 Packages [49.5 kB]
-Get:10 http://archive.ubuntu.com/ubuntu noble-backports/universe amd64 Packages [36.1 kB]
-Get:11 http://archive.ubuntu.com/ubuntu noble-backports/multiverse amd64 Packages [695 B]
-Get:12 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [3581 kB]
-Get:13 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 Packages [34.8 kB]
-Get:14 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [2025 kB]
-Get:15 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1507 kB]
-Fetched 16.0 MB in 2s (10.6 MB/s)
-Reading package lists...
-Reading package lists...
-Building dependency tree...
-Reading state information...
-gcc is already the newest version (4:13.2.0-7ubuntu1).
-The following additional packages will be installed:
-  libcurl3t64-gnutls libcurl4t64
-The following NEW packages will be installed:
-  curl libcurl4t64
-The following packages will be upgraded:
-  libcurl3t64-gnutls
-1 upgraded, 2 newly installed, 0 to remove and 101 not upgraded.
-Need to get 902 kB of archives.
-After this operation, 1481 kB of additional disk space will be used.
-Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libcurl4t64 amd64 8.5.0-2ubuntu10.8 [342 kB]
-Get:2 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 curl amd64 8.5.0-2ubuntu10.8 [227 kB]
-Get:3 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libcurl3t64-gnutls amd64 8.5.0-2ubuntu10.8 [334 kB]
-debconf: delaying package configuration, since apt-utils is not installed
-Fetched 902 kB in 0s (10.9 MB/s)
-Selecting previously unselected package libcurl4t64:amd64.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 49547 files and directories currently installed.)
-Preparing to unpack .../libcurl4t64_8.5.0-2ubuntu10.8_amd64.deb ...
-Unpacking libcurl4t64:amd64 (8.5.0-2ubuntu10.8) ...
-Selecting previously unselected package curl.
-Preparing to unpack .../curl_8.5.0-2ubuntu10.8_amd64.deb ...
-Unpacking curl (8.5.0-2ubuntu10.8) ...
-Preparing to unpack .../libcurl3t64-gnutls_8.5.0-2ubuntu10.8_amd64.deb ...
-Unpacking libcurl3t64-gnutls:amd64 (8.5.0-2ubuntu10.8) over (8.5.0-2ubuntu10.6) ...
-Setting up libcurl4t64:amd64 (8.5.0-2ubuntu10.8) ...
-Setting up libcurl3t64-gnutls:amd64 (8.5.0-2ubuntu10.8) ...
-Setting up curl (8.5.0-2ubuntu10.8) ...
-Processing triggers for libc-bin (2.39-0ubuntu8.6) ...
-downloading uv 0.9.5 x86_64-unknown-linux-gnu
-no checksums to verify
-installing to /root/.local/bin
-  uv
-  uvx
-everything's installed!
-
-To add $HOME/.local/bin to your PATH, either restart your shell or run:
-
-    source $HOME/.local/bin/env (sh, bash, zsh)
-    source $HOME/.local/bin/env.fish (fish)
-Downloading cpython-3.13.9-linux-x86_64-gnu (download) (32.0MiB)
- Downloading cpython-3.13.9-linux-x86_64-gnu (download)
-Downloading pygments (1.2MiB)
- Downloading pygments
-Installed 6 packages in 25ms
-============================= test session starts ==============================
-platform linux -- Python 3.13.9, pytest-8.4.1, pluggy-1.6.0
-rootdir: /tests
-plugins: json-ctrf-0.3.5
-collected 2 items
-
-../tests/test_outputs.py ..                                              [100%]
-
-==================================== PASSES ====================================
-=========================== short test summary info ============================
-PASSED ../tests/test_outputs.py::test_extract_js_exists
-PASSED ../tests/test_outputs.py::test_output_matches_reference
-============================== 2 passed in 0.30s ===============================

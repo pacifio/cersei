@@ -1,22 +1,33 @@
 # Changelog
 
-## [Unreleased]
+## [LongMemEval Benchmark] - 2026-04-24
 
 ### Added
 
-- **LongMemEval head-to-head benchmark (`bench/long-mem/`).** Runs the 500-question [LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025) dataset — the same benchmark [Mastra](https://mastra.ai/research/observational-memory), [Zep](https://arxiv.org/abs/2501.13956), and Supermemory use — against four Cersei memory configurations: full-context baseline, usearch-HNSW semantic (`EmbeddingMemory`), grafeo graph substring+rerank (`GraphMemory::recall_top_k`), and a hybrid config combining LLM fact extraction + embedding + graph + RRF fusion. Judge rubric is a verbatim port of Mastra's TypeScript harness so numbers are directly comparable. Docs: [Memory Benchmark](https://cersei.pacifio.dev/docs/bench-memory).
-  - **Headline result on `longmemeval_s` (2026-04-21, `gpt-4o-mini` answerer + judge):**
-    - Baseline (full-context `JsonlMemory`): 54.8 % overall, 66.7 % abstention, 52.15 M input tokens.
-    - Embed (`EmbeddingMemory`, usearch HNSW): **56.6 % overall, 100 % abstention, 0.98 M input tokens (53× fewer than baseline)**.
-    - Graph substring: 0.3 % overall (honest floor — substring can't paraphrase-match), 100 % abstention.
-    - **Hybrid (fact extractor + embed + graph + RRF)**: **64.6 % overall (+9.8 pp over baseline, +8 pp over embed-only), 96.7 % abstention, 0.70 M input tokens (75× fewer than baseline).**
-    - Hybrid wins or ties on every question type. Biggest gains over embed-only are on the types that need cross-session synthesis: **multi-session +19 pp** (50.4 % vs 31.4 %) and **temporal-reasoning +15 pp** (45.7 % vs 30.7 %).
+- **LongMemEval head-to-head benchmark (`bench/long-mem/`).** Runs the 500-question [LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025) dataset — the same benchmark [Mastra](https://mastra.ai/research/observational-memory), [Zep](https://arxiv.org/abs/2501.13956), Supermemory, Hindsight, and EmergenceMem report on — against four Cersei memory configurations: full-context baseline, usearch-HNSW semantic (`EmbeddingMemory`), grafeo graph substring+rerank (`GraphMemory::recall_top_k`), and a hybrid config combining an Observer LLM pass + embedding + graph + RRF fusion. Judge rubric, observer rubric, and context-injection prompts are **verbatim ports** from Mastra's `@mastra/memory` so numbers land on the same public leaderboard. Docs: [Memory Benchmark](https://cersei.pacifio.dev/docs/bench-memory).
+  - **Headline result on `longmemeval_s` (2026-04-24, all on `gemini-2.5-flash`):**
+    - Baseline (full-context `JsonlMemory`): **84.6 %** overall, 86.7 % abstention, 422/500, 53.16 M input tokens.
+    - Embed (`EmbeddingMemory`, usearch HNSW + `gemini-embedding-001`): **84.2 %** overall, 86.7 % abstention, 429/500, **2.68 M input tokens (20× fewer than baseline)**.
+    - Graph substring (`GraphMemory`, grafeo): 6.6 % overall (honest floor — substring can't paraphrase-match), 100 % abstention.
+    - **Hybrid (Observer + embed + graph + RRF):** **85.7 % overall, 93.3 % abstention, 432/500, 1.58 M input tokens (34× fewer than baseline).** Best config; wins outright on `knowledge-update` (94.4 %).
+  - **Leaderboard position:** Cersei Hybrid 85.7 % beats Supermemory / `gemini-3-pro-preview` (85.2 %), Supermemory / `gpt-5` (84.6 %), Mastra OM / `gpt-4o` (84.23 %), Mastra RAG (80.05 %), Zep (71.2 %), and lands within 0.3 pp of EmergenceMem Internal on `gpt-4o` (86.0 %). Remaining gap to Mastra OM / `gemini-3-flash-preview` (89.2 %) and `gpt-5-mini` (94.87 %) is concentrated on answerer-model tier, not algorithm.
+- **Mastra prompt port** (`bench/long-mem/src/mastra_prompts.rs`) — verbatim ports of `OBSERVER_EXTRACTION_INSTRUCTIONS`, `OBSERVER_OUTPUT_FORMAT`, `OBSERVER_GUIDELINES`, `OBSERVATION_CONTEXT_PROMPT`, `OBSERVATION_CONTEXT_INSTRUCTIONS` from `_inspirations/mastra/packages/memory/src/processors/observational-memory/`. Unit tests assert the required sections round-trip.
 - **`cersei-memory::embedding_memory::EmbeddingMemory`** — thin adapter bridging `cersei-embeddings::EmbeddingStore` into the `Memory` trait. Behind the new optional `embed` feature so consumers opt in. Exposes `add`, `add_batch`, and standard `Memory::{store, search, delete}` with relevance-scored `MemoryEntry` return values.
 - **`cersei-memory::graph::GraphMemory::recall_top_k(query, limit)`** — returns `Vec<(String, f32)>` where the score is the fraction of query words found in each memory. Additive; does not change the existing `recall` signature.
+- **`cersei-embeddings::GeminiEmbeddings`** rewritten for `gemini-embedding-001` (3072-d native, Matryoshka `outputDimensionality` supported). Uses the `embedContent` endpoint with `futures::stream::buffered(20)` concurrency; retries 429 + 5xx + transport errors with exponential backoff (6 attempts, ~30 s window).
 
 ### Fixed
 
 - **`cersei-embeddings::OpenAiEmbeddings::embed_batch`** no longer panics on multi-byte UTF-8 input. The truncation logic used raw byte slicing at index 2000, which panicked on any text containing non-ASCII characters (Spanish diacritics, emoji, smart quotes) when the character straddled the slice boundary. Now walks back to the nearest char boundary. Caught while running the LongMemEval bench against Spanish session content.
+
+### Security
+
+- **Gemini API keys moved from URL query string (`?key=…`) to the `x-goog-api-key` header** in both `cersei-provider::Gemini` and `cersei-embeddings::GeminiEmbeddings`. The URL now contains no secret, so `reqwest::Error` Display (which prints the URL) cannot leak the key. Prior code would expose the key in every transport error, and those errors rode into tracked `.log` files and per-question `rows-*.json` artifacts.
+- **`redact_url_key` helper** in `cersei-embeddings/src/gemini.rs` — belt-and-braces scrubber applied to any error body that might still reference a URL carrying `key=…` (e.g. historic error strings, upstream error bodies).
+- **`.gitignore` hardened** to cover `bench/**/*.log`, `bench/**/results*/`, `bench/**/runner-*.sh`, `bench/**/abstract-output.jsonl`, `bench/**/tb-results/`, and any `.env*` / `*.secret*` / `credentials*.json`.
+- **`bench/term-bench/runner-google.sh`** no longer hardcodes a key; it fails fast unless `GOOGLE_API_KEY` is already in env.
+- **38 previously-tracked bench artifacts** (logs, per-question rows, terminal-bench JSONL) removed from the git index. Numbers are reproducible by rerunning the bench.
+- Pre-commit sanity check: `git ls-files | xargs grep -l -E "AIza[A-Za-z0-9_-]{35}|sk-[A-Za-z0-9_-]{30,}"` must return zero tracked files.
 
 ## [0.1.7] - 2026-04-20
 

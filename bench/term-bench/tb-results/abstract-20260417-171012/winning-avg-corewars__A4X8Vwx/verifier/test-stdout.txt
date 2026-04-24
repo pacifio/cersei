@@ -1,87 +1,0 @@
-Get:1 http://deb.debian.org/debian stable InRelease [140 kB]
-Get:2 http://deb.debian.org/debian trixie InRelease [140 kB]
-Get:3 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
-Get:4 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
-Get:5 http://deb.debian.org/debian stable/main Sources [10.5 MB]
-Get:6 http://deb.debian.org/debian trixie-updates/main amd64 Packages.diff/Index [2713 B]
-Err:6 http://deb.debian.org/debian trixie-updates/main amd64 Packages.diff/Index
-  Need 5956 compressed bytes, but limit is 5412 and original is 5412
-Get:7 http://deb.debian.org/debian trixie/main amd64 Packages [9671 kB]
-Get:8 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [123 kB]
-Get:6 http://deb.debian.org/debian trixie-updates/main amd64 Packages.diff/Index [2713 B]
-Ign:6 http://deb.debian.org/debian trixie-updates/main amd64 Packages.diff/Index
-Get:9 http://deb.debian.org/debian trixie-updates/main amd64 Packages [5412 B]
-Fetched 20.7 MB in 1s (14.9 MB/s)
-Reading package lists...
-Reading package lists...
-Building dependency tree...
-Reading state information...
-The following additional packages will be installed:
-  libcurl3t64-gnutls libcurl4t64
-The following packages will be upgraded:
-  curl libcurl3t64-gnutls libcurl4t64
-3 upgraded, 0 newly installed, 0 to remove and 46 not upgraded.
-Need to get 1044 kB of archives.
-After this operation, 0 B of additional disk space will be used.
-Get:1 http://deb.debian.org/debian trixie/main amd64 curl amd64 8.14.1-2+deb13u2 [270 kB]
-Get:2 http://deb.debian.org/debian trixie/main amd64 libcurl4t64 amd64 8.14.1-2+deb13u2 [391 kB]
-Get:3 http://deb.debian.org/debian trixie/main amd64 libcurl3t64-gnutls amd64 8.14.1-2+deb13u2 [383 kB]
-debconf: unable to initialize frontend: Dialog
-debconf: (TERM is not set, so the dialog frontend is not usable.)
-debconf: falling back to frontend: Readline
-debconf: unable to initialize frontend: Readline
-debconf: (This frontend requires a controlling tty.)
-debconf: falling back to frontend: Teletype
-debconf: unable to initialize frontend: Teletype
-debconf: (This frontend requires a controlling tty.)
-debconf: falling back to frontend: Noninteractive
-Fetched 1044 kB in 0s (49.0 MB/s)
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 33177 files and directories currently installed.)
-Preparing to unpack .../curl_8.14.1-2+deb13u2_amd64.deb ...
-Unpacking curl (8.14.1-2+deb13u2) over (8.14.1-2) ...
-Preparing to unpack .../libcurl4t64_8.14.1-2+deb13u2_amd64.deb ...
-Unpacking libcurl4t64:amd64 (8.14.1-2+deb13u2) over (8.14.1-2) ...
-Preparing to unpack .../libcurl3t64-gnutls_8.14.1-2+deb13u2_amd64.deb ...
-Unpacking libcurl3t64-gnutls:amd64 (8.14.1-2+deb13u2) over (8.14.1-2) ...
-Setting up libcurl4t64:amd64 (8.14.1-2+deb13u2) ...
-Setting up libcurl3t64-gnutls:amd64 (8.14.1-2+deb13u2) ...
-Setting up curl (8.14.1-2+deb13u2) ...
-Processing triggers for man-db (2.13.1-1) ...
-Processing triggers for libc-bin (2.41-12) ...
-downloading uv 0.9.5 x86_64-unknown-linux-gnu
-no checksums to verify
-installing to /root/.local/bin
-  uv
-  uvx
-everything's installed!
-
-To add $HOME/.local/bin to your PATH, either restart your shell or run:
-
-    source $HOME/.local/bin/env (sh, bash, zsh)
-    source $HOME/.local/bin/env.fish (fish)
-Downloading pygments (1.2MiB)
- Downloading pygments
-Installed 6 packages in 66ms
-============================= test session starts ==============================
-platform linux -- Python 3.13.5, pytest-8.4.1, pluggy-1.6.0
-rootdir: /tests
-plugins: json-ctrf-0.3.5
-collected 3 items
-
-../tests/test_outputs.py ...                                             [100%]
-
-==================================== PASSES ====================================
-___________________________ test_warrior_performance ___________________________
------------------------------ Captured stdout call -----------------------------
-vs stone.red   :  80/100 wins ( 80%) - PASS (need 75%+)
-vs vampire.red :  82/100 wins ( 82%) - PASS (need 75%+)
-vs paper.red   :  85/100 wins ( 85%) - PASS (need 75%+)
-vs snake.red   :  50/100 wins ( 50%) - PASS (need 33%+)
-vs g2-clear.red:  51/100 wins ( 51%) - PASS (need 33%+)
-PASSED (5/5): stone.red, vampire.red, paper.red, snake.red, g2-clear.red
-FAILED (0/5): None
-=========================== short test summary info ============================
-PASSED ../tests/test_outputs.py::test_opponents_integrity
-PASSED ../tests/test_outputs.py::test_warrior_exists
-PASSED ../tests/test_outputs.py::test_warrior_performance
-============================== 3 passed in 0.56s ===============================

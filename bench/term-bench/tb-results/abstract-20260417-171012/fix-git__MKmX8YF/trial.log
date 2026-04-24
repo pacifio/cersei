@@ -1,7 +1,0 @@
-Selected strategy: _DaytonaDirect
-Using prebuilt image: alexgshaw/fix-git:20251031
-Running command: chmod +x /usr/local/bin/abstract
-Command outputs captured
-Running command: abstract -p 'I just made some changes to my personal site and checked out master, but now I can'"'"'t find those changes. Please help me find them and merge them into master.
-' --model google/gemini-3.1-pro-preview --embedding-api --no-permissions --headless --output-format stream-json 2>&1 | tee /logs/agent/abstract-output.jsonl
-Command outputs captured

@@ -32,26 +32,35 @@ export function Tag({ type }) {
   );
 }
 
-<Version version="Unreleased" date="2026-04-21">
+<Version version="LongMemEval Benchmark" date="2026-04-24">
 
-<Tag type="added" /> **LongMemEval head-to-head memory benchmark (`bench/long-mem/`).** Runs the 500-question [LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025) dataset — the same benchmark [Mastra](https://mastra.ai/research/observational-memory), [Zep](https://arxiv.org/abs/2501.13956), and Supermemory use — across four Cersei memory configurations. Judge rubric is a verbatim port of Mastra's TypeScript harness so numbers are directly comparable. Full methodology + reproduction on [/docs/bench-memory](/docs/bench-memory).
+<Tag type="added" /> **LongMemEval head-to-head memory benchmark (`bench/long-mem/`).** Runs the 500-question [LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025) dataset — the same benchmark [Mastra](https://mastra.ai/research/observational-memory), [Zep](https://arxiv.org/abs/2501.13956), Supermemory, Hindsight, and EmergenceMem report on — across four Cersei memory configurations. Judge rubric, observer rubric, and context-injection prompts are **verbatim ports** from Mastra's `@mastra/memory` so numbers land on the same public leaderboard. Full methodology + reproduction on [/docs/bench-memory](/docs/bench-memory).
 
-<Tag type="added" /> **Headline results on `longmemeval_s` (500 Qs, `gpt-4o-mini` answerer + judge, 2026-04-21):**
-  - **Hybrid (fact extractor + embed + graph + RRF fusion): 64.6 % overall accuracy, 96.7 % abstention, 0.70 M input tokens — +9.8 pp over the full-context baseline while using 75× fewer input tokens.** Wins or ties on every question type; biggest gains over pure semantic retrieval are on `multi-session` (+19 pp) and `temporal-reasoning` (+15 pp).
-  - **Semantic recall alone (`EmbeddingMemory` over usearch HNSW): 56.6 % overall, 100 % abstention, 0.98 M input tokens** — already beats the 52-million-token full-context baseline (54.8 %) on accuracy while costing ~51× less.
-  - Full-context baseline: 54.8 %. Graph-substring floor: 0.3 %.
+<Tag type="added" /> **Final numbers on `longmemeval_s` (500 Qs, all models `gemini-2.5-flash`, 2026-04-24):**
+  - **Hybrid (Observer + embed + graph + RRF): 85.7 % overall, 93.3 % abstention, 432/500 correct, 1.58 M input tokens (34× fewer than baseline).** Best config — wins outright on `knowledge-update` (94.4 %).
+  - **Embed-only (`EmbeddingMemory` over usearch HNSW + `gemini-embedding-001`): 84.2 % overall, 86.7 % abstention, 429/500, 2.68 M input tokens (20× fewer).** Already beats Mastra OM / `gpt-4o` and Supermemory / `gpt-4o` on its own.
+  - Baseline (full-context `JsonlMemory`): 84.6 %, 86.7 % abstention, 422/500, 53.16 M input tokens.
+  - Graph-substring floor: 6.6 %, 100 % abstention.
+
+<Tag type="added" /> **Leaderboard position.** Cersei Hybrid 85.7 % lands above **Supermemory / `gemini-3-pro-preview`** (85.2 %), **Supermemory / `gpt-5`** (84.6 %), **Mastra OM / `gpt-4o`** (84.23 %), **Mastra RAG / `gpt-4o`** (80.05 %), **Zep / `gpt-4o`** (71.2 %), and within **0.3 pp** of EmergenceMem Internal on `gpt-4o` (86.0 %). Remaining gap to **Mastra OM / `gemini-3-flash-preview`** (89.2 %) and `gpt-5-mini` (94.87 %) is model-tier, not algorithm.
+
+<Tag type="added" /> **Mastra prompt port** — `bench/long-mem/src/mastra_prompts.rs` ports `OBSERVER_EXTRACTION_INSTRUCTIONS`, `OBSERVER_OUTPUT_FORMAT`, `OBSERVER_GUIDELINES`, `OBSERVATION_CONTEXT_PROMPT`, `OBSERVATION_CONTEXT_INSTRUCTIONS` verbatim from `@mastra/memory`. The context-injection prompt's `KNOWLEDGE UPDATES` / `PLANNED ACTIONS` / `MOST RECENT USER INPUT` clauses are what drive the Hybrid win on `knowledge-update` (94.4 %).
 
 <Tag type="added" /> **`cersei-memory::embedding_memory::EmbeddingMemory`** — thin adapter bridging `cersei-embeddings::EmbeddingStore` into the `Memory` trait. Behind the new optional `embed` feature so consumers opt in.
 
 ```rust
 use cersei_memory::embedding_memory::EmbeddingMemory;
-use cersei_embeddings::{OpenAiEmbeddings, Metric};
-let mem = EmbeddingMemory::new(OpenAiEmbeddings::from_env()?, Metric::Cosine)?;
+use cersei_embeddings::{GeminiEmbeddings, Metric};
+let mem = EmbeddingMemory::new(GeminiEmbeddings::from_env()?, Metric::Cosine)?;
 ```
 
 <Tag type="added" /> **`GraphMemory::recall_top_k(query, limit) -> Vec<(String, f32)>`** — scored retrieval that re-ranks the substring-match candidates by fraction of query words found. Additive; the existing `recall` signature is unchanged.
 
-<Tag type="fixed" /> **`cersei-embeddings::OpenAiEmbeddings::embed_batch`** no longer panics on multi-byte UTF-8 input. The pre-call truncation was byte-slicing at index 2000, which crashed when the boundary fell inside a character (Spanish diacritics, emoji, smart quotes). Now walks back to the nearest char boundary.
+<Tag type="added" /> **`cersei-embeddings::GeminiEmbeddings`** rewritten for `gemini-embedding-001` (3072-d native, Matryoshka `outputDimensionality` supported). Uses the `embedContent` endpoint with bounded concurrent streaming; retries 429 / 5xx / transport errors with exponential backoff (6 attempts, ~30 s window).
+
+<Tag type="fixed" /> **`cersei-embeddings::OpenAiEmbeddings::embed_batch` and `GeminiEmbeddings::embed_batch`** no longer panic on multi-byte UTF-8 input. The pre-call truncation was byte-slicing at index 2000, which crashed when the boundary fell inside a character (Spanish diacritics, emoji, smart quotes). Now walks back to the nearest char boundary.
+
+<Tag type="changed" /> **Gemini API key plumbing (SECURITY).** Keys now ride the `x-goog-api-key` header instead of the `?key=…` URL query string in both `cersei-provider::Gemini` and `cersei-embeddings::GeminiEmbeddings`. The URL contains no secret, so `reqwest::Error` Display (which prints the URL) cannot leak the key. Added a `redact_url_key` helper as belt-and-braces; tightened `.gitignore` to block `bench/**/*.log`, `bench/**/results*/`, `bench/**/runner-*.sh`, `bench/**/abstract-output.jsonl`, and `.env*`. Untracked 38 previously-committed bench artifacts that carried keys. Prompted by two historic leaks — see [`bench-memory`](/docs/bench-memory#security-hygiene) for the post-mortem.
 
 </Version>
 

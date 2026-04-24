@@ -1,81 +1,0 @@
-Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
-Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
-Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
-Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8792 kB]
-Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
-Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [294 kB]
-Fetched 9347 kB in 1s (9649 kB/s)
-Reading package lists...
-Reading package lists...
-Building dependency tree...
-Reading state information...
-The following additional packages will be installed:
-  libcurl4
-The following NEW packages will be installed:
-  curl libcurl4
-0 upgraded, 2 newly installed, 0 to remove and 19 not upgraded.
-Need to get 707 kB of archives.
-After this operation, 1361 kB of additional disk space will be used.
-Get:1 http://deb.debian.org/debian bookworm/main amd64 libcurl4 amd64 7.88.1-10+deb12u14 [392 kB]
-Get:2 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10+deb12u14 [316 kB]
-debconf: delaying package configuration, since apt-utils is not installed
-Fetched 707 kB in 0s (17.5 MB/s)
-Selecting previously unselected package libcurl4:amd64.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 17538 files and directories currently installed.)
-Preparing to unpack .../libcurl4_7.88.1-10+deb12u14_amd64.deb ...
-Unpacking libcurl4:amd64 (7.88.1-10+deb12u14) ...
-Selecting previously unselected package curl.
-Preparing to unpack .../curl_7.88.1-10+deb12u14_amd64.deb ...
-Unpacking curl (7.88.1-10+deb12u14) ...
-Setting up libcurl4:amd64 (7.88.1-10+deb12u14) ...
-Setting up curl (7.88.1-10+deb12u14) ...
-Processing triggers for libc-bin (2.36-9+deb12u13) ...
-downloading uv 0.9.5 x86_64-unknown-linux-gnu
-no checksums to verify
-installing to /root/.local/bin
-  uv
-  uvx
-everything's installed!
-
-To add $HOME/.local/bin to your PATH, either restart your shell or run:
-
-    source $HOME/.local/bin/env (sh, bash, zsh)
-    source $HOME/.local/bin/env.fish (fish)
-Downloading cpython-3.13.9-linux-x86_64-gnu (download) (32.0MiB)
- Downloading cpython-3.13.9-linux-x86_64-gnu (download)
-Downloading pygments (1.2MiB)
- Downloading pygments
-Installed 6 packages in 18ms
-============================= test session starts ==============================
-platform linux -- Python 3.13.9, pytest-8.4.1, pluggy-1.6.0
-rootdir: /tests
-plugins: json-ctrf-0.3.5
-collected 2 items
-
-../tests/test_outputs.py FF                                              [100%]
-
-=================================== FAILURES ===================================
-______________________________ test_result_exists ______________________________
-
-    def test_result_exists():
->       assert os.path.exists("/app/result.txt"), "result.txt file does not exist"
-E       AssertionError: result.txt file does not exist
-E       assert False
-E        +  where False = <function exists at 0x769854be3240>('/app/result.txt')
-E        +    where <function exists at 0x769854be3240> = <module 'posixpath' (frozen)>.exists
-E        +      where <module 'posixpath' (frozen)> = os.path
-
-/tests/test_outputs.py:7: AssertionError
-______________________________ test_data_matches _______________________________
-
-    def test_data_matches():
-        expected = "GritLM/GritLM-7B"
->       with open("/app/result.txt", "r") as f:
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E       FileNotFoundError: [Errno 2] No such file or directory: '/app/result.txt'
-
-/tests/test_outputs.py:12: FileNotFoundError
-=========================== short test summary info ============================
-FAILED ../tests/test_outputs.py::test_result_exists - AssertionError: result....
-FAILED ../tests/test_outputs.py::test_data_matches - FileNotFoundError: [Errn...
-============================== 2 failed in 0.07s ===============================

@@ -13,3 +13,36 @@ _inspirations
 .claude
 
 bench/runner-*.sh
+
+# ─── SECRET / ARTIFACT HYGIENE ─────────────────────────────────────────────
+# Bench run artifacts — logs, per-question rows, terminal-bench JSONL —
+# have historically captured API keys in reqwest error messages and Google
+# `?key=` query strings. Do NOT commit any of them. Re-run the bench to
+# regenerate locally; the numbers are reproducible.
+bench/long-mem/results/
+bench/long-mem/results-*/
+bench/long-mem/*.log
+bench/long-mem/full-*-run*.log
+bench/long-mem/data/
+bench/term-bench/tb-results/
+bench/term-bench/*.log
+bench/term-bench/failure_patterns.txt
+bench/**/*.log
+bench/**/abstract-output.jsonl
+
+# Anything under a bench runner that historically hardcoded keys.
+bench/**/runner-*.sh
+bench/**/runner-*.bash
+
+# Belt-and-braces: anything that looks like a secret-bearing file.
+.env
+.env.*
+!.env.example
+*.secret
+*.secret.*
+credentials.json
+credentials.*.json
+
+# Python venvs created by bench harnesses.
+bench/**/.venv/
+bench/**/__pycache__/

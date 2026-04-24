@@ -1,7 +1,0 @@
-Selected strategy: _DaytonaDirect
-Using prebuilt image: alexgshaw/gcode-to-text:20251031
-Running command: chmod +x /usr/local/bin/abstract
-Command outputs captured
-Running command: abstract -p 'I have provided a file called text.gcode. This is a gcode file for a Prusa MK4s. I'"'"'m trying to print some text onto an existing object. When I run the print, what will the text show? Write the output to /app/out.txt
-' --model google/gemini-3.1-pro-preview --embedding-api --no-permissions --headless --output-format stream-json 2>&1 | tee /logs/agent/abstract-output.jsonl
-Command outputs captured
