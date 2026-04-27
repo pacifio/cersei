@@ -1,0 +1,20 @@
+[package]
+name = "gemini-doctor"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Standalone Gemini API connectivity checker — DNS, TLS, auth, streaming. Used to diagnose VPN / network issues without involving the cersei agent loop."
+publish = false
+
+[[bin]]
+name = "gemini-doctor"
+path = "src/main.rs"
+
+[dependencies]
+tokio       = { workspace = true }
+reqwest     = { workspace = true }
+serde_json  = { workspace = true }
+anyhow      = { workspace = true }
+futures     = { workspace = true }
+clap        = { version = "4", features = ["derive"] }

@@ -1,8 +1,8 @@
 //! LongMemEval dataset schema + loader.
 //!
-//! Ported from `_inspirations/mastra/explorations/longmemeval/src/data/types.ts`.
+//! Schema and abstention semantics ported from Mastra's longmemeval harness.
 //! Abstention detection matches Mastra: a question is an abstention case iff
-//! `question_id.ends_with("_abs")` (loader.ts:83 and commands/run.ts:1119).
+//! `question_id.ends_with("_abs")`.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};

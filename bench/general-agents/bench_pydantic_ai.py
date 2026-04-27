@@ -1,6 +1,6 @@
 """PydanticAI benchmark harness — matches Agno's cookbook methodology.
 
-Mirrors `_inspirations/agno/cookbook/09_evals/performance/comparison/pydantic_ai_instantiation.py`:
+Mirrors Agno's cookbook `pydantic_ai_instantiation.py` methodology:
 constructs `Agent("openai:gpt-4o", ...)` with a `@agent.tool_plain`-registered
 weather function. The model string is lazy — no network on construction.
 

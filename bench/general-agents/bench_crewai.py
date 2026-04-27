@@ -1,6 +1,6 @@
 """CrewAI benchmark harness — matches Agno's cookbook methodology.
 
-Mirrors `_inspirations/agno/cookbook/09_evals/performance/comparison/crewai_instantiation.py`:
+Mirrors Agno's cookbook `crewai_instantiation.py` methodology:
 constructs a CrewAI `Agent` with `llm="gpt-4o"` (string form — lazy, no
 network) and a `@tool`-decorated weather function.
 

@@ -1,6 +1,6 @@
 //! Verbatim ports of Mastra's Observational Memory prompts.
 //!
-//! Source: `_inspirations/mastra/packages/memory/src/processors/observational-memory/`
+//! Source: Mastra's `@mastra/memory` package, observational-memory processors.
 //!
 //! These prompts are copied **byte-for-byte** from Mastra's TypeScript constants.
 //! Do NOT modify them unless upstream Mastra changes. The point of porting is to

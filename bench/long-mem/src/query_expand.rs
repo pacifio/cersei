@@ -2,9 +2,8 @@
 //! [Omega-memory's](https://github.com/omega-memory) `query_expansion.py`
 //! prompt and contract.
 //!
-//! Source: `_inspirations/omega-memory/src/omega/query_expansion.py:30-41`.
-//!
-//! The system prompt is copied byte-for-byte. Paraphrasing kills the lift —
+//! Source: Omega-memory's `query_expansion.py` — the system prompt is copied
+//! byte-for-byte. Paraphrasing kills the lift —
 //! Omega's +1-2 pp comes from the exact variant counts and the "no verbatim
 //! repeats / different vocabulary" rule.
 

@@ -49,15 +49,28 @@ fn cap_tool_result(content: &str) -> String {
         );
     }
 
-    // Char-based fallback for single long lines or binary-ish output
+    // Char-based fallback for single long lines or binary-ish output.
+    //
+    // `head_chars` and the tail slice index are byte offsets, but `content`
+    // is UTF-8 and tool output frequently contains multi-byte characters
+    // (DuckDB's `─`/`┌`/`┬`/`┴` are 3 bytes each, emoji are 4). Slicing
+    // mid-codepoint panics with "byte index N is not a char boundary".
+    // Walk the head down and the tail up to the nearest boundary first.
     if content.len() > MAX_SINGLE_RESULT_CHARS {
-        let head_chars = MAX_SINGLE_RESULT_CHARS * 70 / 100;
+        let mut head_chars = MAX_SINGLE_RESULT_CHARS * 70 / 100;
+        while head_chars > 0 && !content.is_char_boundary(head_chars) {
+            head_chars -= 1;
+        }
         let tail_chars = MAX_SINGLE_RESULT_CHARS * 20 / 100;
-        let omitted = content.len().saturating_sub(head_chars + tail_chars);
+        let mut tail_start = content.len().saturating_sub(tail_chars);
+        while tail_start < content.len() && !content.is_char_boundary(tail_start) {
+            tail_start += 1;
+        }
+        let omitted = tail_start.saturating_sub(head_chars);
         return format!(
             "{}\n\n[... {omitted} chars omitted ...]\n\n{}",
             &content[..head_chars],
-            &content[content.len().saturating_sub(tail_chars)..]
+            &content[tail_start..]
         );
     }
 
@@ -1061,5 +1074,43 @@ fn benchmark_check_tests(tool_calls: &[ToolCallRecord]) -> BenchmarkVerification
         BenchmarkVerification::TestsFailed(last_test_output)
     } else {
         BenchmarkVerification::TestsPassed
+    }
+}
+
+#[cfg(test)]
+mod runner_tests {
+    use super::*;
+
+    /// Regression: a `dbt run` producing a >MAX_SINGLE_RESULT_CHARS string
+    /// containing 3-byte box-drawing characters (`─` / `┌` / `┬` / `┴`)
+    /// used to panic the bench harness with
+    /// `byte index N is not a char boundary; it is inside '─'`. The
+    /// truncator now walks both cut points to the nearest char boundary
+    /// before slicing.
+    #[test]
+    fn cap_tool_result_handles_multibyte_at_cut() {
+        // Build a string longer than MAX_SINGLE_RESULT_CHARS, single-line
+        // (so the line-based path doesn't fire), packed with 3-byte glyphs.
+        let one_glyph = "─"; // U+2500, 3 bytes UTF-8
+        let needed_bytes = MAX_SINGLE_RESULT_CHARS + 5_000;
+        let n_glyphs = needed_bytes / one_glyph.len() + 1;
+        let big: String = one_glyph.repeat(n_glyphs);
+        // No newlines, so the single-line fallback path runs.
+        assert!(big.lines().count() == 1);
+
+        // Must not panic and must return *something* truncated.
+        let out = cap_tool_result(&big);
+        assert!(out.len() < big.len());
+        assert!(out.contains("chars omitted"));
+    }
+
+    #[test]
+    fn cap_tool_result_handles_4byte_emoji_at_cut() {
+        let glyph = "🚀"; // 4 bytes UTF-8
+        let needed = MAX_SINGLE_RESULT_CHARS + 5_000;
+        let n = needed / glyph.len() + 1;
+        let big: String = glyph.repeat(n);
+        let out = cap_tool_result(&big);
+        assert!(out.len() < big.len());
     }
 }

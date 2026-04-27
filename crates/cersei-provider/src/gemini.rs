@@ -11,6 +11,22 @@ use tokio::sync::mpsc;
 
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
 
+/// HTTP client with sane timeouts. The default `reqwest::Client::new()` has
+/// **no** request timeout — a single hung Gemini streaming call can stall the
+/// agent loop for 10+ minutes (observed in spider2-dbt smoke runs). 300s per
+/// request is generous for thinking-mode completions; the streaming pool / TLS
+/// connect have tight budgets. The provider's own retry-with-backoff (5
+/// attempts) handles the resulting timeout errors as transient.
+fn build_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .connect_timeout(std::time::Duration::from_secs(20))
+        .pool_idle_timeout(std::time::Duration::from_secs(60))
+        .tcp_keepalive(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
 // ─── Gemini provider ────────────────────────────────────────────────────────
 
 pub struct Gemini {
@@ -30,7 +46,7 @@ impl Gemini {
             api_key: api_key.into(),
             base_url,
             default_model: "gemini-3.1-pro-preview".to_string(),
-            client: reqwest::Client::new(),
+            client: build_http_client(),
         }
     }
 
@@ -550,7 +566,7 @@ impl GeminiBuilder {
             default_model: self
                 .model
                 .unwrap_or_else(|| "gemini-3.1-pro-preview".to_string()),
-            client: reqwest::Client::new(),
+            client: build_http_client(),
         })
     }
 }

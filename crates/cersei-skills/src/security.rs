@@ -6,9 +6,8 @@
 //! exfil / destructive commands." The full policy decision (allow / block /
 //! gate behind user confirmation) lives in `cersei-tools::skills`.
 //!
-//! Scan patterns match [hermes-agent's cron threat scanner](../../_inspirations/hermes-agent/tools/cronjob_tools.py#L39-L66)
-//! 1:1 so skills written for either runtime produce the same security
-//! verdict.
+//! Scan patterns match hermes-agent's cron threat scanner 1:1 so skills
+//! written for either runtime produce the same security verdict.
 
 use crate::parser::Skill;
 use serde::{Deserialize, Serialize};

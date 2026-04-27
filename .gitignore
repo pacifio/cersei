@@ -27,8 +27,17 @@ bench/long-mem/data/
 bench/term-bench/tb-results/
 bench/term-bench/*.log
 bench/term-bench/failure_patterns.txt
+bench/spider2-dbt/results/
+bench/spider2-dbt/results-*/
+bench/spider2-dbt/data/
+bench/spider2-dbt/spider2-repo/
+bench/spider2-dbt/workdirs/
+bench/spider2-dbt/full-*-run*.log
+bench/spider2-dbt/smoke-*.log
 bench/**/*.log
 bench/**/abstract-output.jsonl
+bench/**/*.duckdb
+bench/**/*.duckdb.wal
 
 # Anything under a bench runner that historically hardcoded keys.
 bench/**/runner-*.sh

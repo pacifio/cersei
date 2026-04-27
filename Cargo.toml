@@ -17,6 +17,8 @@ members = [
     "crates/cersei-skills",
     "crates/abstract-cli",
     "bench/long-mem",
+    "bench/spider2-dbt",
+    "tools/gemini-doctor",
 ]
 
 [workspace.package]
@@ -101,6 +103,7 @@ cersei-hooks = { path = "crates/cersei-hooks" }
 cersei-mcp = { path = "crates/cersei-mcp" }
 cersei-embeddings = { path = "crates/cersei-embeddings" }
 cersei-compression = { path = "crates/cersei-compression" }
+cersei-skills = { path = "crates/cersei-skills" }
 
 [profile.release]
 strip = true

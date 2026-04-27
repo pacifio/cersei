@@ -1,7 +1,7 @@
 //! Verbatim ports of [Omega-memory's](https://github.com/omega-memory)
 //! per-category RAG prompts.
 //!
-//! Source: `_inspirations/omega-memory/scripts/longmemeval_official.py`
+//! Source: Omega-memory's `longmemeval_official.py` — the five RAG prompts
 //! (`RAG_PROMPT_VANILLA`, `RAG_PROMPT_ENHANCED`, `RAG_PROMPT_MULTISESSION`,
 //! `RAG_PROMPT_PREFERENCE`, `RAG_PROMPT_TEMPORAL`).
 //!

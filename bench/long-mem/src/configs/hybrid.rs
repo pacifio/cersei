@@ -36,8 +36,8 @@ const EXPANSION_WEIGHT: f32 = 0.8;
 
 /// Omega-memory's empirical abstention floors (v0.1.8). Hits below these
 /// thresholds are discarded before RRF fusion — prevents noise-ridden
-/// candidates from winning on an otherwise empty haystack. Source:
-/// `_inspirations/omega-memory/src/omega/sqlite_store/_types.py:73-80`.
+/// candidates from winning on an otherwise empty haystack. Numbers come from
+/// Omega's `sqlite_store/_types.py` defaults.
 const VEC_MIN_SIM: f32 = 0.35;
 const GRAPH_MIN_SCORE: f32 = 0.30;
 

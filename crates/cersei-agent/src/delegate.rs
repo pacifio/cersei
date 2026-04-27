@@ -1,8 +1,7 @@
 //! Parallel delegation primitive — spawn N isolated subagents with
 //! restricted toolsets and collect their summaries.
 //!
-//! Port of `_inspirations/hermes-agent/tools/delegate_tool.py`. The key
-//! invariants:
+//! Hermes-agent inspired delegation primitive. The key invariants:
 //!
 //! - **Isolation**: child agents start with a fresh conversation — no
 //!   parent history, own session-id-equivalent.
@@ -247,9 +246,8 @@ async fn run_single(
     })
 }
 
-/// Build the child system prompt. Verbatim port of
-/// `_inspirations/hermes-agent/tools/delegate_tool.py::_build_child_system_prompt`
-/// — paraphrasing costs us the bench parity guarantee.
+/// Build the child system prompt. Verbatim hermes-agent shape — paraphrasing
+/// costs us the bench parity guarantee.
 pub fn build_child_system_prompt(task: &DelegateTask) -> String {
     let mut parts: Vec<String> = Vec::with_capacity(6);
     parts.push("You are a focused subagent working on a specific delegated task.".into());

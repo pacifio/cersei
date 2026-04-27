@@ -1,6 +1,6 @@
 """LangGraph benchmark harness — matches Agno's cookbook methodology.
 
-Mirrors `_inspirations/agno/cookbook/09_evals/performance/comparison/langgraph_instantiation.py`:
+Mirrors Agno's cookbook `langgraph_instantiation.py` methodology:
 uses `langgraph.prebuilt.create_react_agent` with a real `ChatOpenAI` model
 (lazy, no network on construction) plus a `@tool`-decorated weather function.
 

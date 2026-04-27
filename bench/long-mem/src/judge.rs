@@ -1,8 +1,7 @@
 //! LongMemEval LLM-as-judge scorer.
 //!
-//! Ports the exact rubric prompts from
-//! `_inspirations/mastra/explorations/longmemeval/src/evaluation/longmemeval-metric.ts`,
-//! which in turn copies verbatim from the official benchmark:
+//! Ports the exact rubric prompts from Mastra's longmemeval-metric, which in
+//! turn copies verbatim from the official benchmark:
 //! <https://github.com/xiaowu0162/LongMemEval/blob/main/src/evaluation/evaluate_qa.py>.
 //!
 //! DO NOT modify the prompt strings — they must match the official benchmark
