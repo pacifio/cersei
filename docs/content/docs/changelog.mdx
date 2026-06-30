@@ -32,6 +32,30 @@ export function Tag({ type }) {
   );
 }
 
+<Version version="0.2.6" date="2026-06-30">
+
+<Tag type="added" /> **MCP servers are now connected, and their tools reach the model.** The builder collected `mcp_server(...)` configs but never connected them (`mcp_manager` was hardcoded `None`). New **`AgentBuilder::build_async()`** connects every configured server via `McpManager::connect`, wraps each discovered tool as a native `McpTool` (routing `execute()` back through `tools/call`), and merges them into the toolset so the model can call them through normal dispatch. A shared `finish()` core backs both `build()` and `build_async()`; sync `build()` warns and skips when MCP servers are configured, and `run_with()` routes through `build_async()`.
+
+<Tag type="added" /> **SSE (HTTP) MCP transport.** `McpServerConfig::sse(url)` previously errored "SSE transport not yet implemented". MCP transports now sit behind a `Transport` trait (`StdioTransport` + new `SseTransport`), `McpClient` holds a `Box<dyn Transport>`, and `connect()` branches stdio/sse over one initialize handshake. `SseTransport` implements the MCP HTTP+SSE spec (SSE GET stream, `endpoint` event, JSON-RPC POSTs correlated by id) on `reqwest` + `reqwest-eventsource`. New `headers` field on `McpServerConfig` (+ `with_headers`) applied to the GET and every POST for auth.
+
+<Tag type="added" /> **New `List` tool.** A native, cwd-aware directory listing (`cersei_tools::list::ListTool`, registered in `filesystem()`): immediate entries relative to `ctx.working_dir`, directories suffixed with `/` and sorted first, honors `.gitignore` by default (toggle via `ignore`), always skips `.git`/`node_modules`. Built on the `ignore` crate, mirroring `Grep`/`Glob`.
+
+<Tag type="added" /> **Compression savings on the event stream.** RTK tool-output compression only logged its before/after byte+line counts and `savings_pct`. New `CompressionStats` + `compress_tool_output_with_stats(...)`; the stats now ride along on `AgentEvent::ToolEnd { compression: Option<CompressionStats>, .. }` (`None` for un-compressed error results).
+
+<Tag type="added" /> **`AgentBuilder::with_cumulative_usage(Usage)`** seeds the agent's cumulative token/cost counters, so an agent rebuilt per turn restores prior totals instead of resetting to zero.
+
+<Tag type="changed" /> **The `Edit` replacer ladder gains three strategies.** On top of exact / line-trimmed / block-anchor / whitespace-normalized / indentation-flexible: **escape-normalized** (literal `\n`/`\t`/`\r`/`\\` interpreted as real chars), **trimmed-boundary** (strip leading/trailing blank lines from `old_string`), and **context-aware** (anchor on a unique *interior* line, expand to a same-size block, guarded by the block-anchor similarity threshold). Every candidate still feeds the existing verbatim-slice + uniqueness guards.
+
+<Tag type="changed" /> **Provider-agnostic `reasoning_effort`.** The OpenAI-compatible provider maps a `reasoning_effort` option (`minimal`/`low`/`medium`/`high`) onto the request body, gated to reasoning models (o-series / gpt-5) — mirroring how Gemini reads `thinking_budget`.
+
+<Tag type="fixed" /> **File tools resolve relative paths against the working directory.** `Read`/`Write`/`Edit`/`MultiEdit`/`NotebookEdit` resolved a bare `file_path` against the *process* cwd, ignoring `ctx.working_dir` (Grep/Glob/Bash were fixed in 0.2.4; these were missed). New `ToolContext::resolve_path` joins relative paths onto `working_dir` (absolute paths pass through); all five tools route through it.
+
+<Tag type="fixed" /> **Streaming no longer corrupts multibyte UTF-8.** All three providers decoded each network chunk with `String::from_utf8_lossy`, so a codepoint split across a chunk boundary (`é`, `🎉`) became `U+FFFD`. A shared `Utf8StreamDecoder` carries the trailing partial bytes to the next chunk.
+
+<Tag type="changed" /> **Workspace bumped to `0.2.6`** across every crate via `version.workspace = true`.
+
+</Version>
+
 <Version version="0.2.5" date="2026-06-29">
 
 <Tag type="changed" /> **`Grep` is now native and in-process — no external `rg`/`grep` binary required.** It previously shelled out to ripgrep if `which` found it on `PATH`, else fell back to system `grep` (losing gitignore-awareness and speed); since `rg` is rarely preinstalled, models that reached for it failed on stock machines. `Grep` (and the `tool_primitives::search::grep` primitive) now use ripgrep's own library crates — [`ignore`](https://docs.rs/ignore) for a lock-free **parallel, gitignore-aware** recursive walk and [`grep`](https://docs.rs/grep) for the matcher/searcher. Behavior is identical on every machine, and the tool description steers models to `Grep` instead of running `rg` in Bash. Respects `.gitignore`/`.ignore` and skips hidden/binary files by default (gitignore honored even outside a git repo); output is sorted by `(file, line)` for deterministic results. New `GrepOptions` fields `no_ignore`/`hidden` (defaulting to prior behavior); the tool gains `case_insensitive`/`hidden` schema fields. New deps `ignore` + `grep` (Unlicense OR MIT).

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.6] - 2026-06-30
+
+This release closes a batch of SDK gaps so native consumers (e.g. Atlas) can drop the workarounds they carried for them: MCP wiring, file-tool working-dir handling, streaming correctness, a directory-listing tool, and a few quality-of-life additions.
+
+### Added
+
+- **MCP servers are now connected and their tools exposed to the model.** The agent builder collected `mcp_server(...)` configs but never connected them (`mcp_manager` was hardcoded `None`), so MCP tools never reached the toolset. New **`AgentBuilder::build_async()`** connects every configured server via `McpManager::connect`, wraps each discovered tool as a native `cersei_tools::mcp_tool::McpTool` (routing `execute()` back through `tools/call`), and merges them alongside the built-in tools so the model can call them through the normal dispatch path. A shared `finish()` core backs both `build()` and `build_async()`; sync `build()` now warns and skips when MCP servers are configured, and `run_with()` routes through `build_async()` so one-shot runs get MCP tools too.
+- **SSE (HTTP) MCP transport.** `McpServerConfig::sse(url)` previously errored with "SSE transport not yet implemented" — only stdio worked. MCP transports now sit behind a `Transport` trait (`StdioTransport` + new `SseTransport`); `McpClient` holds a `Box<dyn Transport>`, and `connect()` branches stdio/sse over one shared initialize handshake. `SseTransport` implements the MCP HTTP+SSE spec (opens the SSE GET stream, waits for the `endpoint` event, POSTs JSON-RPC requests to it, correlates responses by id) on `reqwest` + `reqwest-eventsource`. New **`headers` field on `McpServerConfig`** (serde-defaulted) + `with_headers(...)`, applied to the SSE GET and every POST for auth; env vars in header values are expanded.
+- **New `List` tool.** A native, cwd-aware directory-listing tool (`cersei_tools::list::ListTool`, registered in `filesystem()`): lists a directory's immediate entries relative to `ctx.working_dir`, suffixes directories with `/`, sorts directories-first then alphabetically, honors `.gitignore` by default (toggle via the `ignore` arg), and always skips `.git`/`node_modules`. Built on the [`ignore`](https://docs.rs/ignore) crate, mirroring the `Grep`/`Glob` filtering.
+- **RTK compression savings are now a typed field on the event stream.** Tool-output compression computed before/after byte+line counts and `savings_pct` but only emitted them on a `tracing` log line, so consumers had to scrape logs. New `cersei_compression::CompressionStats` + `compress_tool_output_with_stats(...)`; the stats now ride along on **`AgentEvent::ToolEnd { compression: Option<CompressionStats>, .. }`** (`None` for error results, which aren't compressed).
+- **`AgentBuilder::with_cumulative_usage(Usage)`.** Seeds the agent's cumulative token/cost counters, so an agent rebuilt per turn restores prior totals instead of resetting to zero.
+
+### Changed
+
+- **The `Edit` replacer ladder gains three more tolerant strategies.** On top of exact / line-trimmed / block-anchor / whitespace-normalized / indentation-flexible, it now also tries: **escape-normalized** (interpret literal `\n`/`\t`/`\r`/`\\` in `old_string` as the real characters), **trimmed-boundary** (strip leading/trailing blank lines from `old_string`), and **context-aware** (anchor on a unique *interior* line and expand to a same-size block, guarded by the same similarity threshold as block-anchor so it can't clobber a dissimilar block). Every new candidate still feeds the existing verbatim-slice + uniqueness guards. (The plan's "multi-occurrence" case is already handled by the exact-match branch — N identical matches report `AmbiguousMatch`, or replace all under `replace_all` — so no separate strategy was added.)
+- **Provider-agnostic `reasoning_effort`.** The OpenAI-compatible provider now maps a `reasoning_effort` option (`"minimal"`/`"low"`/`"medium"`/`"high"`) onto the request body, gated to reasoning-capable models (o-series / gpt-5). Mirrors how Gemini reads `thinking_budget`, giving a single per-provider reasoning knob.
+- Workspace bumped to **0.2.6** across every crate via `version.workspace = true`.
+
+### Fixed
+
+- **File tools now resolve relative paths against the agent's working directory.** `Read`/`Write`/`Edit`/`MultiEdit`/`NotebookEdit` resolved a bare `file_path` against the *process* cwd, ignoring `ctx.working_dir` (Grep/Glob/Bash were fixed in 0.2.4 but these were missed) — so a relative path from an agent with a non-default working dir hit the wrong file or failed outright. New `ToolContext::resolve_path` joins relative paths onto `working_dir` (absolute paths pass through unchanged); all five tools route through it.
+- **Streaming no longer corrupts multibyte UTF-8.** All three providers decoded each network chunk with `String::from_utf8_lossy`, so a codepoint split across a chunk boundary (e.g. `é`, `🎉`) became a `U+FFFD` replacement char. A shared `Utf8StreamDecoder` now carries the trailing partial bytes to the next chunk, so every codepoint is decoded intact.
+
 ## [0.2.5] - 2026-06-29
 
 ### Changed
