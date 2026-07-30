@@ -743,6 +743,55 @@ mod tests {
         );
     }
 
+    /// The hazard the *adaptive* temperature rejection points at.
+    ///
+    /// That 400 reads "`temperature` may only be set to 1 when thinking is
+    /// enabled **or** in adaptive mode" — and "thinking is enabled" is the
+    /// manual `{type:"enabled"}` form. But `accepts_sampling_params()` returns
+    /// `true` for `Manual`, so a manual-thinking model gets both a thinking
+    /// budget and the caller's temperature in the same body. If that 400s, the
+    /// gate has a hole: it fixed the adaptive path and left the manual one
+    /// exposed to the same class of rejection.
+    ///
+    /// §10.5 #10 of TOOL-CALLING-RELIABILITY.md is exactly this question, left
+    /// open because it could not be sourced from primary docs. This settles it
+    /// from the API.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_manual_thinking_plus_temperature_is_the_open_question() {
+        let model = std::env::var("CERSEI_LIVE_ANTHROPIC_MANUAL_MODEL")
+            .unwrap_or_else(|_| "claude-sonnet-4-6".to_string());
+        assert_eq!(
+            thinking_mode(&model),
+            ThinkingMode::Manual,
+            "this test needs a manual-thinking model; '{model}' is not one. \
+             Set CERSEI_LIVE_ANTHROPIC_MANUAL_MODEL."
+        );
+
+        let mut r = CompletionRequest::new(&model);
+        r.max_tokens = 2048;
+        r.messages = vec![Message::user("Reply with the single word: ok")];
+        r.temperature = Some(0.3);
+        let mut body = build_anthropic_body(&model, &r, Some(1024), None);
+        body["stream"] = serde_json::json!(false);
+
+        // Precondition: the gate currently lets both keys through together.
+        assert_eq!(body["temperature"], serde_json::json!(0.3f32));
+        assert_eq!(body["thinking"]["type"], "enabled");
+
+        let Some((status, text)) = post_live(&body).await else {
+            return;
+        };
+        eprintln!("manual thinking + temperature 0.3 → HTTP {status}: {text}");
+        assert!(
+            (200..300).contains(&status),
+            "manual thinking + a non-default temperature was rejected with {status}. \
+             That means `accepts_sampling_params()` is wrong for `Manual` when a \
+             thinking budget is also being sent, and the gate needs to drop \
+             temperature whenever thinking is enabled in ANY mode: {text}"
+        );
+    }
+
     /// `max_tokens` defaults to 16384 in abstract-cli (`config.rs`).
     const CLI_MAX_TOKENS: u32 = 16384;
 

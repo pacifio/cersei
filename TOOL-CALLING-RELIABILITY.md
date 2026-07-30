@@ -1211,7 +1211,27 @@ Gate after Phase 7: `cargo build --workspace` clean; `cargo test --workspace` **
 
 ### 10.2 F-01 resolution — §H3's `Unverified` is now Confirmed
 
-Primary-source facts (Anthropic docs via the `claude-api` reference; no live call — no key exists in this repo):
+> **CONFIRMED AGAINST THE LIVE API — 2026-07-31.** The docs-only basis below has been
+> re-verified with real calls (`cersei-provider::anthropic::tests::live_*`, 4 ignored tests,
+> run with a key on `claude-sonnet-5`). Results:
+>
+> | Body sent | HTTP | API message |
+> |---|---|---|
+> | What the gate builds (`{type:"adaptive",display:"summarized"}`) | **200** | — |
+> | Pre-gate manual form (`{type:"enabled",budget_tokens:N}`) | **400** | `"thinking.type.enabled" is not supported for this model. Use "thinking.type.adaptive" and "output_config.effort" to control thinking behavior.` |
+> | Gate output + `temperature: 0.3` | **400** | `` `temperature` may only be set to 1 when thinking is enabled or in adaptive mode. `` |
+>
+> F-01 is therefore **Confirmed from the API**, not merely from documentation, and the fix is
+> confirmed to produce an accepted request. The 400 text also names the exact migration the
+> gate implements, which is as direct a corroboration as this finding can get.
+>
+> **The third message opened a new question — see §10.5 #10.** *"…when thinking is enabled or
+> in adaptive mode"* covers the **manual** form too, but `accepts_sampling_params()` returns
+> `true` for `Manual`, so Cersei still sends a budget and a caller temperature together on
+> 4.6-era models. `live_manual_thinking_plus_temperature_is_the_open_question` settles it;
+> it is written to **fail** if that combination 400s.
+
+Primary-source facts (Anthropic docs via the `claude-api` reference; docs-only at the time of writing — since superseded by the live results above):
 
 - `thinking:{type:"enabled",budget_tokens:N}` → **400** on Opus 4.7/4.8, Sonnet 5, Fable 5;
   deprecated-but-functional on Opus/Sonnet 4.6; the only form on 4.5-era and older.
@@ -1316,7 +1336,7 @@ code that was never broken and skips the code that was.
 7. **Turn-2 hazard on newly-unblocked models:** `cersei-types` serializes `signature: ""` on thinking blocks (`#[serde(default)]` but no `skip_serializing_if`), and the stream accumulator hardcodes an empty signature — echoed history may 400 on adaptive models. F-01 fixed turn 1; turn 2 on `claude-opus-4-8` is **not proven**. Related: §H3's `signature_delta` finding.
 8. Opus/Sonnet 4.6 stay on manual+clamp rather than migrating to adaptive (docs: deprecated but functional; migrating is untestable risk on the one working direct path).
 9. `display:"summarized"` applies only when a budget is requested; a library caller with `thinking_budget: None` on an adaptive model gets server-side thinking with empty streamed text.
-10. The thinking × temperature interaction on *manual* models (a review lens claimed extended thinking rejects non-default `temperature` even pre-4.7) was **not** actioned: it could not be sourced in primary docs, and per §4.5 discipline an unsourced provider-behavior claim does not get coded against. One live API call settles it.
+10. ~~The thinking × temperature interaction on *manual* models … could not be sourced in primary docs … One live API call settles it.~~ **PARTLY SETTLED 2026-07-31 — and the review lens looks right.** The live call was made (§10.2). On *adaptive* models `temperature` is a hard **400**, and the gate already drops it, so that half is closed and now test-bound. The API's own wording is `` `temperature` may only be set to 1 when thinking is enabled **or** in adaptive mode `` — and "thinking is enabled" is the **manual** `{type:"enabled"}` form, which is precisely the claim §4.5 discipline had refused to code against for want of a source. It now has one. **Still open:** `accepts_sampling_params()` returns `true` for `Manual`, so a 4.6-era model receives `budget_tokens` and the caller's `temperature` in the same body. If that combination 400s, the F-01 gate has a hole on the one path that was previously working — the direct-Anthropic default. `live_manual_thinking_plus_temperature_is_the_open_question` is written to fail loudly in that case; run it with a key to decide. Fix, if needed: drop `temperature` whenever a `thinking` key is emitted in *any* mode, not only where `accepts_sampling_params()` is false.
 
 ### 10.6 Verdict
 
