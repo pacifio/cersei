@@ -46,7 +46,9 @@ pub struct AnthropicVertex {
 }
 
 impl AnthropicVertex {
-    pub fn new(
+    // Not `pub`: `VertexAuthSpec` is private, so no external caller could ever
+    // name the first argument anyway. Construct via `from_env`.
+    fn new(
         auth_spec: VertexAuthSpec,
         project_id: impl Into<String>,
         location: impl Into<String>,
@@ -108,7 +110,6 @@ impl AnthropicVertex {
     }
 
     async fn bearer_token(&self) -> Result<String> {
-        use gcp_auth::TokenProvider;
         if let VertexAuthSpec::Static(t) = &self.auth_spec {
             return Ok(t.clone());
         }

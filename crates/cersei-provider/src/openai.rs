@@ -91,10 +91,16 @@ impl Provider for OpenAi {
                     // Check if this is a tool result message
                     if let MessageContent::Blocks(blocks) = &msg.content {
                         for block in blocks {
+                            // `is_error` is deliberately discarded: OpenAI's
+                            // `role:"tool"` message has no error field on the
+                            // wire. The failure signal still reaches the model
+                            // because the runner appends its error note into
+                            // the result content itself (see §2.1 of the
+                            // tool-calling audit).
                             if let ContentBlock::ToolResult {
                                 tool_use_id,
                                 content,
-                                is_error,
+                                is_error: _,
                             } = block
                             {
                                 api_messages.push(serde_json::json!({
