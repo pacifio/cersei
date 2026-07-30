@@ -766,24 +766,35 @@ mod tests {
         );
     }
 
-    /// The hazard the *adaptive* temperature rejection points at.
+    /// A manual-thinking model with a caller temperature — the case the first
+    /// version of the F-01 gate got wrong.
     ///
-    /// That 400 reads "`temperature` may only be set to 1 when thinking is
-    /// enabled **or** in adaptive mode" — and "thinking is enabled" is the
-    /// manual `{type:"enabled"}` form. But `accepts_sampling_params()` returns
-    /// `true` for `Manual`, so a manual-thinking model gets both a thinking
-    /// budget and the caller's temperature in the same body. If that 400s, the
-    /// gate has a hole: it fixed the adaptive path and left the manual one
-    /// exposed to the same class of rejection.
-    ///
-    /// §10.5 #10 of TOOL-CALLING-RELIABILITY.md is exactly this question, left
-    /// open because it could not be sourced from primary docs. This settles it
-    /// from the API.
+    /// The *adaptive* rejection reads "`temperature` may only be set to 1 when
+    /// thinking is enabled **or** in adaptive mode", and "thinking is enabled"
+    /// is the manual `{type:"enabled"}` form. The live API confirmed that
+    /// broader reading on `claude-sonnet-4-6`, a `Manual` model, with a 400 —
+    /// so `accepts_sampling_params` now takes the request into account and not
+    /// just the model. This is the paired positive: what the corrected gate
+    /// builds is accepted.
+    fn live_manual_body(model: &str) -> serde_json::Value {
+        let mut r = CompletionRequest::new(model);
+        r.max_tokens = 2048;
+        r.messages = vec![Message::user("Reply with the single word: ok")];
+        r.temperature = Some(0.3);
+        let mut body = build_anthropic_body(model, &r, Some(1024), None);
+        body["stream"] = serde_json::json!(false);
+        body
+    }
+
+    fn live_manual_model() -> String {
+        std::env::var("CERSEI_LIVE_ANTHROPIC_MANUAL_MODEL")
+            .unwrap_or_else(|_| "claude-sonnet-4-6".to_string())
+    }
+
     #[tokio::test]
     #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
-    async fn live_manual_thinking_plus_temperature_is_the_open_question() {
-        let model = std::env::var("CERSEI_LIVE_ANTHROPIC_MANUAL_MODEL")
-            .unwrap_or_else(|_| "claude-sonnet-4-6".to_string());
+    async fn live_manual_thinking_gate_output_is_accepted() {
+        let model = live_manual_model();
         assert_eq!(
             thinking_mode(&model),
             ThinkingMode::Manual,
@@ -791,27 +802,46 @@ mod tests {
              Set CERSEI_LIVE_ANTHROPIC_MANUAL_MODEL."
         );
 
-        let mut r = CompletionRequest::new(&model);
-        r.max_tokens = 2048;
-        r.messages = vec![Message::user("Reply with the single word: ok")];
-        r.temperature = Some(0.3);
-        let mut body = build_anthropic_body(&model, &r, Some(1024), None);
-        body["stream"] = serde_json::json!(false);
-
-        // Precondition: the gate currently lets both keys through together.
-        assert_eq!(body["temperature"], serde_json::json!(0.3f32));
+        let body = live_manual_body(&model);
+        // The corrected gate keeps the manual thinking budget and drops the
+        // temperature that would otherwise 400 next to it.
         assert_eq!(body["thinking"]["type"], "enabled");
+        assert!(
+            body.get("temperature").is_none(),
+            "precondition: the gate must drop temperature while thinking is on"
+        );
+
+        let Some((status, text)) = post_live(&body).await else {
+            return;
+        };
+        eprintln!("manual gate output → HTTP {status}");
+        assert!(
+            (200..300).contains(&status),
+            "the body Cersei builds for '{model}' was rejected with {status}: {text}"
+        );
+    }
+
+    /// The load-bearing negative: put the dropped temperature back and the same
+    /// request 400s. This is what proves the drop is required rather than
+    /// merely cautious — §10.5 #10, settled from the API.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_manual_thinking_plus_temperature_is_rejected() {
+        let model = live_manual_model();
+        assert_eq!(thinking_mode(&model), ThinkingMode::Manual);
+
+        let mut body = live_manual_body(&model);
+        body["temperature"] = serde_json::json!(0.3);
 
         let Some((status, text)) = post_live(&body).await else {
             return;
         };
         eprintln!("manual thinking + temperature 0.3 → HTTP {status}: {text}");
-        assert!(
-            (200..300).contains(&status),
-            "manual thinking + a non-default temperature was rejected with {status}. \
-             That means `accepts_sampling_params()` is wrong for `Manual` when a \
-             thinking budget is also being sent, and the gate needs to drop \
-             temperature whenever thinking is enabled in ANY mode: {text}"
+        assert_eq!(
+            status, 400,
+            "the gate drops temperature alongside manual thinking because the API \
+             rejects the pair. Got {status} — if this is a 2xx the drop is \
+             unnecessary and the gate is over-restrictive: {text}"
         );
     }
 
