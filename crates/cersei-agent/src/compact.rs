@@ -207,17 +207,101 @@ pub fn group_messages_for_compact(messages: &[Message]) -> Vec<MessageGroup> {
     groups
 }
 
+// ─── Tool-pair-aware splitting (F-04) ────────────────────────────────────────
+
+/// `tool_result` ids in `msg` that no earlier `tool_use` in `msgs` answers.
+///
+/// This is the same check every provider runs server-side. A `tool_result`
+/// without its `tool_use` in the *same request* is a 400, and the runner maps a
+/// 400 to `CerseiError::Provider`, which `is_retryable()` does not match — so
+/// the conversation is wedged for good rather than retried.
+pub fn find_orphaned_tool_results(msgs: &[Message]) -> Vec<String> {
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut orphaned = Vec::new();
+    for m in msgs {
+        let MessageContent::Blocks(blocks) = &m.content else {
+            continue;
+        };
+        // Same message first: a tool_use and its result never share a message
+        // in practice, but scanning uses before results keeps that from
+        // mattering.
+        for b in blocks {
+            if let ContentBlock::ToolUse { id, .. } = b {
+                seen.insert(id);
+            }
+        }
+        for b in blocks {
+            if let ContentBlock::ToolResult { tool_use_id, .. } = b {
+                if !seen.contains(tool_use_id.as_str()) {
+                    orphaned.push(tool_use_id.clone());
+                }
+            }
+        }
+    }
+    orphaned
+}
+
+/// True if `msg` carries any `tool_result` block.
+fn carries_tool_result(msg: &Message) -> bool {
+    match &msg.content {
+        MessageContent::Blocks(b) => b
+            .iter()
+            .any(|x| matches!(x, ContentBlock::ToolResult { .. })),
+        _ => false,
+    }
+}
+
+/// Where to cut a history so that `msgs[split..]` is a valid request.
+///
+/// The naive `len - keep_n` is wrong half the time. The runner builds a
+/// strictly alternating history (idx 0 `user`, odd `assistant[tool_use]`, even
+/// `user[tool_result]`), and `KEEP_RECENT_MESSAGES` is even, so
+/// `parity(split) == parity(len)`: for every even-length conversation the cut
+/// lands on a `user[tool_result]` and discards the `tool_use` that answers it.
+///
+/// Backing off one message reaches the `assistant[tool_use]`, which repairs the
+/// pair and, for the summary path, also removes the `user(summary)` /
+/// `user(tool_result)` adjacency that Gemini and most local chat templates
+/// reject. It only ever keeps *more* context than asked, never less.
+pub fn pair_aware_split(msgs: &[Message], keep_n: usize) -> usize {
+    let mut split = msgs.len().saturating_sub(keep_n);
+    while split > 0 && carries_tool_result(&msgs[split]) {
+        split -= 1;
+    }
+    split
+}
+
 // ─── Snip compact (simple truncation) ────────────────────────────────────────
 
-/// Remove oldest messages, keeping only the newest `keep_n`.
+/// Stands in for the turns the snip fallback dropped, so the history still
+/// opens with a `user` message. Kept short: it is pure overhead on a path taken
+/// precisely when context is scarce.
+pub const SNIP_TRUNCATION_NOTICE: &str =
+    "[earlier turns were dropped to free context; continue from the messages below]";
+
+/// Remove oldest messages, keeping the newest `keep_n` — plus one more when
+/// that boundary would sever a `tool_use`/`tool_result` pair (see
+/// [`pair_aware_split`]). `keep_n` is a floor, not an exact count.
+///
 /// Returns (remaining messages, estimated tokens freed).
 pub fn snip_compact(messages: Vec<Message>, keep_n: usize) -> (Vec<Message>, u64) {
     if messages.len() <= keep_n {
         return (messages, 0);
     }
-    let removed = &messages[..messages.len() - keep_n];
-    let freed = estimate_messages_tokens(removed);
-    let kept = messages[messages.len() - keep_n..].to_vec();
+    let split = pair_aware_split(&messages, keep_n);
+    let freed = estimate_messages_tokens(&messages[..split]);
+    let mut kept = messages[split..].to_vec();
+
+    // Backing off to keep a tool pair intact lands on the `assistant[tool_use]`,
+    // so the surviving history opens with an assistant turn. The summary path
+    // gets away with that because it prepends `user(summary)`; this path
+    // prepends nothing, and Anthropic rejects any request whose first message is
+    // not `user`. Fixing only the orphan would have swapped one guaranteed 400
+    // for another — so the marker goes in here, where it also tells the model
+    // why its history starts mid-task.
+    if !matches!(kept.first().map(|m| m.role), Some(Role::User) | None) {
+        kept.insert(0, Message::user(SNIP_TRUNCATION_NOTICE));
+    }
     (kept, freed)
 }
 
@@ -339,7 +423,11 @@ pub async fn compact_conversation(
         });
     }
 
-    let split_idx = messages.len() - keep_recent;
+    // The same split the caller will actually apply (F-04). Using the naive
+    // `len - keep_recent` here instead would summarise one message that the
+    // runner then also keeps verbatim, and would make the `messages_after` and
+    // `tokens_freed_estimate` reported below describe a history nobody builds.
+    let split_idx = pair_aware_split(messages, keep_recent);
     let old_messages = &messages[..split_idx];
     let recent_messages = &messages[split_idx..];
 

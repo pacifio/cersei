@@ -34,14 +34,15 @@ impl Tool for EnterWorktreeTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             branch: String,
             path: Option<String>,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         let worktree_path = input.path.unwrap_or_else(|| {
@@ -100,13 +101,14 @@ impl Tool for ExitWorktreeTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             path: String,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         let output = tokio::process::Command::new("git")

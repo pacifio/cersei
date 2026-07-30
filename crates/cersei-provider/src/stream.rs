@@ -16,6 +16,13 @@ pub struct StreamAccumulator {
     usage: Usage,
     model: Option<String>,
     message_id: Option<String>,
+    /// First mid-stream provider error, if any. Recorded rather than discarded so
+    /// `into_response` can fail loudly instead of returning a clean turn (F-03b).
+    stream_error: Option<String>,
+    /// True once a terminal event arrived: `MessageStop`, or a `MessageDelta`
+    /// carrying a `stop_reason`. Distinguishes a turn the provider actually ended
+    /// from a stream that was cut off mid-flight (F-03c).
+    saw_terminal: bool,
 }
 
 impl StreamAccumulator {
@@ -32,6 +39,8 @@ impl StreamAccumulator {
             usage: Usage::default(),
             model: None,
             message_id: None,
+            stream_error: None,
+            saw_terminal: false,
         }
     }
 
@@ -81,8 +90,27 @@ impl StreamAccumulator {
                     },
                     "tool_use" => {
                         let json_str = self.partial_json.remove(&index).unwrap_or_default();
-                        let input =
-                            serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Null);
+                        let input = if json_str.trim().is_empty() {
+                            // No input_json_delta events at all: this is a
+                            // no-argument call, which is `{}`, never `null` (F-05).
+                            serde_json::Value::Object(serde_json::Map::new())
+                        } else {
+                            match serde_json::from_str::<serde_json::Value>(&json_str) {
+                                // A literal `null` arguments payload is also a
+                                // no-argument call, not a type error.
+                                Ok(serde_json::Value::Null) => {
+                                    serde_json::Value::Object(serde_json::Map::new())
+                                }
+                                Ok(value) => value,
+                                // Preserve BOTH the parse error and the raw text so
+                                // the dispatch layer can echo them plus the tool's
+                                // own schema back to the model (F-05).
+                                Err(err) => serde_json::json!({
+                                    "__parse_error": err.to_string(),
+                                    "__raw": json_str,
+                                }),
+                            }
+                        };
                         ContentBlock::ToolUse {
                             id: self.tool_use_ids.remove(&index).unwrap_or_default(),
                             name: self.tool_use_names.remove(&index).unwrap_or_default(),
@@ -107,19 +135,49 @@ impl StreamAccumulator {
             }
             StreamEvent::MessageDelta { stop_reason, usage } => {
                 if let Some(sr) = stop_reason {
+                    // The provider told us why the turn ended: that is a terminal
+                    // signal even if `MessageStop` never arrives.
+                    self.saw_terminal = true;
                     self.stop_reason = Some(sr);
                 }
                 if let Some(u) = usage {
                     self.usage.merge(&u);
                 }
             }
-            StreamEvent::MessageStop => {}
+            StreamEvent::MessageStop => {
+                self.saw_terminal = true;
+            }
             StreamEvent::Ping => {}
-            StreamEvent::Error { .. } => {}
+            StreamEvent::Error { message } => {
+                // Do not swallow it (F-03b). Keep the first error: later ones on the
+                // same stream are usually cascade noise.
+                if self.stream_error.is_none() {
+                    self.stream_error = Some(message);
+                }
+            }
         }
     }
 
     pub fn into_response(self) -> Result<super::CompletionResponse> {
+        // A provider error mid-stream is a failed turn, not a partial success (F-03b).
+        if let Some(message) = self.stream_error.clone() {
+            return Err(CerseiError::Provider(message));
+        }
+
+        // An unterminated stream is not a clean turn (F-03c). `EndTurn` is only
+        // legitimate when the provider actually ended the turn.
+        let stop_reason = match &self.stop_reason {
+            Some(sr) => sr.clone(),
+            None if self.saw_terminal => StopReason::EndTurn,
+            None => {
+                return Err(CerseiError::Provider(format!(
+                    "stream ended without a terminal event (no stop_reason, no message_stop); \
+                     the response is incomplete ({} content block(s) accumulated)",
+                    self.content_blocks.len()
+                )))
+            }
+        };
+
         let message = Message {
             role: Role::Assistant,
             content: if self.content_blocks.is_empty() {
@@ -139,7 +197,7 @@ impl StreamAccumulator {
         Ok(super::CompletionResponse {
             message,
             usage: self.usage,
-            stop_reason: self.stop_reason.unwrap_or(StopReason::EndTurn),
+            stop_reason,
         })
     }
 
