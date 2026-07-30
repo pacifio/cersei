@@ -1,0 +1,38 @@
+# Weekly drift check against the real Anthropic API.
+#
+# Why this exists: the temperature-with-thinking bug (TOOL-CALLING-RELIABILITY.md
+# §10.5 #10) survived a 44-test offline suite because the suite asserted the
+# documented behavior and the API's actual behavior differed. These live tests
+# are the only defense against that class of bug — the API changing under a
+# green offline suite. Costs a few hundred tokens per run.
+#
+# Requires the ANTHROPIC_API_KEY repository secret. Without it the job still
+# passes (the tests print "not set — skipping") — so the schedule is safe to
+# keep even before the secret is configured, but it proves nothing until it is.
+name: Live API drift
+
+on:
+  schedule:
+    # Mondays 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run live Anthropic tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY secret is not configured — the live tests will skip, not verify. The green check proves nothing until the secret is added."
+          fi
+          cargo test -p cersei-provider --lib live_ -- --ignored --nocapture

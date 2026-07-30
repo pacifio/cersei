@@ -1,0 +1,25 @@
+# Offline gate: the full workspace suite on every push and PR.
+# No API keys are needed — every P0 test runs against scripted local servers,
+# and the live tests skip cleanly when ANTHROPIC_API_KEY is unset.
+name: CI
+
+on:
+  push:
+    branches: [main, runtime-fix]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --workspace
+      - name: Test
+        run: cargo test --workspace --no-fail-fast
