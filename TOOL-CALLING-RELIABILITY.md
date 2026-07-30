@@ -1106,16 +1106,16 @@ Both are single-digit-cent experiments. Neither was run.
 
 Each item is phrased to be filed verbatim.
 
-### P0 — correctness, blocks v0.3 — **ALL DONE 2026-07-30** (test-binding status per §10.2)
+### P0 — correctness, blocks v0.3 — **ALL DONE 2026-07-30**, and **all 22 fix sites test-bound** as of the same day (branch `runtime-fix`, §10.7)
 - [x] **F-01** Gate thinking on model generation; migrate to adaptive; clamp `budget_tokens < max_tokens`. *(S)* — Phase 7. Half B confirmed from primary docs; gate + clamp in `build_anthropic_body`, 15 unit tests, 10-mutation suite. **Bound.**
 - [x] **F-02** Construct `ProviderStatus`/`RateLimit` at the HTTP boundary in all four providers so `is_retryable()` can fire. *(S)* — Phase 5. Status checked inside `complete()`; `StreamEvent::HttpError` deleted; Ctrl-C preserved via `tokio::select!`. **Bound (all 3 providers).**
-- [x] **F-03** Flush accumulated tool calls after the read loop; treat EOF-without-`[DONE]` as an error; stop swallowing `StreamEvent::Error`. *(S)* — Phase 1. ⚠️ openai.rs path bound via `sse_pathologies`; the `stream.rs` accumulator half is **unbound** (§10.2 gap #4).
-- [x] **F-04** Make the compaction split pair-aware; add a pre-request tool-pair assertion. *(M)* — Phase 6. `pair_aware_split` + `find_orphaned_tool_results`. ⚠️ Core bound (5 tests); both **runner call sites unbound** (§10.2 gap #3).
-- [x] **F-05** Preserve raw args + parse error through `stream.rs`; return `input_schema()` on deserialization failure. *(S)* — Phases 1–2. ⚠️ Parse-error half bound; the `{}`-not-`null` no-arg half is **unbound** (§10.2 gap #5).
+- [x] **F-03** Flush accumulated tool calls after the read loop; treat EOF-without-`[DONE]` as an error; stop swallowing `StreamEvent::Error`. *(S)* — Phase 1. openai.rs path bound via `sse_pathologies`; the `stream.rs` accumulator half **bound 2026-07-30** (5 `stream::tests`, §10.7).
+- [x] **F-04** Make the compaction split pair-aware; add a pre-request tool-pair assertion. *(M)* — Phase 6. `pair_aware_split` + `find_orphaned_tool_results`. Core bound (5 tests); both runner call sites **bound 2026-07-30** (`p0_wiring` + `orphan_check_logging`, §10.7).
+- [x] **F-05** Preserve raw args + parse error through `stream.rs`; return `input_schema()` on deserialization failure. *(S)* — Phases 1–2. Parse-error half bound; the `{}`-not-`null` no-arg half **bound 2026-07-30** (3 `stream::tests`, §10.7).
 - [x] **F-06** Enforce `MAX_TOOL_ERRORS_PER_TOOL` or remove the claim from the message. *(S)* — Phase 4. Enforced, with honest advice text. **Bound.**
-- [x] **F-07** Call `cap_tool_result` on the `is_error` branch. *(S)* — Phase 4. ⚠️ Helper bound; the **branch selection is unbound** (§10.2 gap #2).
+- [x] **F-07** Call `cap_tool_result` on the `is_error` branch. *(S)* — Phase 4. Helper bound; the branch selection **bound 2026-07-30** (`p0_wiring::oversized_error_result_is_capped_before_entering_history`, §10.7).
 - [x] **F-10** Add `#[serde(deny_unknown_fields)]` to every tool `Input`, or hoist `file_edit.rs`'s alias coercion into a shared helper applied uniformly. Stop doing both. *(S)* — Phase 3. 35 inputs; Edit's `path`/`old`/`new` aliases removed, scalar type-coercion kept. **Bound** (policy test sweeps every tool).
-- [x] **F-11** Move the read-before-edit guard before dispatch; extend it to Write/MultiEdit/NotebookEdit/ApplyPatch; resolve the path through the same aliases the tools accept. *(S)* — Phase 4. ⚠️ `refusals_for_batch` bound (12 guard_tests); its **wiring into dispatch is unbound** (§10.2 gap #1 — the top follow-up).
+- [x] **F-11** Move the read-before-edit guard before dispatch; extend it to Write/MultiEdit/NotebookEdit/ApplyPatch; resolve the path through the same aliases the tools accept. *(S)* — Phase 4. `refusals_for_batch` bound (12 guard_tests); its wiring into dispatch **bound 2026-07-30** (`p0_wiring::edit_of_unread_file_is_refused_and_the_file_is_untouched`, asserting on bytes-on-disk, §10.7).
 - [x] **F-A2** Reject/segregate tool-call deltas with a missing `index` instead of collapsing to 0. *(S)* — Phase 1. **Bound** (`sse_pathologies::no_index`).
 - [x] **F-A3** Validate tool-call `id`/`name` are non-empty before emitting. *(S)* — Phase 1. **Bound** (`sse_pathologies::empty_id`).
 - [x] **F-A13** Surface `total_lines`/`lines_returned` in Read's result. *(S)* — Phase 2. `tool_feedback::window_notice`. **Bound (4 tests).**
@@ -1249,25 +1249,26 @@ can be silently reverted with the suite fully green. Tree restored and re-verifi
 | F-02 | anthropic `from_http_status` → untyped | **BOUND** (1) |
 | F-02 | openai — same | **BOUND** (4) |
 | F-02 | gemini — same | **BOUND** (1) |
-| F-03b | swallow `StreamEvent::Error` in accumulator | ⚠️ **UNBOUND** |
-| F-03c | terminal-less EOF → clean `EndTurn` | ⚠️ **UNBOUND** |
-| F-05a | empty args → `null` instead of `{}` | ⚠️ **UNBOUND** |
+| F-03b | swallow `StreamEvent::Error` in accumulator | ⚠️ was UNBOUND → **BOUND 2026-07-30** (§10.7) |
+| F-03c | terminal-less EOF → clean `EndTurn` | ⚠️ was UNBOUND → **BOUND 2026-07-30** (§10.7) |
+| F-05a | empty args → `null` instead of `{}` | ⚠️ was UNBOUND → **BOUND 2026-07-30** (§10.7) |
 | F-05b | drop parse error + raw text | **BOUND** (1) |
 | F-A2 | missing `index` collapses to 0 | **BOUND** (1) |
 | F-A3 | emit empty id/name | **BOUND** (2) |
-| F-04a | compaction call site → naive `len - KEEP` split | ⚠️ **UNBOUND** |
-| F-04b | pre-request orphan check → always empty | ⚠️ **UNBOUND** |
+| F-04a | compaction call site → naive `len - KEEP` split | ⚠️ was UNBOUND → **BOUND 2026-07-30** (§10.7) |
+| F-04b | pre-request orphan check → always empty | ⚠️ was UNBOUND → **BOUND 2026-07-30** (§10.7) |
 | F-04c | `pair_aware_split` core | **BOUND** (5) |
 | F-06 | error-budget enforcement | **BOUND** (1) |
-| F-07 | error branch skips `cap_tool_result` | ⚠️ **UNBOUND** |
+| F-07 | error branch skips `cap_tool_result` | ⚠️ was UNBOUND → **BOUND 2026-07-30** (§10.7) |
 | F-10 | drop `deny_unknown_fields` | **BOUND** (1) |
-| F-11 | guard wiring → never refuses | ⚠️ **UNBOUND** |
+| F-11 | guard wiring → never refuses | ⚠️ was UNBOUND → **BOUND 2026-07-30** (§10.7) |
 | F-A13 | `window_notice` → `None` | **BOUND** (4) |
 | F-A14 | strip tool name/schema from errors | **BOUND** (8) |
 | F-A15 | strip valid-value list | **BOUND** (5) |
 
 **Score: 15/22 bound.** Fully bound items: F-01, F-02, F-06, F-10, F-A2, F-A3, F-A13,
 F-A14, F-A15. Items with unbound halves: **F-03, F-04, F-05, F-07, F-11.**
+*(Superseded 2026-07-30, branch `runtime-fix`: all 7 gaps closed, **22/22 bound** — §10.7.)*
 
 **The systemic pattern:** in every gap, the *helper* is unit-tested and the *call site* is
 not — and the call site was the original bug. F-11's defect was guard placement; 12 tests
@@ -1324,6 +1325,9 @@ load-bearing for only ~70% of the fix surface. The five unbound halves share one
 tested helper, untested wiring — and the wiring was the bug in four of the five cases. §10.4
 is therefore the highest-value next increment: five tests, no production code, and it
 converts the P0 suite from "the helpers work" to "reverting any P0 fix fails CI."
+
+*Update 2026-07-30: that increment has landed and been re-audited — every P0 fix now fails
+CI when reverted. See §10.7.*
 
 ### 10.7 Second mutation audit (2026-07-30, branch `runtime-fix`) — the backlog is closed
 
