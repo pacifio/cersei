@@ -14,6 +14,16 @@ prior reviews were re-derived, not carried forward.
 > fix backlog, and the still-open items are in **§10** at the end of this file. Roadmap
 > tick marks are in §8. Line numbers cited in §2–§9 predate the fixes and may have drifted.
 >
+> **STATUS UPDATE — 2026-07-31, branch `runtime-fix`.** The §10.4 backlog landed and a second
+> mutation audit confirms **22/22 fix sites test-bound** (§10.7). F-01 and the whole thinking
+> gate are now **Confirmed against the live API** (5 ignored `live_*` tests, run with a key —
+> §10.2), which surfaced and fixed one real post-P0 bug: `temperature` alongside *manual*
+> thinking 400s too (§10.5 #10). Post-P0 hardening closed §10.5 #1, #2, #5, #6, #7 (retry
+> ladder, quota fail-fast, signature capture, `output_config.effort`). CI added: offline gate
+> on push + weekly live drift check (needs the `ANTHROPIC_API_KEY` repo secret). Gate:
+> `cargo test --workspace` **540 passed / 0 failed / 19 ignored**. Still open: §10.5 #3, #4,
+> #8, #9, and all of P1–P3.
+>
 > **SECOND FOLLOW-UP — 2026-07-30, branch `runtime-fix`.** The §10.4 backlog is closed:
 > 13 new tests, no production-code changes. All 7 formerly-unbound sites were re-mutated
 > and every mutant is now killed — **22/22 fix sites test-bound**. Gate:
@@ -1325,15 +1335,15 @@ code that was never broken and skips the code that was.
    — done: 3 tests in `stream::tests` (no deltas, literal `null`, whitespace-only), plus a
    4th binding F-05b's `__parse_error`/`__raw` preservation at the same seam.
 
-### 10.5 Known gaps — confirmed still open, deliberately not fixed in P0
+### 10.5 Known gaps — status as of 2026-07-31 (originally "deliberately not fixed in P0"; #1, #2, #5, #6, #7, #10 since closed on branch `runtime-fix`)
 
-1. `is_retryable()` covers 429/529 only; Gemini's 503 and transport errors are fatal.
-2. `from_http_status` drops the 429 body — `insufficient_quota` is retried 5× as if transient.
-3. `find_orphaned_tool_results` checks `tool_result`→`tool_use` only, not the mirror rule.
-4. F-02's end-to-end retry test covers OpenAI only; anthropic/gemini are covered at the `complete()` boundary.
-5. No test binds runner.rs to `pair_aware_split` (this is §10.4 #3).
+1. ~~`is_retryable()` covers 429/529 only; Gemini's 503 and transport errors are fatal.~~ **FIXED 2026-07-31.** 500/502/503/504 are retryable alongside 429/529, and `CerseiError::Http` is retryable when the reqwest error is a connect or timeout failure. Bound by `gemini_503_is_retryable`, `connection_refused_is_retryable`, and unit tests in `cersei-types`; reverting fails 6 tests.
+2. ~~`from_http_status` drops the 429 body — `insufficient_quota` is retried 5× as if transient.~~ **FIXED 2026-07-31.** A 429 whose body signals quota exhaustion (`insufficient_quota`, "exceeded your current quota", "credit balance") is no longer retryable — it fails fast instead of spending the 5-sleep backoff ladder on an unpayable answer. Genuine rate limits stay retryable. Bound by `quota_exhausted_429_fails_fast` + unit tests.
+3. `find_orphaned_tool_results` checks `tool_result`→`tool_use` only, not the mirror rule. **Still open.**
+4. F-02's end-to-end retry test covers OpenAI only; anthropic/gemini are covered at the `complete()` boundary. **Still open** (the new 503/quota/transport tests also drive `complete()`, not the runner loop).
+5. ~~No test binds runner.rs to `pair_aware_split` (this is §10.4 #3).~~ **CLOSED 2026-07-31** by the §10.4 backlog: `p0_wiring::compaction_through_the_runner_never_orphans_tool_results` drives the real runner through compaction and asserts pair integrity on the post-compaction request.
 6. ~~**`output_config.effort` is never sent**, so `--effort` is inert on adaptive models…~~ **FIXED 2026-07-31.** `build_anthropic_body` now translates the requested thinking budget into `output_config.effort` on Adaptive and AlwaysOn models (the four canonical CLI budgets map 1024→low, 4096→medium, 8192→high, 32768→max; off-canonical budgets land on the nearest level). No cross-crate plumbing was needed — the budget was already the one signal on this wire, and it is injective per effort level. Manual models keep `budget_tokens` and get no `output_config`. Bound by 6 tests; reverting the emission fails 3. Note the deliberate behavior change: a CLI run at the default effort (Medium) now runs adaptive models at `medium` instead of silently at the API default `high` — that is the fix working, not a regression. **Live-verified 2026-07-31:** the adaptive body carrying `output_config.effort` returned HTTP 200 from the real API (live suite 5/5 post-fix).
-7. **Turn-2 hazard on newly-unblocked models:** `cersei-types` serializes `signature: ""` on thinking blocks (`#[serde(default)]` but no `skip_serializing_if`), and the stream accumulator hardcodes an empty signature — echoed history may 400 on adaptive models. F-01 fixed turn 1; turn 2 on `claude-opus-4-8` is **not proven**. Related: §H3's `signature_delta` finding.
+7. ~~**Turn-2 hazard on newly-unblocked models:** … echoed history may 400 on adaptive models.~~ **FIXED 2026-07-31.** All three legs closed: `StreamEvent::SignatureDelta` was added and the Anthropic SSE reader now parses `signature_delta` instead of dropping it in the catch-all (§H3's structural gap); the accumulator concatenates per-index signature deltas into the `Thinking` block instead of hardcoding `String::new()`; and `cersei-types` gained `skip_serializing_if` so an uncaptured signature is *omitted* from echoed history rather than sent as `"signature": ""`. Captured signatures round-trip verbatim. Bound by 3 tests across the three sites; each of the 3 single-site mutants fails the suite. (A live multi-turn agent run on an adaptive model would still be the gold-standard confirmation; not yet done.)
 8. Opus/Sonnet 4.6 stay on manual+clamp rather than migrating to adaptive (docs: deprecated but functional; migrating is untestable risk on the one working direct path).
 9. `display:"summarized"` applies only when a budget is requested; a library caller with `thinking_budget: None` on an adaptive model gets server-side thinking with empty streamed text.
 10. ~~The thinking × temperature interaction on *manual* models … could not be sourced in primary docs … One live API call settles it.~~ **PARTLY SETTLED 2026-07-31 — and the review lens looks right.** The live call was made (§10.2). On *adaptive* models `temperature` is a hard **400**, and the gate already drops it, so that half is closed and now test-bound. The API's own wording is `` `temperature` may only be set to 1 when thinking is enabled **or** in adaptive mode `` — and "thinking is enabled" is the **manual** `{type:"enabled"}` form, which is precisely the claim §4.5 discipline had refused to code against for want of a source. It now has one. **CLOSED, and the hole was real.** The live call on `claude-sonnet-4-6` — a `Manual` model — returned **400**: `` `temperature` may only be set to 1 when thinking is enabled. `` So the first F-01 gate fixed the adaptive path and left every `--effort`-driven run on 4.6-era models sending an illegal body. That is the *direct-Anthropic default model*, i.e. the development path §1 already identified as the one configuration that "mostly works". **Fixed 2026-07-31:** `build_anthropic_body` now resolves `thinking` *before* `temperature` and `accepts_sampling_params(thinking_enabled)` takes the request into account, so temperature is dropped whenever a `thinking` key is emitted on a Claude id. The ban is deliberately scoped to Claude ids: non-Claude `ANTHROPIC_BASE_URL` gateway models keep their pre-gate behaviour, on the same reasoning that makes `thinking_mode` default them to the legacy shape. Bound by 2 offline tests (reverting the fix fails both) plus a live pair. **Live-verified 2026-07-31, 5/5:** the corrected manual body returns **200**, and putting the temperature back returns **400** — so the drop is confirmed *required*, not merely cautious.
