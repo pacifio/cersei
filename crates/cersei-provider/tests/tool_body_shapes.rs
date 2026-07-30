@@ -260,6 +260,38 @@ async fn router_built_ollama_provider_sends_num_ctx() {
         serde_json::json!(8_192),
         "build_provider must flag the ollama entry with send_num_ctx: {body:#}"
     );
+    // B2: the router-resolved dialect for OpenAI-compatible entries is Loose —
+    // no strict flag, and the author's `required` list untouched.
+    assert!(
+        body["tools"][0]["function"].get("strict").is_none(),
+        "quirks must resolve OpenAiLoose here: {body:#}"
+    );
+    assert_eq!(body["tools"][0]["function"]["parameters"]["required"], serde_json::json!(["file_path"]));
+}
+
+/// B2: the serialization site must consume the router-set dialect — a
+/// provider built with `OpenAiStrict` puts the strict shape on the wire.
+#[tokio::test]
+async fn openai_dialect_field_is_load_bearing() {
+    let (url, rx) = capture_one("data: [DONE]\n\n");
+    let provider = OpenAi::builder()
+        .api_key("test-key")
+        .base_url(format!("{url}/v1"))
+        .model("test-model")
+        .dialect(cersei_provider::SchemaDialect::OpenAiStrict)
+        .build()
+        .expect("build provider");
+    let _ = async {
+        provider.complete(schemars_like_request()).await?.collect().await
+    }
+    .await;
+
+    let body = body_json(&rx);
+    assert_eq!(body["tools"][0]["function"]["strict"], serde_json::json!(true));
+    assert_eq!(
+        body["tools"][0]["function"]["parameters"]["additionalProperties"],
+        serde_json::json!(false)
+    );
 }
 
 // ─── Gemini site: GeminiSubset ───────────────────────────────────────────────

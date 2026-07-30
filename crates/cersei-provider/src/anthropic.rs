@@ -291,7 +291,7 @@ const OUTPUT_RESERVE_DIVISOR: u32 = 4;
 /// - On Fable 5 / Mythos 5 thinking is always on and *every* explicit `thinking`
 ///   value is rejected, `{type:"disabled"}` included.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ThinkingMode {
+pub(crate) enum ThinkingMode {
     /// Send no `thinking` key at all.
     AlwaysOn,
     /// `{type:"adaptive"}`; no budget, no sampling parameters.
@@ -342,7 +342,7 @@ impl ThinkingMode {
 /// this gate existed, and the gate can only ever fix a request, never break one
 /// that worked. The cost is that a genuinely new adaptive-only Claude release
 /// needs one line added below.
-fn thinking_mode(model: &str) -> ThinkingMode {
+pub(crate) fn thinking_mode(model: &str) -> ThinkingMode {
     // Non-Claude ids arrive via an `ANTHROPIC_BASE_URL` gateway. Leave them on
     // the legacy shape rather than guessing a Claude-specific one at them.
     if !model.contains("claude") {

@@ -16,6 +16,9 @@ pub struct OpenAi {
     /// only for local providers whose server-side default window (often 4k)
     /// would otherwise silently truncate the prompt front.
     send_num_ctx: bool,
+    /// B2: which schema dialect tools serialize into. `OpenAiLoose` unless
+    /// the router's quirks opt a model into `OpenAiStrict`.
+    dialect: crate::adapt::SchemaDialect,
     client: reqwest::Client,
 }
 
@@ -30,6 +33,7 @@ impl OpenAi {
             base_url,
             default_model: "gpt-4o".to_string(),
             send_num_ctx: false,
+            dialect: crate::adapt::SchemaDialect::OpenAiLoose,
             client: reqwest::Client::new(),
         }
     }
@@ -281,9 +285,9 @@ impl Provider for OpenAi {
 
         if !request.tools.is_empty() {
             // B1: schemas cross the provider boundary only through
-            // `adapt_tools`. Loose until B2's quirks opt a model into strict.
-            let tools =
-                crate::adapt::adapt_tools(&request.tools, crate::adapt::SchemaDialect::OpenAiLoose);
+            // `adapt_tools`. The dialect is router-resolved (B2): loose until
+            // quirks opt a model into strict.
+            let tools = crate::adapt::adapt_tools(&request.tools, self.dialect);
             body["tools"] = serde_json::Value::Array(tools);
 
             // F-08: forced tool choice, requested per-turn by the runner's
@@ -740,6 +744,7 @@ pub struct OpenAiBuilder {
     base_url: Option<String>,
     model: Option<String>,
     send_num_ctx: bool,
+    dialect: Option<crate::adapt::SchemaDialect>,
 }
 
 impl OpenAiBuilder {
@@ -764,6 +769,12 @@ impl OpenAiBuilder {
         self
     }
 
+    /// B2: schema dialect for tool serialization (default `OpenAiLoose`).
+    pub fn dialect(mut self, dialect: crate::adapt::SchemaDialect) -> Self {
+        self.dialect = Some(dialect);
+        self
+    }
+
     pub fn build(self) -> Result<OpenAi> {
         let auth = if let Some(key) = self.api_key {
             Auth::ApiKey(key)
@@ -778,6 +789,9 @@ impl OpenAiBuilder {
             base_url: self.base_url.unwrap_or_else(|| OPENAI_API_BASE.to_string()),
             default_model: self.model.unwrap_or_else(|| "gpt-4o".to_string()),
             send_num_ctx: self.send_num_ctx,
+            dialect: self
+                .dialect
+                .unwrap_or(crate::adapt::SchemaDialect::OpenAiLoose),
             client: reqwest::Client::new(),
         })
     }

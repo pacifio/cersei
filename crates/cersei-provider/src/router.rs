@@ -143,6 +143,9 @@ fn build_provider(entry: &ProviderEntry, model: &str) -> Result<Box<dyn Provider
                 );
             }
 
+            // B2: the per-(provider, model) incompatibilities, resolved once.
+            let quirks = crate::quirks::ProviderQuirks::resolve(entry.api_format, model);
+
             let provider = OpenAi::builder()
                 .base_url(base_url)
                 .api_key(key)
@@ -150,6 +153,7 @@ fn build_provider(entry: &ProviderEntry, model: &str) -> Result<Box<dyn Provider
                 // F-09: only Ollama honours (and tolerates) `options.num_ctx`;
                 // OpenAI proper 400s on unknown top-level fields.
                 .send_num_ctx(entry.id == "ollama")
+                .dialect(quirks.dialect)
                 .build()?;
 
             Ok(Box::new(provider))

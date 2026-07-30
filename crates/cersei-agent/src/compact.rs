@@ -95,28 +95,12 @@ pub fn estimate_messages_tokens(messages: &[Message]) -> u64 {
 }
 
 /// Get context window size for a model.
+///
+/// B2 moved the table into `cersei_provider::quirks` so the runner, the
+/// F-09 `num_ctx` path, and router-time quirk resolution budget against one
+/// truth. This wrapper keeps the agent-side call sites and tests stable.
 pub fn context_window_for_model(model: &str) -> u64 {
-    match model {
-        m if m.contains("gpt-5") => 1_000_000,
-        m if m.contains("gemini") => 1_000_000,
-        m if m.starts_with("o1") || m.starts_with("o3") => 200_000,
-        m if m.contains("opus") => 200_000,
-        m if m.contains("sonnet") => 200_000,
-        m if m.contains("haiku") => 200_000,
-        m if m.contains("gpt-4o") => 128_000,
-        m if m.contains("gpt-4-turbo") => 128_000,
-        m if m.contains("gpt-4") => 8_192,
-        m if m.contains("gpt-3.5") => 16_385,
-        m if m.contains("llama") => 8_192,
-        // Newer Claude ids (fable, mythos, …) don't contain opus/sonnet/haiku.
-        m if m.contains("claude") => 200_000,
-        // F-09: an unknown model is most often a local Ollama tag
-        // (qwen2.5-coder:7b, deepseek-r1, …) whose real window is small. The
-        // old 200_000 catch-all meant compaction never fired for exactly the
-        // models with the least room; overestimating silently truncates the
-        // prompt front, underestimating merely compacts early.
-        _ => 8_192,
-    }
+    cersei_provider::quirks::context_window_for_model(model)
 }
 
 // ─── Warning state ───────────────────────────────────────────────────────────

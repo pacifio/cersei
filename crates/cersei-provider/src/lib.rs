@@ -5,6 +5,7 @@
 
 pub mod adapt;
 pub mod anthropic;
+pub mod quirks;
 pub mod anthropic_vertex;
 pub mod gemini;
 pub mod openai;
@@ -21,6 +22,7 @@ use tokio::sync::mpsc;
 // Re-exports
 pub use adapt::{adapt_tools, SchemaDialect};
 pub use anthropic::Anthropic;
+pub use quirks::{ProviderQuirks, TemperaturePolicy, ThinkingQuirk};
 pub use anthropic_vertex::AnthropicVertex;
 pub use gemini::Gemini;
 pub use openai::OpenAi;
