@@ -246,6 +246,30 @@ pub(crate) fn build_anthropic_body(
         );
     }
 
+    // F-08: forced tool choice, requested per-turn by the runner's
+    // no-tool-call nudge via `options.tool_choice = "required"`.
+    //
+    // Manual extended thinking (`{type:"enabled"}`) documents forced
+    // tool_choice as a 400 — only `auto`/`none` are legal alongside it — so
+    // thinking wins and the force is dropped there. Adaptive thinking has no
+    // such restriction on the direct API (only Bedrock requires
+    // thinking-disabled with a forced choice), so it passes through.
+    let manual_thinking_emitted = thinking
+        .as_ref()
+        .is_some_and(|t| t["type"] == "enabled");
+    if !request.tools.is_empty()
+        && request.options.get::<String>("tool_choice").as_deref() == Some("required")
+    {
+        if manual_thinking_emitted {
+            tracing::debug!(
+                "dropping forced tool_choice for model '{model}': incompatible \
+                 with manual extended thinking (only auto/none are accepted)"
+            );
+        } else {
+            body["tool_choice"] = serde_json::json!({ "type": "any" });
+        }
+    }
+
     body
 }
 
@@ -707,6 +731,149 @@ mod tests {
             "the last tool carries the cache breakpoint for the whole set"
         );
         assert!(body["tools"][0].get("cache_control").is_none());
+    }
+
+    // ─── F-08 wiring: forced tool choice ────────────────────────────────────
+
+    fn request_with_tools(model: &str, tool_choice: Option<&str>) -> CompletionRequest {
+        let mut r = CompletionRequest::new(model);
+        // Large enough that the F-01 clamp keeps a 4096 manual budget intact.
+        r.max_tokens = 8192;
+        r.messages = vec![Message::user("go")];
+        r.tools = vec![ToolDefinition {
+            name: "Read".to_string(),
+            description: "Reads a file".to_string(),
+            input_schema: serde_json::json!({ "type": "object" }),
+        }];
+        if let Some(choice) = tool_choice {
+            r.options.set("tool_choice", choice);
+        }
+        r
+    }
+
+    /// The option maps to Anthropic's `{"type":"any"}` — and only when asked.
+    #[test]
+    fn tool_choice_required_maps_to_any_and_defaults_to_absent() {
+        let asked = build_anthropic_body(
+            "claude-sonnet-5",
+            &request_with_tools("claude-sonnet-5", Some("required")),
+            None,
+            None,
+        );
+        assert_eq!(asked["tool_choice"], serde_json::json!({ "type": "any" }));
+
+        let unasked = build_anthropic_body(
+            "claude-sonnet-5",
+            &request_with_tools("claude-sonnet-5", None),
+            None,
+            None,
+        );
+        assert!(
+            unasked.get("tool_choice").is_none(),
+            "no option ⇒ provider default (auto), no key: {unasked:#}"
+        );
+    }
+
+    /// Adaptive thinking has no forced-tool-choice restriction on the direct
+    /// API, so both keys coexist.
+    #[test]
+    fn forced_tool_choice_coexists_with_adaptive_thinking() {
+        let model = "claude-sonnet-5";
+        assert_eq!(thinking_mode(model), ThinkingMode::Adaptive);
+        let body = build_anthropic_body(
+            model,
+            &request_with_tools(model, Some("required")),
+            Some(4096),
+            None,
+        );
+        assert_eq!(body["thinking"]["type"], "adaptive", "precondition");
+        assert_eq!(body["tool_choice"], serde_json::json!({ "type": "any" }));
+    }
+
+    /// Manual extended thinking documents forced tool_choice as a 400 (only
+    /// auto/none are legal alongside it) — thinking wins, the force is
+    /// dropped, and the request survives.
+    #[test]
+    fn forced_tool_choice_is_dropped_under_manual_thinking() {
+        let model = "claude-3-7-sonnet-20250219";
+        assert_eq!(
+            thinking_mode(model),
+            ThinkingMode::Manual,
+            "precondition: this test needs a manual-thinking model"
+        );
+        let body = build_anthropic_body(
+            model,
+            &request_with_tools(model, Some("required")),
+            Some(4096),
+            None,
+        );
+        assert_eq!(body["thinking"]["type"], "enabled", "precondition");
+        assert!(
+            body.get("tool_choice").is_none(),
+            "forced tool_choice alongside manual thinking is a documented 400: {body:#}"
+        );
+    }
+
+    /// Live positive: adaptive model + tools + `{"type":"any"}` is accepted.
+    /// If this 400s, the F-08 mapping emits a shape the API does not take.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_forced_tool_choice_on_adaptive_model_is_accepted() {
+        let model = live_model();
+        let mut body = build_anthropic_body(
+            &model,
+            &request_with_tools(&model, Some("required")),
+            None,
+            None,
+        );
+        body["stream"] = serde_json::json!(false);
+        assert_eq!(
+            body["tool_choice"],
+            serde_json::json!({ "type": "any" }),
+            "precondition: the mapping should have emitted the forced form"
+        );
+        let Some((status, text)) = post_live(&body).await else {
+            return;
+        };
+        eprintln!("forced tool_choice on adaptive → HTTP {status}");
+        assert!(
+            (200..300).contains(&status),
+            "forced tool_choice was rejected with {status}: {text}"
+        );
+    }
+
+    /// Live negative: manual thinking + forced tool_choice is the documented
+    /// 400 the gate exists for. If this starts passing, the API widened and
+    /// the manual-thinking suppression can be removed.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_forced_tool_choice_plus_manual_thinking_is_rejected() {
+        let model = live_manual_model();
+        assert_eq!(
+            thinking_mode(&model),
+            ThinkingMode::Manual,
+            "live negative needs a manual-thinking model; '{model}' is not one. \
+             Set CERSEI_LIVE_ANTHROPIC_MANUAL_MODEL."
+        );
+        // Build the pre-gate shape by hand: gate output never carries both.
+        let mut body = build_anthropic_body(
+            &model,
+            &request_with_tools(&model, None),
+            Some(4096),
+            None,
+        );
+        assert_eq!(body["thinking"]["type"], "enabled", "precondition");
+        body["tool_choice"] = serde_json::json!({ "type": "any" });
+        body["stream"] = serde_json::json!(false);
+        let Some((status, text)) = post_live(&body).await else {
+            return;
+        };
+        eprintln!("manual thinking + forced tool_choice → HTTP {status}");
+        assert_eq!(
+            status, 400,
+            "the docs say only auto/none are legal with manual thinking; if \
+             this now passes, drop the suppression in build_anthropic_body: {text}"
+        );
     }
 
     // ─── F-01 ────────────────────────────────────────────────────────────────

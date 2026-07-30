@@ -156,6 +156,47 @@ async fn openai_body_carries_loose_adapted_tools() {
     assert!(contains_key(params, "enum"), "{params:#}");
 }
 
+/// F-08: `options.tool_choice = "required"` reaches the OpenAI wire as
+/// `"tool_choice":"required"` — and the plain request carries no such key
+/// (asserted in the test above via `strict`-absence; here we pin the key).
+#[tokio::test]
+async fn openai_body_carries_forced_tool_choice_only_when_asked() {
+    let (url, rx) = capture_one("data: [DONE]\n\n");
+    let provider = OpenAi::builder()
+        .api_key("test-key")
+        .base_url(format!("{url}/v1"))
+        .model("test-model")
+        .build()
+        .expect("build provider");
+    let mut req = schemars_like_request();
+    req.options.set("tool_choice", "required");
+    let _ = async { provider.complete(req).await?.collect().await }.await;
+
+    let body = body_json(&rx);
+    assert_eq!(body["tool_choice"], serde_json::json!("required"));
+}
+
+#[tokio::test]
+async fn openai_body_omits_tool_choice_by_default() {
+    let (url, rx) = capture_one("data: [DONE]\n\n");
+    let provider = OpenAi::builder()
+        .api_key("test-key")
+        .base_url(format!("{url}/v1"))
+        .model("test-model")
+        .build()
+        .expect("build provider");
+    let _ = async {
+        provider.complete(schemars_like_request()).await?.collect().await
+    }
+    .await;
+
+    let body = body_json(&rx);
+    assert!(
+        body.get("tool_choice").is_none(),
+        "no option ⇒ provider default (auto), no key: {body:#}"
+    );
+}
+
 // ─── Gemini site: GeminiSubset ───────────────────────────────────────────────
 
 #[tokio::test]
@@ -191,4 +232,31 @@ async fn gemini_body_strips_every_key_the_api_rejects() {
     assert!(contains_key(params, "enum"), "{params:#}");
     assert_eq!(params["properties"]["range"]["properties"]["start"]["type"], "integer");
     assert_eq!(params["required"], serde_json::json!(["file_path"]));
+    // F-08: no forced tool choice unless asked.
+    assert!(body.get("toolConfig").is_none(), "{body:#}");
+}
+
+/// F-08: `options.tool_choice = "required"` reaches the Gemini wire as
+/// `functionCallingConfig.mode: "ANY"`.
+#[tokio::test]
+async fn gemini_body_carries_mode_any_when_asked() {
+    let (url, rx) = capture_one(
+        "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}],\
+         \"role\":\"model\"},\"finishReason\":\"STOP\"}]}\n\n",
+    );
+    let provider = Gemini::builder()
+        .api_key("test-key")
+        .base_url(url)
+        .model("test-model")
+        .build()
+        .expect("build provider");
+    let mut req = schemars_like_request();
+    req.options.set("tool_choice", "required");
+    let _ = async { provider.complete(req).await?.collect().await }.await;
+
+    let body = body_json(&rx);
+    assert_eq!(
+        body["toolConfig"]["functionCallingConfig"]["mode"],
+        serde_json::json!("ANY")
+    );
 }

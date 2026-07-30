@@ -269,6 +269,12 @@ impl Provider for OpenAi {
             let tools =
                 crate::adapt::adapt_tools(&request.tools, crate::adapt::SchemaDialect::OpenAiLoose);
             body["tools"] = serde_json::Value::Array(tools);
+
+            // F-08: forced tool choice, requested per-turn by the runner's
+            // no-tool-call nudge.
+            if request.options.get::<String>("tool_choice").as_deref() == Some("required") {
+                body["tool_choice"] = serde_json::json!("required");
+            }
         }
 
         let url = format!("{}/chat/completions", self.base_url);

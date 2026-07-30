@@ -38,6 +38,14 @@ prior reviews were re-derived, not carried forward.
 > run against the live API** — no Gemini key in the dev environment. Gate:
 > `cargo test --workspace` **554 passed / 0 failed / 21 ignored**. Open: P1's
 > F-08/F-09/B2/F-23, §10.5 #3/#4/#8/#9, P2–P3.
+>
+> **F-08 followed the same day** (§8): the no-tool-call nudge is ungated (once per
+> session, only when tools are registered) and the retry turn forces a tool call —
+> `tool_choice: "required"` / `{"type":"any"}` / `functionCallingConfig.mode: "ANY"`
+> per provider, with the Anthropic form suppressed under manual extended thinking
+> (documented 400). 8 new offline tests incl. 2 through the real runner; 7-mutant
+> audit, all killed; live pair added but not yet run. Gate:
+> `cargo test --workspace` **562 passed / 0 failed / 23 ignored**.
 
 ---
 
@@ -1144,7 +1152,7 @@ Each item is phrased to be filed verbatim.
 
 ### P1 — profile-or-schema work
 - [x] **B1** `adapt_tools()` seam at the three serialization sites. *(M)* — **DONE 2026-07-31.** `cersei-provider/src/adapt.rs`: the four-dialect enum from §6, transforms exactly per Exp 3 (§7.0). Wired in `build_anthropic_body` (Vertex reuses it, so the third site covers two providers), `openai.rs::complete` (`OpenAiLoose` until B2's quirks opt models into strict), and `gemini.rs::complete` (`GeminiSubset`). Names sanitized to `^[a-zA-Z0-9_-]{1,64}$` and deduped; a rename would need a reverse map at dispatch, deferred with MCP itself (which is dead code, §9). Bound by 11 unit tests + 3 body-shape wiring tests — `tests/tool_body_shapes.rs` captures the literal HTTP body through the real `complete()` for OpenAI and Gemini; the Anthropic site is bound in `anthropic.rs::tests`. 7-mutant audit (bypass each site, swap each site's dialect, disable the Gemini strip, disable sanitization): **all killed.** Live Gemini positive/negative pair added (`gemini.rs::live_dialect_tests`) but **not yet run against the live API** — no Gemini key in the dev environment; run with `GEMINI_API_KEY=… cargo test -p cersei-provider --lib live_ -- --ignored`.
-- [ ] **F-08** Ungate the no-tool-call nudge; add `tool_choice`/`functionCallingConfig` support. *(M)*
+- [x] **F-08** Ungate the no-tool-call nudge; add `tool_choice`/`functionCallingConfig` support. *(M)* — **DONE 2026-07-31.** Runner: a prose-only turn with tools registered now gets one ungated nudge per session (`runner.rs`, before the depth nudge; skipped when no tools are registered so tool-less agents and chat aren't looped), and the retry turn carries a one-shot `options.tool_choice = "required"`. Providers map it: OpenAI `tool_choice:"required"`, Gemini `functionCallingConfig.mode:"ANY"`, Anthropic `{"type":"any"}` — where the Anthropic gate drops the force when *manual* extended thinking is emitted (documented 400: only `auto`/`none` are legal alongside `{type:"enabled"}`; adaptive has no such restriction on the direct API — only Bedrock does). Bound by 3 `build_anthropic_body` unit tests, 3 body-capture wire tests (`tool_body_shapes.rs`), and 2 real-runner wiring tests (`cersei-agent/tests/f08_no_tool_nudge.rs`: nudge fires once with the forced choice on the wire; tool-less agents are not nudged). 7-mutant audit (re-gate on benchmark_mode, drop the force, drop the once-gate, remove each provider mapping, remove the manual-thinking suppression): **all killed.** Live positive/negative pair added to `anthropic.rs` (adaptive+forced accepted / manual+forced 400) — **not yet run live** (no key in the dev environment). Exp 5's open question — whether forcing actually helps a 7B model — remains unmeasured; this lands the mechanism.
 - [ ] **F-09** Send Ollama `num_ctx`; make the context catch-all conservative. *(M)*
 - [ ] **B2** Four-field `ProviderQuirks` resolved in `router.rs::build_provider`. *(M)*
 - [ ] **F-23** Make `capabilities()` load-bearing or delete it. *(S)* — note: F-01 was deliberately gated in `build_anthropic_body`, *not* via `ProviderCapabilities`; when F-23 lands, `thinking_mode()` in `anthropic.rs` is the logic to absorb.

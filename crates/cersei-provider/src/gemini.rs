@@ -270,6 +270,14 @@ impl Provider for Gemini {
             body["tools"] = serde_json::json!([{
                 "functionDeclarations": function_declarations,
             }]);
+
+            // F-08: forced tool choice, requested per-turn by the runner's
+            // no-tool-call nudge. Gemini's spelling is mode ANY.
+            if request.options.get::<String>("tool_choice").as_deref() == Some("required") {
+                body["toolConfig"] = serde_json::json!({
+                    "functionCallingConfig": { "mode": "ANY" }
+                });
+            }
         }
 
         // Safety settings: use least restrictive defaults to avoid unexpected blocks

@@ -379,6 +379,10 @@ pub async fn run_agent_streaming(
     const MAX_TOKENS_RETRY_LIMIT: u32 = 3;
     let mut had_tool_use = false;
     let mut depth_nudge_sent = false;
+    // F-08: the no-tool-call nudge fires at most once per session, and its
+    // retry turn carries a one-shot forced tool choice.
+    let mut no_tool_nudge_sent = false;
+    let mut force_tool_choice = false;
     let mut benchmark_retries: u32 = 0;
     const BENCHMARK_MAX_RETRIES: u32 = 4;
     let mut doom_loop_warned = false;
@@ -437,6 +441,12 @@ pub async fn run_agent_streaming(
         if let Some(budget) = agent.thinking_budget {
             options.set("thinking_budget", budget);
         }
+        // F-08: one-shot — applies only to the retry turn right after the
+        // no-tool-call nudge, then reverts to the provider default (auto).
+        if force_tool_choice {
+            force_tool_choice = false;
+            options.set("tool_choice", "required");
+        }
 
         // Todo nudge: on turns > 2, remind model about incomplete todos
         let system_with_nudge = if turn > 2 {
@@ -476,6 +486,7 @@ pub async fn run_agent_streaming(
             );
         }
 
+        let tools_available = !tool_defs.is_empty();
         let request = CompletionRequest {
             model: model.clone(),
             messages: messages.clone(),
@@ -781,6 +792,31 @@ pub async fn run_agent_streaming(
                     }
                     // No test command in instruction — let the agent finish.
                     // The external verifier will run tests after.
+                }
+
+                // F-08: a prose-only session with tools available is *the*
+                // characteristic weak-model failure, and it was previously
+                // handled only in benchmark mode. The system prompt orders
+                // "ALWAYS verify information about the codebase using tools
+                // before answering"; this is the once-per-session enforcement.
+                // The retry turn also carries a forced tool choice
+                // (tool_choice: required / {type:"any"} / mode ANY) where the
+                // provider supports it.
+                if !had_tool_use && tools_available && !no_tool_nudge_sent {
+                    no_tool_nudge_sent = true;
+                    force_tool_choice = true;
+                    agent.messages.lock().push(Message::user(
+                        "[system] You answered without using any tools. Claims about \
+                         the codebase must be verified with tools before answering. \
+                         Gather evidence first (Read, Grep, Glob, Bash, ...), then \
+                         give your final answer grounded in what the tools returned."
+                    ));
+                    let _ = event_tx
+                        .send(AgentEvent::Status(
+                            "Nudging agent to use tools before answering".into(),
+                        ))
+                        .await;
+                    continue; // Don't break — force another round
                 }
 
                 // Depth nudge: if we had tool calls but ended very early (turn <= 3),
