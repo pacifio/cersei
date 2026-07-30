@@ -350,11 +350,8 @@ pub enum CerseiError {
     #[error("Permission denied: {0}")]
     Permission(String),
 
-    #[error("Rate limit exceeded: {message}")]
-    RateLimit {
-        retry_after: Option<Duration>,
-        message: String,
-    },
+    #[error("Rate limit exceeded")]
+    RateLimit { retry_after: Option<Duration> },
 
     #[error("Context overflow: {used}/{limit} tokens")]
     ContextOverflow { used: u64, limit: u64 },
@@ -382,28 +379,6 @@ pub enum CerseiError {
 }
 
 impl CerseiError {
-    /// The error for a non-2xx provider response.
-    ///
-    /// Every provider funnels its HTTP failures through here so that "which
-    /// statuses are worth retrying" is decided once, next to
-    /// [`CerseiError::is_retryable`], rather than four times in four clients.
-    pub fn from_http_status(
-        status: u16,
-        retry_after: Option<Duration>,
-        message: impl Into<String>,
-    ) -> Self {
-        match status {
-            429 => CerseiError::RateLimit {
-                retry_after,
-                message: message.into(),
-            },
-            _ => CerseiError::ProviderStatus {
-                status,
-                message: message.into(),
-            },
-        }
-    }
-
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,

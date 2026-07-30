@@ -418,16 +418,15 @@ impl Tool for CodeSearchTool {
 
     async fn execute(&self, input: serde_json::Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             query: String,
             path: Option<String>,
             limit: Option<usize>,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {e}")),
         };
 
         let search_dir = input

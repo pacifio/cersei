@@ -46,16 +46,15 @@ impl Tool for ConfigTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             action: String,
             key: Option<String>,
             value: Option<Value>,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         match input.action.as_str() {
@@ -63,30 +62,7 @@ impl Tool for ConfigTool {
                 let key = input.key.unwrap_or_default();
                 match get_config(&key) {
                     Some(v) => ToolResult::success(format!("{} = {}", key, v)),
-                    // Still a success (an unset key is not an error), but the
-                    // model gets the keys that DO exist instead of a dead end
-                    // — the same list the "list" action prints below (F-A15).
-                    None => {
-                        let keys: Vec<String> =
-                            CONFIG_STORE.iter().map(|e| e.key().clone()).collect();
-                        let mut msg = format!("{} is not set.", key);
-                        if keys.is_empty() {
-                            msg.push_str(" No configuration keys are set at all.");
-                        } else {
-                            if let Some(best) = crate::tool_feedback::closest(
-                                &key,
-                                &keys.iter().map(String::as_str).collect::<Vec<_>>(),
-                            ) {
-                                msg.push_str(&format!(" Did you mean '{best}'?"));
-                            }
-                            msg.push_str(&format!(
-                                "\n\nKeys that are set ({}): {}",
-                                keys.len(),
-                                keys.join(", ")
-                            ));
-                        }
-                        ToolResult::success(msg)
-                    }
+                    None => ToolResult::success(format!("{} is not set", key)),
                 }
             }
             "set" => {
