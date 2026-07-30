@@ -40,11 +40,6 @@ pub fn list_tasks() -> Vec<TaskEntry> {
     TASK_REGISTRY.iter().map(|e| e.value().clone()).collect()
 }
 
-/// Ids of every registered task, for "not found" feedback (F-A15).
-fn task_ids() -> Vec<String> {
-    TASK_REGISTRY.iter().map(|e| e.key().clone()).collect()
-}
-
 pub fn clear_tasks() {
     TASK_REGISTRY.clear();
 }
@@ -81,16 +76,15 @@ impl Tool for TaskCreateTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         #[allow(dead_code)]
         struct Input {
             description: String,
             prompt: Option<String>,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         let id = uuid::Uuid::new_v4().to_string()[..8].to_string();
@@ -140,14 +134,13 @@ impl Tool for TaskGetTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             id: String,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         match get_task(&input.id) {
@@ -158,14 +151,7 @@ impl Tool for TaskGetTool {
                     task.id, task.status, task.description, output
                 ))
             }
-            // F-A15: enumerate the ids that do exist — a weak model that
-            // hallucinated or truncated an id gets no signal otherwise.
-            None => crate::tool_feedback::not_found(
-                "task",
-                &input.id,
-                &task_ids(),
-                "Run TaskList to see every task id.",
-            ),
+            None => ToolResult::error(format!("Task '{}' not found", input.id)),
         }
     }
 }
@@ -203,16 +189,15 @@ impl Tool for TaskUpdateTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             id: String,
             status: Option<TaskStatus>,
             output: Option<String>,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         match TASK_REGISTRY.get_mut(&input.id) {
@@ -226,14 +211,7 @@ impl Tool for TaskUpdateTool {
                 entry.updated_at = chrono::Utc::now().to_rfc3339();
                 ToolResult::success(format!("Task '{}' updated", input.id))
             }
-            // F-A15: enumerate the ids that do exist — a weak model that
-            // hallucinated or truncated an id gets no signal otherwise.
-            None => crate::tool_feedback::not_found(
-                "task",
-                &input.id,
-                &task_ids(),
-                "Run TaskList to see every task id.",
-            ),
+            None => ToolResult::error(format!("Task '{}' not found", input.id)),
         }
     }
 }
@@ -308,14 +286,13 @@ impl Tool for TaskStopTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             id: String,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         match TASK_REGISTRY.get_mut(&input.id) {
@@ -324,14 +301,7 @@ impl Tool for TaskStopTool {
                 entry.updated_at = chrono::Utc::now().to_rfc3339();
                 ToolResult::success(format!("Task '{}' stopped", input.id))
             }
-            // F-A15: enumerate the ids that do exist — a weak model that
-            // hallucinated or truncated an id gets no signal otherwise.
-            None => crate::tool_feedback::not_found(
-                "task",
-                &input.id,
-                &task_ids(),
-                "Run TaskList to see every task id.",
-            ),
+            None => ToolResult::error(format!("Task '{}' not found", input.id)),
         }
     }
 }
@@ -367,14 +337,13 @@ impl Tool for TaskOutputTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             id: String,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         match get_task(&input.id) {
@@ -382,14 +351,7 @@ impl Tool for TaskOutputTool {
                 Some(output) => ToolResult::success(output.clone()),
                 None => ToolResult::success("(no output yet)"),
             },
-            // F-A15: enumerate the ids that do exist — a weak model that
-            // hallucinated or truncated an id gets no signal otherwise.
-            None => crate::tool_feedback::not_found(
-                "task",
-                &input.id,
-                &task_ids(),
-                "Run TaskList to see every task id.",
-            ),
+            None => ToolResult::error(format!("Task '{}' not found", input.id)),
         }
     }
 }
@@ -483,50 +445,5 @@ mod tests {
         let stop = TaskStopTool;
         stop.execute(serde_json::json!({"id": &id}), &ctx).await;
         assert_eq!(get_task(&id).unwrap().status, TaskStatus::Stopped);
-    }
-}
-
-#[cfg(test)]
-mod not_found_tests {
-    use super::*;
-    use crate::permissions::AllowAll;
-    use std::sync::Arc;
-
-    fn ctx() -> ToolContext {
-        ToolContext {
-            working_dir: std::env::temp_dir(),
-            session_id: "task-nf".into(),
-            permissions: Arc::new(AllowAll),
-            cost_tracker: Arc::new(CostTracker::new()),
-            mcp_manager: None,
-            extensions: Extensions::default(),
-        }
-    }
-
-    /// F-A15. Deliberately does not mutate TASK_REGISTRY: it is a process-wide
-    /// static and the lifecycle tests above assert on its contents. Also
-    /// proves the registry can be enumerated from inside the `None` arm of a
-    /// `get_mut` match without deadlocking.
-    #[tokio::test]
-    async fn task_not_found_points_at_the_real_ids() {
-        for tool in [
-            &TaskGetTool as &dyn Tool,
-            &TaskUpdateTool as &dyn Tool,
-            &TaskStopTool as &dyn Tool,
-            &TaskOutputTool as &dyn Tool,
-        ] {
-            let r = tool
-                .execute(serde_json::json!({ "id": "deadbeef" }), &ctx())
-                .await;
-            let name = tool.name();
-            assert!(r.is_error, "{name}: {}", r.content);
-            assert!(r.content.contains("not found"), "{name}: {}", r.content);
-            assert!(
-                r.content.contains("Available tasks (") || r.content.contains("no tasks available"),
-                "{name} must enumerate or state emptiness: {}",
-                r.content
-            );
-            assert!(r.content.contains("TaskList"), "{name}: {}", r.content);
-        }
     }
 }

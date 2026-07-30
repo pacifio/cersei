@@ -40,15 +40,14 @@ impl Tool for WebSearchTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             query: String,
             num_results: Option<usize>,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         let api_key = match std::env::var(SEARCH_API_KEY_ENV) {

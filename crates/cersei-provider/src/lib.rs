@@ -25,23 +25,6 @@ pub use openai::OpenAi;
 pub use router::from_model_string;
 pub use stream::StreamAccumulator;
 
-/// Seconds from a `Retry-After` header, if the provider sent a usable one.
-///
-/// Only the delta-seconds form is honoured. The HTTP-date form is legal but no
-/// major provider emits it, and guessing wrong here would mean sleeping for
-/// hours, so an unparsable value is treated as absent and the caller falls back
-/// to its own backoff.
-pub fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<std::time::Duration> {
-    headers
-        .get(reqwest::header::RETRY_AFTER)?
-        .to_str()
-        .ok()?
-        .trim()
-        .parse::<u64>()
-        .ok()
-        .map(std::time::Duration::from_secs)
-}
-
 // ─── Provider trait ──────────────────────────────────────────────────────────
 
 #[async_trait]

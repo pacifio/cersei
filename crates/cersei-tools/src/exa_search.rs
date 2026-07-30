@@ -93,7 +93,6 @@ struct ExaResult {
 // ─── Tool input ─────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct Input {
     query: String,
     search_type: Option<String>,
@@ -188,9 +187,9 @@ impl Tool for ExaSearchTool {
     }
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         let api_key = match std::env::var(EXA_API_KEY_ENV) {

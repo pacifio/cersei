@@ -35,7 +35,6 @@ impl Tool for NotebookEditTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             file_path: String,
             cell_index: usize,
@@ -43,9 +42,9 @@ impl Tool for NotebookEditTool {
             cell_type: Option<String>,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         let content = match tokio::fs::read_to_string(&input.file_path).await {

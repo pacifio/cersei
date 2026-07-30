@@ -67,14 +67,13 @@ impl Tool for SendVmMessageTool {
     }
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             topic: String,
             payload: Value,
         }
-        let Input { topic, payload } = match crate::tool_feedback::parse_input(self, &input) {
+        let Input { topic, payload } = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {e}")),
         };
         let mailbox = match require_mailbox(ctx) {
             Ok(m) => m,
@@ -133,14 +132,13 @@ impl Tool for RecvVmMessageTool {
     }
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             topic: String,
             timeout_ms: Option<u64>,
         }
-        let Input { topic, timeout_ms } = match crate::tool_feedback::parse_input(self, &input) {
+        let Input { topic, timeout_ms } = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {e}")),
         };
         let mailbox = match require_mailbox(ctx) {
             Ok(m) => m,
@@ -207,13 +205,12 @@ impl Tool for SharedStateGetTool {
     }
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             key: String,
         }
-        let Input { key } = match crate::tool_feedback::parse_input(self, &input) {
+        let Input { key } = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {e}")),
         };
         let kv = match require_kv(ctx) {
             Ok(kv) => kv,
@@ -229,13 +226,7 @@ impl Tool for SharedStateGetTool {
                 });
                 ToolResult::success(body.to_string())
             }
-            // F-A15: the store is right here — enumerate the keys that exist.
-            None => crate::tool_feedback::not_found(
-                "key",
-                &key,
-                &kv.keys(),
-                "Use one of the key names above, or call SharedStateSet to create this key first.",
-            ),
+            None => ToolResult::error(format!("key not found: {key}")),
         }
     }
 }
@@ -269,7 +260,6 @@ impl Tool for SharedStateSetTool {
     }
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             key: String,
             value: String,
@@ -279,9 +269,9 @@ impl Tool for SharedStateSetTool {
             key,
             value,
             expected_version,
-        } = match crate::tool_feedback::parse_input(self, &input) {
+        } = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {e}")),
         };
         let kv = match require_kv(ctx) {
             Ok(kv) => kv,

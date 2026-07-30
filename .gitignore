@@ -53,13 +53,3 @@ bench/**/__pycache__/
 # Google Vertex service-account key (NEVER commit)
 service-account.json
 *service-account*.json
-
-
-# Graphify Output
-/graphify-out/
-
-# Obsidian Vault (has its own git)
-/oslo-vault/
-
-# Temp Folder For test and dump
-/joy/

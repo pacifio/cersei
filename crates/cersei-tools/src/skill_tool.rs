@@ -80,15 +80,14 @@ impl Tool for SkillTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Input {
             skill: String,
             args: Option<String>,
         }
 
-        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
+        let input: Input = match serde_json::from_value(input) {
             Ok(i) => i,
-            Err(e) => return e,
+            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
         };
 
         // List mode
@@ -125,17 +124,21 @@ impl Tool for SkillTool {
                 ToolResult::success(expanded).with_metadata(meta)
             }
             None => {
-                // This site was already the reference "not found" message in
-                // the tree; it now routes through the shared builder so the
-                // reference and the copies elsewhere cannot drift (F-A15).
+                // Suggest similar skills
                 let all = discovery::discover_all(project_root, &self.extra_paths);
-                let names: Vec<String> = all.iter().map(|s| s.name.clone()).collect();
-                crate::tool_feedback::not_found(
-                    "skill",
-                    &input.skill,
-                    &names,
-                    "Use skill='list' to see all available skills.",
-                )
+                let suggestions: Vec<&str> = all
+                    .iter()
+                    .filter(|s| s.name.contains(&input.skill) || input.skill.contains(&s.name))
+                    .map(|s| s.name.as_str())
+                    .take(5)
+                    .collect();
+
+                let mut msg = format!("Skill '{}' not found.", input.skill);
+                if !suggestions.is_empty() {
+                    msg.push_str(&format!("\n\nDid you mean: {}?", suggestions.join(", ")));
+                }
+                msg.push_str("\n\nUse skill='list' to see all available skills.");
+                ToolResult::error(msg)
             }
         }
     }
