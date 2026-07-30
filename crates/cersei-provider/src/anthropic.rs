@@ -482,6 +482,13 @@ fn parse_sse_event(raw: &str) -> Option<StreamEvent> {
                     index,
                     thinking: delta["thinking"].as_str().unwrap_or("").to_string(),
                 }),
+                // The signature must survive to be echoed back in history;
+                // dropping it here is what left every echoed thinking block
+                // with `signature: ""` (§10.5 #7).
+                "signature_delta" => Some(StreamEvent::SignatureDelta {
+                    index,
+                    signature: delta["signature"].as_str().unwrap_or("").to_string(),
+                }),
                 _ => None,
             }
         }
@@ -596,6 +603,21 @@ impl AnthropicBuilder {
 mod tests {
     use super::*;
     use crate::anthropic_vertex::VERTEX_VERSION;
+
+    /// §10.5 #7 wiring: the SSE reader must map `signature_delta` to an event
+    /// rather than dropping it in the catch-all — the drop is what left every
+    /// echoed thinking block with an empty signature.
+    #[test]
+    fn sse_signature_delta_is_parsed_not_dropped() {
+        let raw = "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"EqQBCgIY\"}}";
+        match parse_sse_event(raw) {
+            Some(StreamEvent::SignatureDelta { index, signature }) => {
+                assert_eq!(index, 2);
+                assert_eq!(signature, "EqQBCgIY");
+            }
+            other => panic!("signature_delta must parse to SignatureDelta, got {other:?}"),
+        }
+    }
 
     #[test]
     fn beta_header_omits_stale_interleaved_thinking_identifier() {

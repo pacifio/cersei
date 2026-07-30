@@ -9,6 +9,7 @@ pub struct StreamAccumulator {
     partial_text: HashMap<usize, String>,
     partial_json: HashMap<usize, String>,
     partial_thinking: HashMap<usize, String>,
+    partial_signature: HashMap<usize, String>,
     block_types: HashMap<usize, String>,
     tool_use_ids: HashMap<usize, String>,
     tool_use_names: HashMap<usize, String>,
@@ -32,6 +33,7 @@ impl StreamAccumulator {
             partial_text: HashMap::new(),
             partial_json: HashMap::new(),
             partial_thinking: HashMap::new(),
+            partial_signature: HashMap::new(),
             block_types: HashMap::new(),
             tool_use_ids: HashMap::new(),
             tool_use_names: HashMap::new(),
@@ -82,6 +84,12 @@ impl StreamAccumulator {
                     .or_default()
                     .push_str(&thinking);
             }
+            StreamEvent::SignatureDelta { index, signature } => {
+                self.partial_signature
+                    .entry(index)
+                    .or_default()
+                    .push_str(&signature);
+            }
             StreamEvent::ContentBlockStop { index } => {
                 let block_type = self.block_types.get(&index).cloned().unwrap_or_default();
                 let block = match block_type.as_str() {
@@ -119,7 +127,11 @@ impl StreamAccumulator {
                     }
                     "thinking" => ContentBlock::Thinking {
                         thinking: self.partial_thinking.remove(&index).unwrap_or_default(),
-                        signature: String::new(),
+                        // Captured from `signature_delta` events. When the
+                        // provider sent none, this stays empty and the serde
+                        // gate on `ContentBlock::Thinking` omits the field
+                        // from echoed history instead of sending `""`.
+                        signature: self.partial_signature.remove(&index).unwrap_or_default(),
                     },
                     _ => ContentBlock::Text {
                         text: self.partial_text.remove(&index).unwrap_or_default(),
@@ -384,6 +396,86 @@ mod tests {
 
         let response = accumulate(events).into_response().expect("valid stream");
         assert_eq!(sole_tool_use_input(&response), serde_json::json!({}));
+    }
+
+    // ── §10.5 #7: thinking signatures round-trip; empty ones never serialize ──
+
+    #[test]
+    fn signature_delta_round_trips_into_the_thinking_block() {
+        let mut acc = StreamAccumulator::new();
+        for e in [
+            StreamEvent::MessageStart {
+                id: "msg_1".into(),
+                model: "test-model".into(),
+            },
+            StreamEvent::ContentBlockStart {
+                index: 0,
+                block_type: "thinking".into(),
+                id: None,
+                name: None,
+            },
+            StreamEvent::ThinkingDelta {
+                index: 0,
+                thinking: "reasoning...".into(),
+            },
+            // Signatures may arrive split across deltas; they must concatenate.
+            StreamEvent::SignatureDelta {
+                index: 0,
+                signature: "EqQBCgIY".into(),
+            },
+            StreamEvent::SignatureDelta {
+                index: 0,
+                signature: "Ahb8xyz=".into(),
+            },
+            StreamEvent::ContentBlockStop { index: 0 },
+            StreamEvent::MessageStop,
+        ] {
+            acc.process_event(e);
+        }
+        let response = acc.into_response().expect("valid stream");
+        let MessageContent::Blocks(blocks) = &response.message.content else {
+            panic!("expected blocks");
+        };
+        let ContentBlock::Thinking {
+            thinking,
+            signature,
+        } = &blocks[0]
+        else {
+            panic!("expected a thinking block, got {:?}", blocks[0]);
+        };
+        assert_eq!(thinking, "reasoning...");
+        assert_eq!(
+            signature, "EqQBCgIYAhb8xyz=",
+            "the signature must be captured and echoed verbatim — an empty or \
+             partial one 400s when history is sent back to an adaptive model"
+        );
+    }
+
+    #[test]
+    fn uncaptured_signature_is_omitted_from_serialized_history() {
+        // A provider that sent no signature_delta must not put `"signature": ""`
+        // on the wire when this block is echoed back in history.
+        let without = serde_json::to_value(ContentBlock::Thinking {
+            thinking: "t".into(),
+            signature: String::new(),
+        })
+        .unwrap();
+        assert!(
+            without.get("signature").is_none(),
+            "empty signature must be omitted, got {without}"
+        );
+
+        // A captured signature must survive serialization untouched.
+        let with = serde_json::to_value(ContentBlock::Thinking {
+            thinking: "t".into(),
+            signature: "EqQB".into(),
+        })
+        .unwrap();
+        assert_eq!(with["signature"], "EqQB");
+
+        // And deserializing a signatureless block still works (serde default).
+        let back: ContentBlock = serde_json::from_value(without).unwrap();
+        assert!(matches!(back, ContentBlock::Thinking { .. }));
     }
 
     // ── F-05b at this seam: malformed JSON keeps the raw text and the error ──

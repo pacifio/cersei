@@ -42,7 +42,12 @@ pub enum ContentBlock {
     },
     Thinking {
         thinking: String,
-        #[serde(default)]
+        // `skip_serializing_if`: a signature Cersei never captured must be
+        // *omitted* when history is echoed back, not sent as `"signature": ""`
+        // — adaptive-thinking models reject the empty string with a 400
+        // (TOOL-CALLING-RELIABILITY.md §10.5 #7). A real signature captured
+        // from `signature_delta` round-trips intact.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
         signature: String,
     },
     RedactedThinking {
@@ -316,6 +321,15 @@ pub enum StreamEvent {
     ThinkingDelta {
         index: usize,
         thinking: String,
+    },
+    /// Cryptographic signature for a thinking block (Anthropic
+    /// `signature_delta`). Must be captured and echoed back verbatim in
+    /// multi-turn history — dropping it (the pre-fix behaviour) meant every
+    /// echoed thinking block carried an empty signature, which adaptive
+    /// models reject.
+    SignatureDelta {
+        index: usize,
+        signature: String,
     },
     ContentBlockStop {
         index: usize,
