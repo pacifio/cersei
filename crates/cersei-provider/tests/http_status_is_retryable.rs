@@ -153,3 +153,74 @@ async fn gemini_429_is_retryable() {
     let err = error_from(p, "gemini-2.0-flash").await;
     assert!(err.is_retryable(), "gemini 429 must be retryable: {err}");
 }
+
+/// §10.5 #1: Gemini returns 503 UNAVAILABLE under load. It used to be
+/// session-fatal — `is_retryable()` matched only 429/529.
+#[tokio::test]
+async fn gemini_503_is_retryable() {
+    let url = serve_once(
+        "503 Service Unavailable",
+        "",
+        r#"{"error":{"status":"UNAVAILABLE","message":"The model is overloaded."}}"#,
+    );
+    let p = cersei_provider::Gemini::builder()
+        .api_key("k")
+        .base_url(&url)
+        .model("gemini-2.0-flash")
+        .build()
+        .unwrap();
+
+    let err = error_from(p, "gemini-2.0-flash").await;
+    assert!(
+        err.is_retryable(),
+        "a 503 is the provider falling over, not the request being wrong: {err}"
+    );
+}
+
+/// §10.5 #2: a 429 whose body is quota exhaustion is an unpayable answer —
+/// the previous behaviour retried it through the full backoff ladder (5
+/// sleeps) to receive the same refusal.
+#[tokio::test]
+async fn quota_exhausted_429_fails_fast() {
+    let url = serve_once(
+        "429 Too Many Requests",
+        "",
+        r#"{"error":{"type":"insufficient_quota","message":"You exceeded your current quota, please check your plan and billing details."}}"#,
+    );
+    let p = cersei_provider::OpenAi::builder()
+        .api_key("k")
+        .base_url(&url)
+        .model("gpt-4o")
+        .build()
+        .unwrap();
+
+    let err = error_from(p, "gpt-4o").await;
+    assert!(
+        !err.is_retryable(),
+        "insufficient_quota does not heal with time; retrying it stalls the \
+         session for nothing: {err}"
+    );
+}
+
+/// Transport half of the ladder: a connection that never produced a status —
+/// refused outright here — is transient and must be retryable, not fatal.
+#[tokio::test]
+async fn connection_refused_is_retryable() {
+    // Bind, take the port, drop the listener: nothing is listening there now.
+    let port = {
+        let l = TcpListener::bind("127.0.0.1:0").expect("bind");
+        l.local_addr().unwrap().port()
+    };
+    let p = cersei_provider::OpenAi::builder()
+        .api_key("k")
+        .base_url(&format!("http://127.0.0.1:{port}/v1"))
+        .model("gpt-4o")
+        .build()
+        .unwrap();
+
+    let err = error_from(p, "gpt-4o").await;
+    assert!(
+        err.is_retryable(),
+        "a refused connection is a transient transport failure: {err:?}"
+    );
+}

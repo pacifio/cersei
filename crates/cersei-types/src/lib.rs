@@ -419,12 +419,37 @@ impl CerseiError {
     }
 
     pub fn is_retryable(&self) -> bool {
-        matches!(
-            self,
-            CerseiError::RateLimit { .. }
-                | CerseiError::ProviderStatus { status: 429, .. }
-                | CerseiError::ProviderStatus { status: 529, .. }
-        )
+        match self {
+            // A 429 is transient — unless the body says the account is out of
+            // money, in which case every retry buys the same answer and the
+            // backoff ladder just delays the inevitable by five sleeps.
+            CerseiError::RateLimit { message, .. } => !Self::quota_exhausted(message),
+            // 529 is Anthropic's "overloaded". 500/502/503/504 are standard
+            // upstream/gateway blips — Gemini in particular returns 503
+            // UNAVAILABLE under load, which used to be session-fatal.
+            CerseiError::ProviderStatus { status, .. } => {
+                matches!(status, 429 | 500 | 502 | 503 | 504 | 529)
+            }
+            // Transport-level failures that never produced a status: the
+            // connection was refused, reset, or timed out. Scoped to the two
+            // reqwest classes that are unambiguously transient; malformed-URL
+            // and builder errors stay fatal.
+            CerseiError::Http(e) => e.is_connect() || e.is_timeout(),
+            _ => false,
+        }
+    }
+
+    /// A 429 that means "no credit", not "slow down".
+    ///
+    /// OpenAI: `insufficient_quota` / "You exceeded your current quota".
+    /// Anthropic: "credit balance is too low". Matched on the body because
+    /// providers reuse HTTP 429 for both meanings; genuine rate limits
+    /// (Gemini's RESOURCE_EXHAUSTED included) stay retryable.
+    fn quota_exhausted(message: &str) -> bool {
+        let m = message.to_ascii_lowercase();
+        m.contains("insufficient_quota")
+            || m.contains("exceeded your current quota")
+            || m.contains("credit balance")
     }
 
     pub fn is_context_limit(&self) -> bool {
@@ -449,4 +474,71 @@ pub struct MemoryEntry {
     pub content: String,
     pub relevance: f32,
     pub source: String,
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    fn status(code: u16) -> CerseiError {
+        CerseiError::from_http_status(code, None, "upstream said no")
+    }
+
+    #[test]
+    fn transient_5xx_statuses_are_retryable() {
+        // 503 is the Gemini gap from TOOL-CALLING-RELIABILITY.md §10.5 #1:
+        // it used to be session-fatal.
+        for code in [429, 500, 502, 503, 504, 529] {
+            assert!(status(code).is_retryable(), "{code} must be retryable");
+        }
+    }
+
+    #[test]
+    fn client_errors_are_fatal() {
+        for code in [400, 401, 403, 404, 413, 422] {
+            assert!(!status(code).is_retryable(), "{code} must not be retried");
+        }
+    }
+
+    #[test]
+    fn a_genuine_rate_limit_is_retryable() {
+        let err = CerseiError::from_http_status(
+            429,
+            Some(Duration::from_secs(2)),
+            r#"{"error":{"type":"rate_limit_error","message":"Too many requests"}}"#,
+        );
+        assert!(err.is_retryable());
+    }
+
+    /// §10.5 #2: a 429 whose body says the account is out of credit is not
+    /// transient. Retrying it five times used to stall the session through the
+    /// whole backoff ladder to receive the same refusal.
+    #[test]
+    fn quota_exhaustion_is_not_retried() {
+        for body in [
+            // OpenAI's shape, verbatim fields.
+            r#"{"error":{"type":"insufficient_quota","message":"You exceeded your current quota, please check your plan and billing details."}}"#,
+            // Anthropic's shape.
+            r#"{"error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}"#,
+        ] {
+            let err = CerseiError::from_http_status(429, None, body);
+            assert!(
+                !err.is_retryable(),
+                "quota exhaustion must fail fast, retried anyway: {body}"
+            );
+        }
+    }
+
+    #[test]
+    fn quota_matching_is_case_insensitive() {
+        let err = CerseiError::from_http_status(429, None, "INSUFFICIENT_QUOTA");
+        assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn non_http_errors_stay_fatal() {
+        assert!(!CerseiError::Provider("anything".into()).is_retryable());
+        assert!(!CerseiError::Auth("bad key".into()).is_retryable());
+        assert!(!CerseiError::Cancelled.is_retryable());
+    }
 }
