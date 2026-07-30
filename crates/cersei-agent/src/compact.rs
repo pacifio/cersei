@@ -232,6 +232,41 @@ pub fn find_orphaned_tool_results(msgs: &[Message]) -> Vec<String> {
     orphaned
 }
 
+/// The mirror rule (§10.5 #3): `tool_use` ids in `msgs` that no `tool_result`
+/// anywhere in `msgs` answers.
+///
+/// Providers enforce this direction too — an assistant `tool_use` with no
+/// `tool_result` in the following user message is the same unretryable 400 as
+/// an orphaned result. Every request the runner builds ends with a user
+/// message, so at request time there is no legitimately-unanswered call.
+pub fn find_unanswered_tool_uses(msgs: &[Message]) -> Vec<String> {
+    let mut answered: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for m in msgs {
+        let MessageContent::Blocks(blocks) = &m.content else {
+            continue;
+        };
+        for b in blocks {
+            if let ContentBlock::ToolResult { tool_use_id, .. } = b {
+                answered.insert(tool_use_id);
+            }
+        }
+    }
+    let mut unanswered = Vec::new();
+    for m in msgs {
+        let MessageContent::Blocks(blocks) = &m.content else {
+            continue;
+        };
+        for b in blocks {
+            if let ContentBlock::ToolUse { id, .. } = b {
+                if !answered.contains(id.as_str()) {
+                    unanswered.push(id.clone());
+                }
+            }
+        }
+    }
+    unanswered
+}
+
 /// True if `msg` carries any `tool_result` block.
 fn carries_tool_result(msg: &Message) -> bool {
     match &msg.content {
@@ -618,6 +653,49 @@ mod tests {
         // catch-all must be conservative.
         assert_eq!(context_window_for_model("qwen2.5-coder:7b"), 8_192);
         assert_eq!(context_window_for_model("deepseek-r1"), 8_192);
+    }
+
+    /// §10.5 #3, the mirror rule: a tool_use with no answering tool_result
+    /// anywhere in the request is the provider 400 from the other direction.
+    #[test]
+    fn unanswered_tool_uses_are_found_and_answered_ones_are_not() {
+        let msgs = vec![
+            Message::user("go"),
+            Message::assistant_blocks(vec![
+                ContentBlock::ToolUse {
+                    id: "answered".into(),
+                    name: "Read".into(),
+                    input: serde_json::json!({}),
+                },
+                ContentBlock::ToolUse {
+                    id: "ghost".into(),
+                    name: "Grep".into(),
+                    input: serde_json::json!({}),
+                },
+            ]),
+            Message::user_blocks(vec![ContentBlock::ToolResult {
+                tool_use_id: "answered".into(),
+                content: ToolResultContent::Text("ok".into()),
+                is_error: Some(false),
+            }]),
+        ];
+        assert_eq!(find_unanswered_tool_uses(&msgs), vec!["ghost".to_string()]);
+
+        // Fully-paired history is clean in both directions.
+        let paired = vec![
+            Message::assistant_blocks(vec![ContentBlock::ToolUse {
+                id: "a".into(),
+                name: "Read".into(),
+                input: serde_json::json!({}),
+            }]),
+            Message::user_blocks(vec![ContentBlock::ToolResult {
+                tool_use_id: "a".into(),
+                content: ToolResultContent::Text("ok".into()),
+                is_error: Some(false),
+            }]),
+        ];
+        assert!(find_unanswered_tool_uses(&paired).is_empty());
+        assert!(find_orphaned_tool_results(&paired).is_empty());
     }
 
     #[test]

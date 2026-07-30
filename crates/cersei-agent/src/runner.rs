@@ -490,6 +490,19 @@ pub async fn run_agent_streaming(
                  the provider will reject this with a 400"
             );
         }
+        // §10.5 #3, the mirror rule: an assistant tool_use with no tool_result
+        // anywhere in the request is the same unretryable 400 from the other
+        // direction. Every request this loop builds ends with a user message,
+        // so nothing is legitimately unanswered here.
+        let unanswered = compact::find_unanswered_tool_uses(&messages);
+        if !unanswered.is_empty() {
+            tracing::error!(
+                unanswered_tool_use_ids = ?unanswered,
+                message_count = messages.len(),
+                "request carries tool_use blocks with no matching tool_result; \
+                 the provider will reject this with a 400"
+            );
+        }
 
         let tools_available = !tool_defs.is_empty();
         let request = CompletionRequest {
