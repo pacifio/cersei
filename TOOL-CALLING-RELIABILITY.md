@@ -64,8 +64,11 @@ prior reviews were re-derived, not carried forward.
 > **F-23 closed P1** (§8): `ProviderCapabilities` deleted end to end — trait
 > method, four impls, every mock, and the 41-entry registry table whose sole
 > reader was a `Box<dyn Provider>` forwarder (H6, confirmed to the last grep).
-> `quirks` is the living replacement. **P1 is complete.** Still open: §10.5
-> #3/#4/#8/#9, P2–P3, and the not-yet-run live pairs (Gemini dialect,
+> `quirks` is the living replacement. **P1 is complete.** §10.5 #3 (mirror-rule
+> check, runner-wired and log-bound) and #4 (anthropic/gemini 429 retry through
+> the real runner) closed the same day. Final gate:
+> `cargo test --workspace` **575 passed / 0 failed / 23 ignored**. Still open:
+> §10.5 #8/#9, P2–P3, and the not-yet-run live pairs (Gemini dialect,
 > Anthropic tool_choice — need GEMINI_API_KEY / ANTHROPIC_API_KEY).
 
 ---
