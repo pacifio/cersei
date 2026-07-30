@@ -223,6 +223,20 @@ pub(crate) fn build_anthropic_body(
         body["thinking"] = thinking.clone();
     }
 
+    // §10.5 #6: on models where the manual budget is rejected, the budget used
+    // to be silently discarded and every effort level produced a byte-identical
+    // body running at the API default (`high`). `output_config.effort` is the
+    // adaptive-era replacement (GA, no beta header; legal values
+    // low|medium|high|xhigh|max), so translate the requested budget into the
+    // effort level it stands for. Manual models keep `budget_tokens` and get no
+    // `output_config` — pre-4.6 models reject or ignore it.
+    if matches!(mode, ThinkingMode::Adaptive | ThinkingMode::AlwaysOn) {
+        if let Some(budget) = requested_budget {
+            body["output_config"] =
+                serde_json::json!({ "effort": effort_for_budget(budget) });
+        }
+    }
+
     // The request-level ban below is an *Anthropic* rule. Non-Claude ids arrive
     // through `ANTHROPIC_BASE_URL` gateways whose sampling behaviour this build
     // cannot know, and the same reasoning that makes `thinking_mode` default
@@ -336,6 +350,24 @@ fn thinking_mode(model: &str) -> ThinkingMode {
         return ThinkingMode::Adaptive;
     }
     ThinkingMode::Manual
+}
+
+/// Translate a manual thinking budget into the adaptive API's effort level.
+///
+/// The budget is the only thinking signal this wire carries: abstract-cli maps
+/// `--effort` to exactly 1024 (Low), 4096 (Medium), 8192 (High), or 32768
+/// (Max) before it reaches the provider. Those four values map back to their
+/// levels; arbitrary library-caller budgets land on the nearest level, with
+/// cut points at the midpoints between adjacent canonical budgets. `xhigh`
+/// is deliberately never produced — nothing on this wire expresses it, and
+/// inventing it here would misreport what the caller asked for.
+fn effort_for_budget(budget: u32) -> &'static str {
+    match budget {
+        0..=2559 => "low",       // canonical 1024; midpoint(1024, 4096) = 2560
+        2560..=6143 => "medium", // canonical 4096; midpoint(4096, 8192) = 6144
+        6144..=20479 => "high",  // canonical 8192; midpoint(8192, 32768) = 20480
+        _ => "max",              // canonical 32768
+    }
 }
 
 /// Clamp a manual thinking budget into Anthropic's legal range for this
@@ -786,6 +818,77 @@ mod tests {
              is rejected. Got {status} — if this is a 2xx, dropping it is \
              unnecessary and `accepts_sampling_params` is over-restrictive: {text}"
         );
+    }
+
+    // ─── §10.5 #6: `--effort` must not be inert on adaptive models ───────────
+
+    /// The original defect, stated directly: before the fix, every effort level
+    /// produced a byte-identical body on adaptive models, silently running at
+    /// the API default. Two different levels must now produce different bodies.
+    #[test]
+    fn distinct_effort_levels_produce_distinct_adaptive_bodies() {
+        let low = build_anthropic_body("claude-sonnet-5", &req(CLI_MAX_TOKENS), Some(1024), None);
+        let max = build_anthropic_body("claude-sonnet-5", &req(CLI_MAX_TOKENS), Some(32768), None);
+        assert_ne!(
+            low, max,
+            "different effort levels must reach the wire differently; identical \
+             bodies mean --effort is inert again"
+        );
+    }
+
+    #[test]
+    fn adaptive_models_translate_the_budget_into_output_config_effort() {
+        // The four canonical budgets abstract-cli emits, one per effort level.
+        for (budget, level) in [(1024, "low"), (4096, "medium"), (8192, "high"), (32768, "max")] {
+            let body =
+                build_anthropic_body("claude-opus-4-8", &req(CLI_MAX_TOKENS), Some(budget), None);
+            assert_eq!(
+                body["output_config"]["effort"], level,
+                "budget {budget} stands for effort '{level}'"
+            );
+            // The manual form must still never appear on these models (F-01).
+            assert!(body["thinking"].get("budget_tokens").is_none());
+        }
+    }
+
+    #[test]
+    fn always_on_models_get_effort_but_still_no_thinking_key() {
+        let body = build_anthropic_body("claude-fable-5", &req(CLI_MAX_TOKENS), Some(32768), None);
+        assert!(
+            body.get("thinking").is_none(),
+            "any explicit thinking value is a 400 on always-on models"
+        );
+        assert_eq!(body["output_config"]["effort"], "max");
+    }
+
+    #[test]
+    fn manual_models_get_budget_tokens_and_no_output_config() {
+        let body = build_anthropic_body("claude-sonnet-4-6", &req(CLI_MAX_TOKENS), Some(8192), None);
+        assert_eq!(body["thinking"]["budget_tokens"], 8192);
+        assert!(
+            body.get("output_config").is_none(),
+            "pre-4.6 models don't take output_config.effort; the budget carries \
+             the depth on the manual path"
+        );
+    }
+
+    #[test]
+    fn no_thinking_request_means_no_output_config() {
+        for budget in [None, Some(0)] {
+            let body = build_anthropic_body("claude-opus-4-8", &req(CLI_MAX_TOKENS), budget, None);
+            assert!(
+                body.get("output_config").is_none(),
+                "budget {budget:?} means the caller did not ask for thinking; \
+                 emitting an effort would override the API default unasked"
+            );
+        }
+    }
+
+    #[test]
+    fn off_canonical_budgets_land_on_the_nearest_level() {
+        for (budget, level) in [(1, "low"), (3000, "medium"), (10_000, "high"), (100_000, "max")] {
+            assert_eq!(effort_for_budget(budget), level, "budget {budget}");
+        }
     }
 
     /// A manual-thinking model with a caller temperature — the case the first
