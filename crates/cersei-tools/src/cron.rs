@@ -20,6 +20,11 @@ pub fn list_crons() -> Vec<CronEntry> {
     CRON_REGISTRY.iter().map(|e| e.value().clone()).collect()
 }
 
+/// Ids of every scheduled job, for "not found" feedback (F-A15).
+fn cron_ids() -> Vec<String> {
+    CRON_REGISTRY.iter().map(|e| e.key().clone()).collect()
+}
+
 pub fn clear_crons() {
     CRON_REGISTRY.clear();
 }
@@ -56,14 +61,15 @@ impl Tool for CronCreateTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             schedule: String,
             prompt: String,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         let id = uuid::Uuid::new_v4().to_string()[..8].to_string();
@@ -156,19 +162,26 @@ impl Tool for CronDeleteTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             id: String,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         if CRON_REGISTRY.remove(&input.id).is_some() {
             ToolResult::success(format!("Cron job '{}' deleted.", input.id))
         } else {
-            ToolResult::error(format!("Cron job '{}' not found.", input.id))
+            // F-A15: list the job ids that do exist.
+            crate::tool_feedback::not_found(
+                "cron job",
+                &input.id,
+                &cron_ids(),
+                "Run CronList to see every scheduled job.",
+            )
         }
     }
 }
@@ -221,5 +234,42 @@ mod tests {
         assert!(!result.is_error);
 
         assert!(list_crons().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod not_found_tests {
+    use super::*;
+    use crate::permissions::AllowAll;
+    use std::sync::Arc;
+
+    fn ctx() -> ToolContext {
+        ToolContext {
+            working_dir: std::env::temp_dir(),
+            session_id: "cron-nf".into(),
+            permissions: Arc::new(AllowAll),
+            cost_tracker: Arc::new(CostTracker::new()),
+            mcp_manager: None,
+            extensions: Extensions::default(),
+        }
+    }
+
+    /// F-A15. Deliberately does not create or clear cron jobs: CRON_REGISTRY
+    /// is a process-wide static and `test_cron_lifecycle` asserts on its exact
+    /// length, so any mutation here would race it.
+    #[tokio::test]
+    async fn cron_delete_not_found_points_at_the_real_ids() {
+        let r = CronDeleteTool
+            .execute(serde_json::json!({ "id": "deadbeef" }), &ctx())
+            .await;
+        assert!(r.is_error);
+        assert!(r.content.contains("not found"), "{}", r.content);
+        assert!(
+            r.content.contains("Available cron jobs (")
+                || r.content.contains("no cron jobs available"),
+            "must enumerate or state emptiness: {}",
+            r.content
+        );
+        assert!(r.content.contains("CronList"), "{}", r.content);
     }
 }
