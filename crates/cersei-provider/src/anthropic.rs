@@ -590,6 +590,159 @@ mod tests {
     // literal token counts, not this module's constants, so that retuning a
     // constant cannot silently move the bar the tests check.
 
+    // ─── F-01, live ──────────────────────────────────────────────────────────
+    //
+    // Everything else in this module checks the *shape* of the body against
+    // Anthropic's documented contract. That is what §10.2 of
+    // TOOL-CALLING-RELIABILITY.md calls "Confirmed from primary docs": it proves
+    // Cersei sends what the docs describe, not that the API agrees with the
+    // docs. These three tests close that gap by asking the real API.
+    //
+    // Requires a key and costs a few tokens per test, so they are `#[ignore]`:
+    //
+    //   ANTHROPIC_API_KEY=sk-... cargo test -p cersei-provider --lib live_ \
+    //       -- --ignored --nocapture
+    //
+    // Override the model with CERSEI_LIVE_ANTHROPIC_MODEL. The default must be a
+    // model `thinking_mode` classifies `Adaptive`, or these assert nothing.
+
+    /// Model used by the live tests. Must be adaptive-only for the negative
+    /// cases to mean anything; asserted rather than assumed in each test.
+    fn live_model() -> String {
+        std::env::var("CERSEI_LIVE_ANTHROPIC_MODEL")
+            .unwrap_or_else(|_| "claude-sonnet-5".to_string())
+    }
+
+    /// POST a body to the real Messages API; return (status, response text).
+    /// Returns `None` when no key is present so the tests degrade to a skip
+    /// rather than a failure, matching the other live tests in this workspace.
+    async fn post_live(body: &serde_json::Value) -> Option<(u16, String)> {
+        let key = match std::env::var("ANTHROPIC_API_KEY") {
+            Ok(k) if !k.is_empty() => k,
+            _ => {
+                eprintln!("ANTHROPIC_API_KEY not set — skipping.");
+                return None;
+            }
+        };
+        let base = std::env::var("ANTHROPIC_BASE_URL")
+            .ok()
+            .filter(|u| !u.is_empty())
+            .unwrap_or_else(|| "https://api.anthropic.com".to_string());
+
+        let resp = reqwest::Client::new()
+            .post(format!("{}/v1/messages", base.trim_end_matches('/')))
+            .header("x-api-key", key)
+            .header("anthropic-version", ANTHROPIC_API_VERSION)
+            .header("content-type", "application/json")
+            .json(body)
+            .send()
+            .await
+            .expect("request to the Anthropic API failed to send");
+
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        Some((status, text))
+    }
+
+    /// A minimal real request: one user turn, non-streaming, room for thinking.
+    fn live_body(model: &str, thinking_budget: Option<u32>) -> serde_json::Value {
+        let mut r = CompletionRequest::new(model);
+        r.max_tokens = 2048;
+        r.messages = vec![Message::user("Reply with the single word: ok")];
+        let mut body = build_anthropic_body(model, &r, thinking_budget, None);
+        // Non-streaming keeps the assertion about status, not SSE parsing.
+        body["stream"] = serde_json::json!(false);
+        body
+    }
+
+    /// The positive case: what the gate actually builds for an adaptive-only
+    /// model is accepted. If this 400s, the gate is emitting a shape the API
+    /// does not take and F-01 is not fixed.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_gate_output_is_accepted_by_the_real_api() {
+        let model = live_model();
+        assert_eq!(
+            thinking_mode(&model),
+            ThinkingMode::Adaptive,
+            "live F-01 tests need an adaptive-only model; '{model}' is not one. \
+             Set CERSEI_LIVE_ANTHROPIC_MODEL."
+        );
+
+        let body = live_body(&model, Some(4096));
+        assert_eq!(
+            body["thinking"],
+            serde_json::json!({ "type": "adaptive", "display": "summarized" }),
+            "precondition: the gate should have rewritten this to the adaptive form"
+        );
+
+        let Some((status, text)) = post_live(&body).await else {
+            return;
+        };
+        eprintln!("gate output → HTTP {status}");
+        assert!(
+            (200..300).contains(&status),
+            "the body Cersei builds for '{model}' was rejected with {status}: {text}"
+        );
+    }
+
+    /// The load-bearing case: the *pre-gate* body — byte-identical except for
+    /// the legacy manual thinking form Cersei sent before F-01 — is rejected.
+    /// This is what turns "the docs say 4.7+ rejects it" into "this key, this
+    /// model, this account rejects it", and proves the gate is load-bearing
+    /// rather than decorative.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_pre_gate_manual_form_is_rejected_by_the_real_api() {
+        let model = live_model();
+        assert_eq!(
+            thinking_mode(&model),
+            ThinkingMode::Adaptive,
+            "this test asserts a rejection that only adaptive-only models make"
+        );
+
+        let mut body = live_body(&model, Some(4096));
+        // Exactly what `anthropic.rs:197-199` emitted before the gate landed.
+        body["thinking"] = serde_json::json!({ "type": "enabled", "budget_tokens": 4096 });
+
+        let Some((status, text)) = post_live(&body).await else {
+            return;
+        };
+        eprintln!("pre-gate manual form → HTTP {status}: {text}");
+        assert_eq!(
+            status, 400,
+            "F-01 claims the legacy manual thinking form is a 400 on '{model}'. \
+             Got {status}. If this is a 2xx, the model still accepts the old form \
+             and F-01's severity is overstated for it: {text}"
+        );
+    }
+
+    /// The sampling half of the same gate. §10.5 #10 records this as the one
+    /// F-01-adjacent claim that could not be sourced from primary docs and was
+    /// therefore never coded against with confidence — "one live API call
+    /// settles it". This is that call.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_sampling_params_are_rejected_on_adaptive_models() {
+        let model = live_model();
+        assert_eq!(thinking_mode(&model), ThinkingMode::Adaptive);
+
+        let mut body = live_body(&model, Some(4096));
+        // The gate drops `temperature` on these models. Put it back.
+        body["temperature"] = serde_json::json!(0.3);
+
+        let Some((status, text)) = post_live(&body).await else {
+            return;
+        };
+        eprintln!("temperature on an adaptive model → HTTP {status}: {text}");
+        assert_eq!(
+            status, 400,
+            "the gate drops `temperature` on adaptive models on the theory that it \
+             is rejected. Got {status} — if this is a 2xx, dropping it is \
+             unnecessary and `accepts_sampling_params` is over-restrictive: {text}"
+        );
+    }
+
     /// `max_tokens` defaults to 16384 in abstract-cli (`config.rs`).
     const CLI_MAX_TOKENS: u32 = 16384;
 
