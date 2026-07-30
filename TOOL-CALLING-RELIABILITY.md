@@ -13,6 +13,11 @@ prior reviews were re-derived, not carried forward.
 > notices. **15 of 22 fix sites are test-bound; 7 revert green.** The audit, the resulting
 > fix backlog, and the still-open items are in **§10** at the end of this file. Roadmap
 > tick marks are in §8. Line numbers cited in §2–§9 predate the fixes and may have drifted.
+>
+> **SECOND FOLLOW-UP — 2026-07-30, branch `runtime-fix`.** The §10.4 backlog is closed:
+> 13 new tests, no production-code changes. All 7 formerly-unbound sites were re-mutated
+> and every mutant is now killed — **22/22 fix sites test-bound**. Gate:
+> `cargo test --workspace` **522 / 0 / 14**. Details in §10.7.
 
 ---
 
@@ -1274,20 +1279,30 @@ is covered (`sse_pathologies` passes with the `stream.rs` accumulator fixes reve
 Anthropic/Gemini's shared accumulator path has no test driving it). The suite validates the
 code that was never broken and skips the code that was.
 
-### 10.4 Fix backlog from the audit — new work, priority order
+### 10.4 Fix backlog from the audit — new work, priority order — **ALL DONE 2026-07-30, branch `runtime-fix`** (verification in §10.7)
 
 1. **F-11 wiring test** *(highest — silent data-corruption class)*. Drive dispatch with an
    Edit on an unread file; assert (a) the ToolResult is a refusal AND **(b) the file on disk
    is unmodified**. (b) is what fails if the guard ever moves back after dispatch.
+   — done: `p0_wiring::edit_of_unread_file_is_refused_and_the_file_is_untouched`.
 2. **F-07 branch test.** Push an oversized `is_error` result through dispatch; assert the
-   message entering history is capped. 
+   message entering history is capped.
+   — done: `p0_wiring::oversized_error_result_is_capped_before_entering_history`.
 3. **F-04 call-site tests.** Compact a history whose naive split lands mid-pair; assert no
    orphaned `tool_result` in the result. Separately assert `find_orphaned_tool_results` is
    consulted pre-request (e.g. via the `tracing::error!` it emits).
+   — done: `p0_wiring::compaction_through_the_runner_never_orphans_tool_results` (asserts on
+   the post-compaction **request body**, the artifact the provider judges) and
+   `orphan_check_logging::a_request_carrying_an_orphaned_tool_result_is_reported_before_send`.
 4. **F-03 accumulator tests.** Unit-test `StreamAccumulator` directly:
    `apply(StreamEvent::Error)` → `into_response()` is `Err`; terminal-less stream → `Err`.
    Then consider collapsing the two F-03 implementations into one.
+   — done: 5 tests in `stream::tests` (error wins over a later terminal event; first error
+   beats cascade noise; terminal-less → `Err`; two terminal-signal controls). Collapsing the
+   two implementations is deliberately **not** done here — that is a refactor, not a binding.
 5. **F-05a test.** Empty and literal-`null` argument payloads both yield `{}`.
+   — done: 3 tests in `stream::tests` (no deltas, literal `null`, whitespace-only), plus a
+   4th binding F-05b's `__parse_error`/`__raw` preservation at the same seam.
 
 ### 10.5 Known gaps — confirmed still open, deliberately not fixed in P0
 
@@ -1309,3 +1324,30 @@ load-bearing for only ~70% of the fix surface. The five unbound halves share one
 tested helper, untested wiring — and the wiring was the bug in four of the five cases. §10.4
 is therefore the highest-value next increment: five tests, no production code, and it
 converts the P0 suite from "the helpers work" to "reverting any P0 fix fails CI."
+
+### 10.7 Second mutation audit (2026-07-30, branch `runtime-fix`) — the backlog is closed
+
+The §10.4 backlog landed as 13 new tests and zero production-code changes:
+`stream.rs::tests` (9, on the shared accumulator the Anthropic/Gemini path streams
+through), `cersei-agent/tests/p0_wiring.rs` (3, real runner against a scripted
+OpenAI-compatible SSE socket), and `cersei-agent/tests/orphan_check_logging.rs` (1, its own
+binary because it installs a global tracing subscriber).
+
+Each of the 7 formerly-unbound sites was then re-reverted, one at a time, exactly as in
+§10.3:
+
+| Mutation (from §10.3) | Was | Now |
+|---|---|---|
+| F-03b · swallow `StreamEvent::Error` in accumulator | ⚠️ UNBOUND | **KILLED** (2 tests) |
+| F-03c · terminal-less EOF → clean `EndTurn` | ⚠️ UNBOUND | **KILLED** (1) |
+| F-05a · empty args → `null` instead of `{}` | ⚠️ UNBOUND | **KILLED** (4) |
+| F-04a · compaction call site → naive `len - KEEP` split | ⚠️ UNBOUND | **KILLED** (1 — fails naming the orphaned `seed_t5` id in the post-compaction request) |
+| F-04b · pre-request orphan check → always empty | ⚠️ UNBOUND | **KILLED** (1) |
+| F-07 · error branch skips `cap_tool_result` | ⚠️ UNBOUND | **KILLED** (1) |
+| F-11 · guard wiring → never refuses | ⚠️ UNBOUND | **KILLED** (1 — fails on the bytes-on-disk assertion, the data-loss half) |
+
+**Score: 22/22 fix sites bound.** Tree restored after every mutation; final gate
+`cargo test --workspace`: **522 passed / 0 failed / 14 ignored** (509 prior + 13 new).
+Reverting any P0 fix now fails CI. Still open, unchanged: §10.5's known gaps, including
+collapsing the two F-03 implementations into one (a refactor the new accumulator tests make
+safe to attempt).
