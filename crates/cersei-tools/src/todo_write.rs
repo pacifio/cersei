@@ -8,6 +8,7 @@ static TODO_REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<String, Vec<TodoIte
     once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TodoItem {
     pub content: String,
     pub status: TodoStatus,
@@ -74,13 +75,14 @@ impl Tool for TodoWriteTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             todos: Vec<TodoItem>,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         TODO_REGISTRY.insert(ctx.session_id.clone(), input.todos.clone());

@@ -58,9 +58,18 @@ impl Tool for MultiEditTool {
     }
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
-        let (file_path, edits) = match coerce_input(input) {
+        let (file_path, edits) = match coerce_input(&input) {
             Ok(v) => v,
-            Err(e) => return ToolResult::error(e),
+            // A top-level shape problem: route through the shared builder for
+            // the tool name, an echo of the arguments, and the parameter table
+            // (F-05b/F-A14).
+            Err(CoerceError::Shape(e)) => {
+                return crate::tool_feedback::invalid_input(self, &input, e)
+            }
+            // A problem *inside* `edits` is already fully phrased. See
+            // [`CoerceError::InsideEdits`] for why the shared builder is
+            // deliberately bypassed here.
+            Err(CoerceError::InsideEdits(msg)) => return ToolResult::error(msg),
         };
 
         if edits.is_empty() {
@@ -146,64 +155,149 @@ fn edit_error_message(i: usize, total: usize, file_path: &str, err: &ReplaceErro
     }
 }
 
-/// Coerce a loosely-shaped MultiEdit call into a path + edit list.
+/// The parameters `MultiEdit` declares, at the top level and per edit.
+const KNOWN_PARAMS: &[&str] = &["file_path", "edits"];
+const KNOWN_EDIT_PARAMS: &[&str] = &["old_string", "new_string", "replace_all"];
+
+/// Parse a MultiEdit call into a path + edit list, coercing scalar *types* but
+/// not parameter *names*.
 ///
-/// Mirrors the leniency of the single `Edit` tool: accept near-miss field names
-/// and stringified booleans so a weak model's near-correct call still applies.
-fn coerce_input(input: Value) -> std::result::Result<(String, Vec<EditOp>), String> {
+/// Mirrors `Edit`: the name aliases (`path`, `changes`, `oldString`, `all`, …)
+/// were removed because accepting them here while `Grep` and `Glob` silently
+/// dropped the same misspellings taught models a schema the runtime did not
+/// actually honour. Unknown keys are now refused, per edit as well as at the
+/// top level — a typo buried in `edits[3]` was previously the easiest way to
+/// lose one edit out of several with no indication which.
+/// Why a MultiEdit call could not be read.
+enum CoerceError {
+    /// A top-level shape problem, phrased as a bare reason. The shared failure
+    /// builder supplies the tool name, the echo, and the parameter table.
+    Shape(String),
+    /// A problem *inside* `edits`, already carrying its own instruction.
+    ///
+    /// The shared builder is bypassed on purpose. Its corrected-call example
+    /// models top-level keys only, so for a nested mistake it closed with
+    ///
+    /// ```text
+    /// Retry 'MultiEdit' now, sending exactly this JSON object:
+    /// {"edits":"<keep the same value you sent>", "file_path":"…"}
+    /// ```
+    ///
+    /// — telling the model to keep the very edits that were just refused, and
+    /// collapsing a required array into a string on the way. That closing
+    /// instruction is the one part the builder never truncates, so a model
+    /// following it literally resends the failing call and loops.
+    InsideEdits(String),
+}
+
+/// Model-facing text for an unrecognised key inside one edit.
+///
+/// Says which edit, which key, what the real name probably is, and to leave the
+/// other edits alone — everything the top-level builder cannot express.
+fn unknown_edit_key_message(i: usize, total: usize, key: &str) -> String {
+    let expected = KNOWN_EDIT_PARAMS
+        .iter()
+        .map(|k| format!("`{k}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let n = i + 1;
+    let mut m = format!(
+        "Tool 'MultiEdit' rejected your arguments: edit {n} of {total} uses unknown field \
+         `{key}`, expected one of {expected}.\n\n"
+    );
+    if let Some(best) = crate::tool_feedback::closest(key, KNOWN_EDIT_PARAMS) {
+        m.push_str(&format!(
+            "You used '{key}' in edit {n}, but that parameter is named '{best}'. Rename it.\n\n"
+        ));
+    }
+    m.push_str(
+        "Each entry in 'edits' takes: old_string (string, the exact text to replace), \
+         new_string (string, the replacement — omit it for a deletion), \
+         replace_all (boolean, optional).\n\n",
+    );
+    m.push_str(&format!(
+        "Send the call again with edit {n} corrected, leaving the other edits as they are. \
+         No changes were written.\n"
+    ));
+    m
+}
+
+fn coerce_input(input: &Value) -> std::result::Result<(String, Vec<EditOp>), CoerceError> {
     let obj = input
         .as_object()
-        .ok_or_else(|| "Invalid input: expected a JSON object".to_string())?;
+        .ok_or_else(|| CoerceError::Shape("the arguments must be a JSON object".to_string()))?;
 
-    let get_str = |obj: &serde_json::Map<String, Value>, keys: &[&str]| -> Option<String> {
-        for k in keys {
-            match obj.get(*k) {
-                Some(Value::String(s)) => return Some(s.clone()),
-                Some(Value::Number(n)) => return Some(n.to_string()),
-                Some(Value::Bool(b)) => return Some(b.to_string()),
-                _ => {}
-            }
+    crate::tool_feedback::reject_unknown_keys(input, KNOWN_PARAMS).map_err(CoerceError::Shape)?;
+
+    let get_str = |obj: &serde_json::Map<String, Value>, key: &str| -> Option<String> {
+        match obj.get(key) {
+            Some(Value::String(s)) => Some(s.clone()),
+            Some(Value::Number(n)) => Some(n.to_string()),
+            Some(Value::Bool(b)) => Some(b.to_string()),
+            _ => None,
         }
-        None
     };
 
-    let get_bool = |obj: &serde_json::Map<String, Value>, keys: &[&str]| -> bool {
-        for k in keys {
-            match obj.get(*k) {
-                Some(Value::Bool(b)) => return *b,
-                Some(Value::String(s)) => {
-                    return matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes")
-                }
-                Some(Value::Number(n)) => return n.as_i64().map(|v| v != 0).unwrap_or(false),
-                _ => {}
+    let get_bool = |obj: &serde_json::Map<String, Value>, key: &str| -> bool {
+        match obj.get(key) {
+            Some(Value::Bool(b)) => *b,
+            Some(Value::String(s)) => {
+                matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes")
             }
+            Some(Value::Number(n)) => n.as_i64().map(|v| v != 0).unwrap_or(false),
+            _ => false,
         }
-        false
     };
 
-    let file_path = get_str(obj, &["file_path", "filePath", "path", "file"])
-        .ok_or_else(|| "Invalid input: missing 'file_path'".to_string())?;
+    let file_path = get_str(obj, "file_path").ok_or_else(|| {
+        CoerceError::Shape("missing 'file_path' (the absolute path of the file to edit)".to_string())
+    })?;
 
-    let edits_val = obj
-        .get("edits")
-        .or_else(|| obj.get("changes"))
-        .or_else(|| obj.get("replacements"))
-        .ok_or_else(|| "Invalid input: missing 'edits' array".to_string())?;
-    let edits_arr = edits_val
-        .as_array()
-        .ok_or_else(|| "Invalid input: 'edits' must be an array".to_string())?;
+    let edits_val = obj.get("edits").ok_or_else(|| {
+        CoerceError::Shape(
+            "missing 'edits' (an array of {old_string, new_string} objects)".to_string(),
+        )
+    })?;
+    let edits_arr = edits_val.as_array().ok_or_else(|| {
+        CoerceError::Shape(
+            "'edits' must be a JSON array of {old_string, new_string} objects".to_string(),
+        )
+    })?;
 
-    let mut edits = Vec::with_capacity(edits_arr.len());
+    let total = edits_arr.len();
+    let mut edits = Vec::with_capacity(total);
     for (i, e) in edits_arr.iter().enumerate() {
-        let eo = e
-            .as_object()
-            .ok_or_else(|| format!("Invalid input: edit {} is not an object", i + 1))?;
-        let old_string = get_str(eo, &["old_string", "oldString", "old_str", "old", "search"])
-            .ok_or_else(|| format!("Invalid input: edit {} is missing 'old_string'", i + 1))?;
+        let eo = e.as_object().ok_or_else(|| {
+            CoerceError::InsideEdits(format!(
+                "Tool 'MultiEdit' rejected your arguments: edit {} of {total} is not a JSON \
+                 object. Each entry in 'edits' must be an object with old_string and \
+                 new_string. No changes were written.\n",
+                i + 1
+            ))
+        })?;
+        if let Err(err) = crate::tool_feedback::reject_unknown_keys(e, KNOWN_EDIT_PARAMS) {
+            // Recover the offending key from serde's phrasing to name it precisely.
+            let key = err
+                .split('`')
+                .nth(1)
+                .map(str::to_string)
+                .unwrap_or_else(|| "?".to_string());
+            return Err(CoerceError::InsideEdits(unknown_edit_key_message(
+                i, total, &key,
+            )));
+        }
+        let old_string = get_str(eo, "old_string").ok_or_else(|| {
+            CoerceError::InsideEdits(format!(
+                "Tool 'MultiEdit' rejected your arguments: edit {} of {total} is missing \
+                 'old_string' (the exact text to replace). Send the call again with edit {} \
+                 corrected, leaving the other edits as they are. No changes were written.\n",
+                i + 1,
+                i + 1
+            ))
+        })?;
         // A missing new_string is a deletion.
-        let new_string =
-            get_str(eo, &["new_string", "newString", "new_str", "new", "replace"]).unwrap_or_default();
-        let replace_all = get_bool(eo, &["replace_all", "replaceAll", "all"]);
+        let new_string = get_str(eo, "new_string").unwrap_or_default();
+        let replace_all = get_bool(eo, "replace_all");
         edits.push(EditOp {
             old_string,
             new_string,
@@ -356,4 +450,75 @@ mod tests {
             "fn main() {\n        let x = 2;\n}\n"
         );
     }
+
+    /// A typo inside one edit must not produce a "retry with exactly this"
+    /// example that still contains the typo.
+    ///
+    /// The shared failure builder models corrected calls at the *top level*
+    /// only. `edits` is a legitimate top-level key, so it was copied through
+    /// verbatim — offending entry and all — under an instruction the builder
+    /// deliberately never truncates. A model following it literally resends the
+    /// identical call and loops until the turn budget runs out.
+    #[tokio::test]
+    async fn per_edit_typo_is_not_echoed_back_as_the_suggested_retry() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("f.rs");
+        std::fs::write(&path, "let a = 1;\nlet c = 3;\n").unwrap();
+
+        let res = MultiEditTool
+            .execute(
+                serde_json::json!({
+                    "file_path": path.to_str().unwrap(),
+                    "edits": [
+                        { "old_string": "let a = 1;", "new_string": "let b = 2;" },
+                        // camelCase typo in the second edit only.
+                        { "oldString": "let c = 3;", "new_string": "let d = 4;" }
+                    ]
+                }),
+                &test_ctx(),
+            )
+            .await;
+
+        assert!(res.is_error, "got: {}", res.content);
+        assert!(
+            res.content.contains("oldString"),
+            "must quote the offending key: {}",
+            res.content
+        );
+        assert!(
+            res.content.contains("old_string"),
+            "must name the real parameter: {}",
+            res.content
+        );
+        assert!(
+            res.content.contains('2'),
+            "must say which edit is wrong: {}",
+            res.content
+        );
+
+        // The load-bearing assertion. The shared builder used to close with
+        //   Retry 'MultiEdit' now, sending exactly this JSON object:
+        //   {"edits":"<keep the same value you sent>", "file_path": "..."}
+        // which tells the model to keep the very edits that were refused, and
+        // collapses a required array into a string on the way. Neither may
+        // appear.
+        assert!(
+            !res.content.contains("keep the same value you sent"),
+            "the suggested retry tells the model to resend the rejected edits: {}",
+            res.content
+        );
+        assert!(
+            !res.content.contains("sending exactly this"),
+            "a nested failure must not emit a top-level-only corrected call: {}",
+            res.content
+        );
+
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "let a = 1;\nlet c = 3;\n",
+            "a refused MultiEdit must be atomic — no edit may land"
+        );
+    }
+
+
 }

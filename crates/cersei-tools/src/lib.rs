@@ -33,6 +33,7 @@ pub mod tasks;
 pub mod todo_write;
 #[cfg(feature = "vms")]
 pub mod vm_tools;
+pub mod tool_feedback;
 pub mod tool_primitives;
 pub mod tool_search;
 pub mod web_fetch;
@@ -356,4 +357,222 @@ pub fn orchestration() -> Vec<Box<dyn Tool>> {
 /// No tools (for pure chat agents).
 pub fn none() -> Vec<Box<dyn Tool>> {
     vec![]
+}
+
+// ─── Unknown-parameter policy (F-10) ─────────────────────────────────────────
+
+/// One policy, applied to every tool: a parameter a tool does not declare is an
+/// error, never a silent drop.
+///
+/// The alternative — accepting near-miss names per tool — was rejected because
+/// partial leniency is what caused the bug. `Edit` accepted `path` as an alias
+/// for `file_path`, so a model that guessed `path` was *rewarded*, carried the
+/// hypothesis to `Grep`, and there `path` means something else entirely: the
+/// unknown key was dropped, the search silently widened to the whole working
+/// directory, and up to 250 matches from unrelated files came back as though
+/// they came from the one file the model asked about. No layer emitted an
+/// error, so nothing downstream could recover from it.
+///
+/// Rejecting is only viable because the rejection is *actionable*:
+/// [`tool_feedback`] turns serde's unknown-field error into a message that
+/// names the tool, echoes the arguments, points at the parameter the model
+/// probably meant, and prints a corrected call.
+#[cfg(test)]
+mod unknown_parameter_policy {
+    use super::*;
+    use crate::permissions::AllowAll;
+    use std::sync::Arc;
+
+    /// A key no tool declares. Deliberately unmistakable in failure output,
+    /// and deliberately *not* `__`-prefixed: that prefix is reserved for the
+    /// provider's wire markers and is skipped by the near-miss reporter.
+    const UNKNOWN_KEY: &str = "cersei_probe_bogus_param";
+
+    /// The deserializer's wording when it refuses a key it does not know.
+    ///
+    /// Asserting on this specific phrase is the point of the test. A tool that
+    /// merely *echoes* the arguments back inside some other complaint — "missing
+    /// field `pattern`" — looks like a rejection but has still silently dropped
+    /// the unknown key, which is the bug. Only a deserializer that actually
+    /// refuses the key produces this.
+    const REJECTION: &str = "unknown field";
+
+    fn ctx_in(dir: &std::path::Path) -> ToolContext {
+        ToolContext {
+            working_dir: dir.to_path_buf(),
+            session_id: "unknown-param-test".into(),
+            permissions: Arc::new(AllowAll),
+            cost_tracker: Arc::new(CostTracker::new()),
+            mcp_manager: None,
+            extensions: Extensions::default(),
+        }
+    }
+
+    fn required_params(tool: &dyn Tool) -> Vec<String> {
+        tool.input_schema()
+            .get("required")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Every tool must reject a parameter it does not declare.
+    ///
+    /// The probe sends *only* the unknown key. That is deliberate, and is what
+    /// makes running this against the real registry safe: every tool covered
+    /// here has at least one required parameter, so the call can never
+    /// deserialize into a runnable request and no tool body executes — not
+    /// `Bash`, not `Write`, not `CronCreate`. The assertion is only about which
+    /// *error* comes back.
+    ///
+    /// Before `deny_unknown_fields`, the unknown key was discarded during
+    /// deserialization and the resulting complaint named the missing required
+    /// field, never the key the model actually got wrong.
+    #[tokio::test]
+    async fn every_tool_rejects_an_unknown_parameter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = ctx_in(tmp.path());
+
+        let mut covered = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+
+        for tool in all() {
+            // A tool with no required parameter would actually run on this
+            // input, so it is not probed this way.
+            if required_params(tool.as_ref()).is_empty() {
+                continue;
+            }
+            covered += 1;
+
+            let res = tool
+                .execute(serde_json::json!({ UNKNOWN_KEY: "x" }), &ctx)
+                .await;
+
+            if !res.is_error {
+                failures.push(format!(
+                    "{}: accepted an unknown parameter (silent drop)",
+                    tool.name()
+                ));
+            } else if !res.content.contains(REJECTION) {
+                failures.push(format!(
+                    "{}: failed for some other reason, so the unknown key was still \
+                     dropped rather than refused — got: {}",
+                    tool.name(),
+                    res.content.lines().next().unwrap_or("")
+                ));
+            } else if !res.content.contains(UNKNOWN_KEY) {
+                failures.push(format!(
+                    "{}: refused a key without naming it — got: {}",
+                    tool.name(),
+                    res.content.lines().next().unwrap_or("")
+                ));
+            }
+        }
+
+        assert!(
+            covered >= 25,
+            "coverage collapsed to {covered} tools; the filter is hiding the registry"
+        );
+        assert!(
+            failures.is_empty(),
+            "{} of {} tools mishandled an unknown parameter:\n  {}",
+            failures.len(),
+            covered,
+            failures.join("\n  ")
+        );
+    }
+
+    /// F-10's exact scenario: the model reads a file with `file_path`, then
+    /// searches it with `Grep`, whose parameter is `path`.
+    ///
+    /// The dangerous outcome is not a failed search — it is a *successful* one.
+    /// With `file_path` dropped, `Grep` fell back to the working directory and
+    /// returned matches from files the model never asked about, with nothing in
+    /// the result to say the scope had changed.
+    #[tokio::test]
+    async fn grep_does_not_silently_widen_to_the_whole_working_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("target.txt"), "fn login() {}\n").unwrap();
+        std::fs::create_dir(tmp.path().join("elsewhere")).unwrap();
+        std::fs::write(
+            tmp.path().join("elsewhere/decoy.txt"),
+            "fn login_unrelated() {}\n",
+        )
+        .unwrap();
+
+        let res = grep_tool::GrepTool
+            .execute(
+                serde_json::json!({
+                    "pattern": "login",
+                    // Wrong name: Grep declares `path`, not `file_path`.
+                    "file_path": tmp.path().join("target.txt").to_str().unwrap(),
+                }),
+                &ctx_in(tmp.path()),
+            )
+            .await;
+
+        assert!(
+            res.is_error,
+            "Grep accepted `file_path` and searched somewhere else instead; it returned: {}",
+            res.content
+        );
+        assert!(
+            !res.content.contains("decoy"),
+            "result leaked matches from outside the requested file: {}",
+            res.content
+        );
+        assert!(
+            res.content.contains("file_path"),
+            "error must quote the parameter the model sent: {}",
+            res.content
+        );
+        assert!(
+            res.content.contains("path"),
+            "error must name the real parameter: {}",
+            res.content
+        );
+    }
+
+    /// The other half of F-10: `Edit` accepted `path` as an alias, which is
+    /// where the model *learned* the wrong name before carrying it to `Grep`.
+    /// One tool rewarding a guess that every other tool punishes is worse than
+    /// either policy applied consistently.
+    #[tokio::test]
+    async fn edit_no_longer_teaches_the_path_alias() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("f.rs");
+        std::fs::write(&file, "let x = 1;\n").unwrap();
+
+        let res = file_edit::FileEditTool
+            .execute(
+                serde_json::json!({
+                    "path": file.to_str().unwrap(),
+                    "old_string": "let x = 1;",
+                    "new_string": "let x = 2;",
+                }),
+                &ctx_in(tmp.path()),
+            )
+            .await;
+
+        assert!(
+            res.is_error,
+            "Edit still accepts the `path` alias, so it keeps teaching a name \
+             that Grep and Glob silently mis-handle"
+        );
+        assert!(
+            res.content.contains("file_path"),
+            "error must name the real parameter: {}",
+            res.content
+        );
+        assert_eq!(
+            std::fs::read_to_string(&file).unwrap(),
+            "let x = 1;\n",
+            "a rejected edit must not have touched the file"
+        );
+    }
 }

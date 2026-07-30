@@ -29,13 +29,14 @@ impl Tool for SleepTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             duration_ms: u64,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         let duration = input.duration_ms.min(60_000);
