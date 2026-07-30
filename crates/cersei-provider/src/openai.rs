@@ -67,17 +67,6 @@ impl Provider for OpenAi {
         }
     }
 
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: true,
-            vision: true,
-            thinking: false,
-            system_prompt: true,
-            caching: false,
-        }
-    }
-
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
         let model = if request.model.is_empty() {
             self.default_model.clone()

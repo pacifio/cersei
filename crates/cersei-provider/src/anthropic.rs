@@ -84,17 +84,6 @@ impl Provider for Anthropic {
         }
     }
 
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: true,
-            vision: true,
-            thinking: true,
-            system_prompt: true,
-            caching: true,
-        }
-    }
-
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
         let model = if request.model.is_empty() {
             self.default_model.clone()

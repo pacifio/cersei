@@ -211,7 +211,7 @@ fn truncate(s: &str, n: usize) -> String {
 mod tests {
     use super::*;
     use crate::delegate::{ProviderFactory, ToolsetFactory};
-    use cersei_provider::{CompletionRequest, CompletionStream, Provider, ProviderCapabilities};
+    use cersei_provider::{CompletionRequest, CompletionStream, Provider};
     use cersei_tools::permissions::AllowAll;
     use cersei_tools::{CostTracker, Extensions};
     use cersei_types::*;
@@ -224,9 +224,6 @@ mod tests {
     impl Provider for EchoProvider {
         fn name(&self) -> &str { "echo" }
         fn context_window(&self, _: &str) -> u64 { 4096 }
-        fn capabilities(&self, _: &str) -> ProviderCapabilities {
-            ProviderCapabilities { streaming: true, tool_use: false, ..Default::default() }
-        }
         async fn complete(&self, req: CompletionRequest) -> cersei_types::Result<CompletionStream> {
             let prompt = req.messages.last().and_then(|m| m.get_text()).unwrap_or("").to_string();
             let (tx, rx) = mpsc::channel(16);

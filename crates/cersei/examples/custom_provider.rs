@@ -12,7 +12,7 @@
 //! ```
 
 use cersei::prelude::*;
-use cersei::provider::{CompletionStream, ProviderCapabilities};
+use cersei::provider::CompletionStream;
 use tokio::sync::mpsc;
 
 // ─── Echo Provider (for testing without an API key) ──────────────────────────
@@ -29,17 +29,7 @@ impl Provider for EchoProvider {
         4096
     }
 
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: false, // Echo provider doesn't call tools
-            vision: false,
-            thinking: false,
-            system_prompt: true,
-            caching: false,
-        }
-    }
-
+    
     async fn complete(&self, request: CompletionRequest) -> cersei_types::Result<CompletionStream> {
         let last_msg = request
             .messages

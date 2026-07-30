@@ -176,7 +176,7 @@ impl Tool for AgentTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cersei_provider::{CompletionRequest, CompletionStream, ProviderCapabilities};
+    use cersei_provider::{CompletionRequest, CompletionStream};
     use cersei_tools::permissions::AllowAll;
     use cersei_tools::{CostTracker, Extensions};
     use cersei_types::*;
@@ -192,13 +192,6 @@ mod tests {
         }
         fn context_window(&self, _: &str) -> u64 {
             4096
-        }
-        fn capabilities(&self, _: &str) -> ProviderCapabilities {
-            ProviderCapabilities {
-                streaming: true,
-                tool_use: false,
-                ..Default::default()
-            }
         }
         async fn complete(&self, req: CompletionRequest) -> cersei_types::Result<CompletionStream> {
             let prompt = req

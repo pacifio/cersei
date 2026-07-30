@@ -13,7 +13,7 @@
 
 use cersei::events::AgentEvent;
 use cersei::prelude::*;
-use cersei::provider::{CompletionStream, ProviderCapabilities, ProviderOptions};
+use cersei::provider::{CompletionStream, ProviderOptions};
 use cersei::reporters::{AgentMetrics, MetricsReporter, Reporter};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -75,17 +75,7 @@ impl Provider for SimulatedClaude {
     fn context_window(&self, _model: &str) -> u64 {
         200_000
     }
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: true,
-            vision: true,
-            thinking: true,
-            system_prompt: true,
-            caching: true,
-        }
-    }
-
+    
     async fn complete(&self, request: CompletionRequest) -> cersei_types::Result<CompletionStream> {
         let turn = self.turn.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let model = self.model.clone();

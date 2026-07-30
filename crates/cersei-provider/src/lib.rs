@@ -56,9 +56,6 @@ pub trait Provider: Send + Sync {
     /// Context window size for the given model.
     fn context_window(&self, model: &str) -> u64;
 
-    /// Capabilities supported by the given model.
-    fn capabilities(&self, model: &str) -> ProviderCapabilities;
-
     /// Send a streaming completion request.
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream>;
 
@@ -83,9 +80,6 @@ impl Provider for Box<dyn Provider> {
     }
     fn context_window(&self, model: &str) -> u64 {
         (**self).context_window(model)
-    }
-    fn capabilities(&self, model: &str) -> ProviderCapabilities {
-        (**self).capabilities(model)
     }
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
         (**self).complete(request).await
@@ -202,15 +196,11 @@ pub struct CompletionResponse {
     pub stop_reason: StopReason,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ProviderCapabilities {
-    pub streaming: bool,
-    pub tool_use: bool,
-    pub vision: bool,
-    pub thinking: bool,
-    pub system_prompt: bool,
-    pub caching: bool,
-}
+// F-23: `ProviderCapabilities` is gone. It was written 40+ times in the
+// registry and read exactly once — a `Box<dyn Provider>` forwarder to
+// nothing (H6). The living per-(provider, model) surface is
+// `quirks::ProviderQuirks`, whose fields derive from the live-verified
+// gates instead of a hand-maintained table.
 
 // ─── Completion stream ───────────────────────────────────────────────────────
 

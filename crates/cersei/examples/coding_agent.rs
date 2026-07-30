@@ -10,7 +10,7 @@
 
 use cersei::events::AgentEvent;
 use cersei::prelude::*;
-use cersei::provider::{CompletionStream, ProviderCapabilities, ProviderOptions};
+use cersei::provider::{CompletionStream, ProviderOptions};
 use cersei::reporters::Reporter;
 use std::io::Write as IoWrite;
 use std::sync::Arc;
@@ -320,17 +320,7 @@ impl Provider for MockCodingProvider {
     fn context_window(&self, _: &str) -> u64 {
         200_000
     }
-    fn capabilities(&self, _: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: true,
-            vision: true,
-            thinking: true,
-            system_prompt: true,
-            caching: true,
-        }
-    }
-
+    
     async fn complete(&self, request: CompletionRequest) -> cersei_types::Result<CompletionStream> {
         let turn = self.turn.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let ws = self.workspace.clone();
