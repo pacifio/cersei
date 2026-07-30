@@ -11,6 +11,11 @@ pub struct OpenAi {
     auth: Auth,
     base_url: String,
     default_model: String,
+    /// F-09: emit `options.num_ctx` on the wire. Ollama-only — OpenAI proper
+    /// rejects unknown top-level fields with a 400, so the router sets this
+    /// only for local providers whose server-side default window (often 4k)
+    /// would otherwise silently truncate the prompt front.
+    send_num_ctx: bool,
     client: reqwest::Client,
 }
 
@@ -24,6 +29,7 @@ impl OpenAi {
             auth,
             base_url,
             default_model: "gpt-4o".to_string(),
+            send_num_ctx: false,
             client: reqwest::Client::new(),
         }
     }
@@ -261,6 +267,16 @@ impl Provider for OpenAi {
         // Only the o-series / gpt-5 reasoning models accept it.
         if let Some(effort) = reasoning_effort_for(&model, &request.options) {
             body["reasoning_effort"] = serde_json::json!(effort);
+        }
+
+        // F-09: without this, Ollama runs the whole session at its
+        // server-side default window (often 4k) while compaction budgets
+        // against the model's real window — the front of the prompt silently
+        // truncates. The runner supplies the value; the flag gates the wire.
+        if self.send_num_ctx {
+            if let Some(num_ctx) = request.options.get::<u64>("num_ctx") {
+                body["options"] = serde_json::json!({ "num_ctx": num_ctx });
+            }
         }
 
         if !request.tools.is_empty() {
@@ -723,6 +739,7 @@ pub struct OpenAiBuilder {
     api_key: Option<String>,
     base_url: Option<String>,
     model: Option<String>,
+    send_num_ctx: bool,
 }
 
 impl OpenAiBuilder {
@@ -741,6 +758,12 @@ impl OpenAiBuilder {
         self
     }
 
+    /// F-09: opt this provider into emitting `options.num_ctx` (Ollama only).
+    pub fn send_num_ctx(mut self, enabled: bool) -> Self {
+        self.send_num_ctx = enabled;
+        self
+    }
+
     pub fn build(self) -> Result<OpenAi> {
         let auth = if let Some(key) = self.api_key {
             Auth::ApiKey(key)
@@ -754,6 +777,7 @@ impl OpenAiBuilder {
             auth,
             base_url: self.base_url.unwrap_or_else(|| OPENAI_API_BASE.to_string()),
             default_model: self.model.unwrap_or_else(|| "gpt-4o".to_string()),
+            send_num_ctx: self.send_num_ctx,
             client: reqwest::Client::new(),
         })
     }

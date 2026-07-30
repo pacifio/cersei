@@ -447,6 +447,11 @@ pub async fn run_agent_streaming(
             force_tool_choice = false;
             options.set("tool_choice", "required");
         }
+        // F-09: the window this loop budgets against rides on every request;
+        // only providers flagged for it (Ollama) put it on the wire as
+        // options.num_ctx. Without it Ollama stays at its server-side
+        // default window and silently truncates the prompt front.
+        options.set("num_ctx", compact::context_window_for_model(&model));
 
         // Todo nudge: on turns > 2, remind model about incomplete todos
         let system_with_nudge = if turn > 2 {

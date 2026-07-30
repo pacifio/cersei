@@ -11,7 +11,7 @@
 //! `build_anthropic_body`, and is bound by body-shape tests in
 //! `anthropic.rs::tests`.
 
-use cersei_provider::{CompletionRequest, Gemini, OpenAi, Provider};
+use cersei_provider::{from_model_string, CompletionRequest, Gemini, OpenAi, Provider};
 use cersei_types::*;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -194,6 +194,71 @@ async fn openai_body_omits_tool_choice_by_default() {
     assert!(
         body.get("tool_choice").is_none(),
         "no option ⇒ provider default (auto), no key: {body:#}"
+    );
+}
+
+/// F-09: a provider flagged `send_num_ctx` puts the runner-supplied window on
+/// the wire as `options.num_ctx`; an unflagged one must not — OpenAI proper
+/// rejects unknown top-level fields with a 400.
+#[tokio::test]
+async fn num_ctx_reaches_the_wire_only_on_flagged_providers() {
+    // Flagged (the router's Ollama construction): emitted.
+    let (url, rx) = capture_one("data: [DONE]\n\n");
+    let provider = OpenAi::builder()
+        .api_key("no-key")
+        .base_url(format!("{url}/v1"))
+        .model("qwen2.5-coder")
+        .send_num_ctx(true)
+        .build()
+        .expect("build provider");
+    let mut req = schemars_like_request();
+    req.options.set("num_ctx", 8_192u64);
+    let _ = async { provider.complete(req).await?.collect().await }.await;
+    let body = body_json(&rx);
+    assert_eq!(body["options"]["num_ctx"], serde_json::json!(8_192));
+
+    // Unflagged (every non-Ollama OpenAI-compatible endpoint): absent.
+    let (url, rx) = capture_one("data: [DONE]\n\n");
+    let provider = OpenAi::builder()
+        .api_key("test-key")
+        .base_url(format!("{url}/v1"))
+        .model("gpt-4o")
+        .build()
+        .expect("build provider");
+    let mut req = schemars_like_request();
+    req.options.set("num_ctx", 8_192u64);
+    let _ = async { provider.complete(req).await?.collect().await }.await;
+    let body = body_json(&rx);
+    assert!(
+        body.get("options").is_none(),
+        "OpenAI proper 400s on unknown top-level fields: {body:#}"
+    );
+}
+
+/// F-09, router wiring: the provider `from_model_string("ollama/…")` builds
+/// must be the flagged one. This is the call site the flag exists for — a
+/// bound builder with an unbound router would repeat the P0 trap.
+#[tokio::test]
+async fn router_built_ollama_provider_sends_num_ctx() {
+    let (url, rx) = capture_one("data: [DONE]\n\n");
+    // resolved_api_base honours {ID}_BASE_URL; nothing else in this binary
+    // reads it, so the process-global set is safe.
+    std::env::set_var("OLLAMA_BASE_URL", format!("{url}/v1"));
+    let (provider, model) =
+        from_model_string("ollama/qwen2.5-coder:7b").expect("router must build ollama keyless");
+    std::env::remove_var("OLLAMA_BASE_URL");
+    assert_eq!(model, "qwen2.5-coder:7b");
+
+    let mut req = schemars_like_request();
+    req.model = model;
+    req.options.set("num_ctx", 8_192u64);
+    let _ = async { provider.complete(req).await?.collect().await }.await;
+
+    let body = body_json(&rx);
+    assert_eq!(
+        body["options"]["num_ctx"],
+        serde_json::json!(8_192),
+        "build_provider must flag the ollama entry with send_num_ctx: {body:#}"
     );
 }
 

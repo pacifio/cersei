@@ -108,7 +108,14 @@ pub fn context_window_for_model(model: &str) -> u64 {
         m if m.contains("gpt-4") => 8_192,
         m if m.contains("gpt-3.5") => 16_385,
         m if m.contains("llama") => 8_192,
-        _ => 200_000, // default to large
+        // Newer Claude ids (fable, mythos, …) don't contain opus/sonnet/haiku.
+        m if m.contains("claude") => 200_000,
+        // F-09: an unknown model is most often a local Ollama tag
+        // (qwen2.5-coder:7b, deepseek-r1, …) whose real window is small. The
+        // old 200_000 catch-all meant compaction never fired for exactly the
+        // models with the least room; overestimating silently truncates the
+        // prompt front, underestimating merely compacts early.
+        _ => 8_192,
     }
 }
 
@@ -620,6 +627,13 @@ mod tests {
         assert_eq!(context_window_for_model("claude-sonnet-4-6"), 200_000);
         assert_eq!(context_window_for_model("gpt-4o"), 128_000);
         assert_eq!(context_window_for_model("gpt-4"), 8_192);
+        // Newer Claude ids carry none of the tier names.
+        assert_eq!(context_window_for_model("claude-fable-5"), 200_000);
+        // F-09: unknown tags are usually local Ollama models with small real
+        // windows — overestimating means silent front-truncation, so the
+        // catch-all must be conservative.
+        assert_eq!(context_window_for_model("qwen2.5-coder:7b"), 8_192);
+        assert_eq!(context_window_for_model("deepseek-r1"), 8_192);
     }
 
     #[test]

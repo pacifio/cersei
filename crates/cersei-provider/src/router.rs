@@ -147,6 +147,9 @@ fn build_provider(entry: &ProviderEntry, model: &str) -> Result<Box<dyn Provider
                 .base_url(base_url)
                 .api_key(key)
                 .model(model)
+                // F-09: only Ollama honours (and tolerates) `options.num_ctx`;
+                // OpenAI proper 400s on unknown top-level fields.
+                .send_num_ctx(entry.id == "ollama")
                 .build()?;
 
             Ok(Box::new(provider))
