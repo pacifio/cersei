@@ -173,18 +173,10 @@ pub(crate) fn build_anthropic_body(
     }
 
     // Tools, with a cache breakpoint on the last tool (caches the whole tool set).
+    // B1: schemas cross the provider boundary only through `adapt_tools`.
     if !request.tools.is_empty() {
-        let mut api_tools: Vec<serde_json::Value> = request
-            .tools
-            .iter()
-            .map(|t| {
-                serde_json::json!({
-                    "name": t.name,
-                    "description": t.description,
-                    "input_schema": t.input_schema,
-                })
-            })
-            .collect();
+        let mut api_tools =
+            crate::adapt::adapt_tools(&request.tools, crate::adapt::SchemaDialect::AnthropicNative);
         if let Some(last) = api_tools.last_mut() {
             last["cache_control"] = serde_json::json!({ "type": "ephemeral" });
         }
@@ -659,6 +651,62 @@ mod tests {
         // https://github.com/pacifio/cersei/issues/20.
         assert!(!ANTHROPIC_BETA_HEADER.contains("interleaved-thinking-2025-04-14"));
         assert_eq!(ANTHROPIC_BETA_HEADER, "token-efficient-tools-2025-02-19");
+    }
+
+    // ─── B1 wiring ───────────────────────────────────────────────────────────
+    //
+    // `build_anthropic_body` is the Anthropic/Vertex serialization site, so a
+    // body-shape assertion here binds the seam call directly. The OpenAI and
+    // Gemini sites are bound in `tests/tool_body_shapes.rs`.
+
+    /// The tool schemas in the body must be `adapt_tools` output — `$ref`
+    /// inlined, `$schema`/`definitions` stripped — with the cache breakpoint
+    /// still on the last tool.
+    #[test]
+    fn body_tools_are_adapted_and_cache_control_survives() {
+        let mut r = CompletionRequest::new("claude-sonnet-5");
+        r.max_tokens = 1024;
+        r.messages = vec![Message::user("go")];
+        let schemars_like = serde_json::json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "range": { "$ref": "#/definitions/Range" } },
+            "definitions": {
+                "Range": { "type": "object", "properties": { "start": { "type": "integer" } } }
+            }
+        });
+        r.tools = vec![
+            ToolDefinition {
+                name: "Read".to_string(),
+                description: "Reads a file".to_string(),
+                input_schema: schemars_like,
+            },
+            ToolDefinition {
+                name: "Grep".to_string(),
+                description: "Searches".to_string(),
+                input_schema: serde_json::json!({ "type": "object" }),
+            },
+        ];
+
+        let body = build_anthropic_body("claude-sonnet-5", &r, None, None);
+        let schema = &body["tools"][0]["input_schema"];
+        assert!(schema.get("$schema").is_none(), "{schema:#}");
+        assert!(schema.get("definitions").is_none(), "{schema:#}");
+        assert!(schema["properties"]["range"].get("$ref").is_none(), "{schema:#}");
+        assert_eq!(
+            schema["properties"]["range"]["properties"]["start"]["type"], "integer",
+            "the $ref must be inlined in place: {schema:#}"
+        );
+        // Native is permissive: the author's constraints pass through.
+        assert_eq!(schema["additionalProperties"], serde_json::json!(false));
+        // The cache breakpoint the seam must not displace.
+        assert_eq!(
+            body["tools"][1]["cache_control"],
+            serde_json::json!({ "type": "ephemeral" }),
+            "the last tool carries the cache breakpoint for the whole set"
+        );
+        assert!(body["tools"][0].get("cache_control").is_none());
     }
 
     // ─── F-01 ────────────────────────────────────────────────────────────────

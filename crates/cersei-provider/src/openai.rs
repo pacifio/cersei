@@ -264,20 +264,10 @@ impl Provider for OpenAi {
         }
 
         if !request.tools.is_empty() {
-            let tools: Vec<serde_json::Value> = request
-                .tools
-                .iter()
-                .map(|t| {
-                    serde_json::json!({
-                        "type": "function",
-                        "function": {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.input_schema,
-                        }
-                    })
-                })
-                .collect();
+            // B1: schemas cross the provider boundary only through
+            // `adapt_tools`. Loose until B2's quirks opt a model into strict.
+            let tools =
+                crate::adapt::adapt_tools(&request.tools, crate::adapt::SchemaDialect::OpenAiLoose);
             body["tools"] = serde_json::Value::Array(tools);
         }
 

@@ -260,19 +260,13 @@ impl Provider for Gemini {
                 serde_json::json!({ "thinkingBudget": budget });
         }
 
-        // Tool declarations
+        // Tool declarations. B1: schemas cross the provider boundary only
+        // through `adapt_tools` — Gemini rejects `$schema`/`$ref`/
+        // `definitions`/`additionalProperties`, and the rejection kills the
+        // whole request (Exp 1/3, TOOL-CALLING-RELIABILITY.md §7.0).
         if !request.tools.is_empty() {
-            let function_declarations: Vec<serde_json::Value> = request
-                .tools
-                .iter()
-                .map(|t| {
-                    serde_json::json!({
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": t.input_schema,
-                    })
-                })
-                .collect();
+            let function_declarations =
+                crate::adapt::adapt_tools(&request.tools, crate::adapt::SchemaDialect::GeminiSubset);
             body["tools"] = serde_json::json!([{
                 "functionDeclarations": function_declarations,
             }]);
@@ -590,6 +584,133 @@ impl GeminiBuilder {
                 .unwrap_or_else(|| "gemini-3.1-pro-preview".to_string()),
             client: reqwest::Client::new(),
         })
+    }
+}
+
+// ─── B1, live ────────────────────────────────────────────────────────────────
+//
+// The offline suite proves `complete()` sends `adapt_tools` output
+// (`tests/tool_body_shapes.rs`); these two prove the real API still agrees
+// with the Exp 1/3 measurements that output is built on. Offline suites have
+// already shipped one bug by asserting documented-but-wrong API behavior —
+// this is the drift sentinel. Requires a key, so `#[ignore]`:
+//
+//   GEMINI_API_KEY=... cargo test -p cersei-provider --lib live_ \
+//       -- --ignored --nocapture
+//
+// Override the model with CERSEI_LIVE_GEMINI_MODEL. The default is the model
+// Exp 1/3 were measured against.
+#[cfg(test)]
+mod live_dialect_tests {
+    use super::*;
+    use crate::adapt::{adapt_tools, SchemaDialect};
+
+    fn live_model() -> String {
+        std::env::var("CERSEI_LIVE_GEMINI_MODEL")
+            .unwrap_or_else(|_| "gemini-flash-lite-latest".to_string())
+    }
+
+    /// The schemars-0.8 shape Exp 1 measured being rejected: all four of the
+    /// keys Gemini 400s on.
+    fn schemars_like_tool() -> ToolDefinition {
+        ToolDefinition {
+            name: "Read".to_string(),
+            description: "Reads a file".to_string(),
+            input_schema: serde_json::json!({
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "file_path": { "type": "string" },
+                    "range": { "$ref": "#/definitions/Range" },
+                },
+                "required": ["file_path"],
+                "definitions": {
+                    "Range": {
+                        "type": "object",
+                        "properties": { "start": { "type": "integer" } },
+                    }
+                }
+            }),
+        }
+    }
+
+    /// POST one non-streaming `generateContent` request carrying `decl` as
+    /// the sole function declaration; return (status, response text). `None`
+    /// (skip, not failure) when no key is present, matching the other live
+    /// tests in this workspace.
+    async fn post_live(decl: &serde_json::Value) -> Option<(u16, String)> {
+        let key = match std::env::var("GOOGLE_API_KEY")
+            .or_else(|_| std::env::var("GEMINI_API_KEY"))
+        {
+            Ok(k) if !k.is_empty() => k,
+            _ => {
+                eprintln!("GOOGLE_API_KEY/GEMINI_API_KEY not set — skipping.");
+                return None;
+            }
+        };
+        let body = serde_json::json!({
+            "contents": [{ "role": "user", "parts": [{ "text": "Read /tmp/x with the Read tool." }] }],
+            "tools": [{ "functionDeclarations": [decl] }],
+            "generationConfig": { "maxOutputTokens": 64 },
+        });
+        let resp = reqwest::Client::new()
+            .post(format!("{}/models/{}:generateContent", GEMINI_API_BASE, live_model()))
+            .header("x-goog-api-key", key)
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .expect("request to the Gemini API failed to send");
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        Some((status, text))
+    }
+
+    /// Negative half: the RAW schemars shape must still be rejected. If this
+    /// starts returning 2xx, Gemini has widened its dialect and
+    /// `GeminiSubset` is stripping keys it no longer needs to.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and GEMINI_API_KEY set"]
+    async fn live_raw_schemars_schema_is_rejected_by_the_real_api() {
+        let t = schemars_like_tool();
+        let raw_decl = serde_json::json!({
+            "name": t.name,
+            "description": t.description,
+            "parameters": t.input_schema,
+        });
+        let Some((status, text)) = post_live(&raw_decl).await else {
+            return;
+        };
+        eprintln!("raw schemars schema → HTTP {status}");
+        assert_eq!(
+            status, 400,
+            "Exp 1 measured INVALID_ARGUMENT for this shape; if Gemini now \
+             accepts it, re-run the Exp 3 probes and revisit GeminiSubset: {text}"
+        );
+        assert!(
+            text.contains("Unknown name") || text.contains("INVALID_ARGUMENT"),
+            "rejected, but not for the measured reason: {text}"
+        );
+    }
+
+    /// Positive half: what `GeminiSubset` builds from that same tool is
+    /// accepted. If this 400s, the seam is emitting a shape the API does not
+    /// take and B1 is not fixed.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and GEMINI_API_KEY set"]
+    async fn live_adapted_schema_is_accepted_by_the_real_api() {
+        let adapted = adapt_tools(&[schemars_like_tool()], SchemaDialect::GeminiSubset)
+            .pop()
+            .expect("one tool in, one out");
+        let Some((status, text)) = post_live(&adapted).await else {
+            return;
+        };
+        eprintln!("adapted schema → HTTP {status}");
+        assert!(
+            (200..300).contains(&status),
+            "the declaration GeminiSubset builds was rejected with {status}: {text}"
+        );
     }
 }
 

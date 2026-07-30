@@ -28,6 +28,16 @@ prior reviews were re-derived, not carried forward.
 > 13 new tests, no production-code changes. All 7 formerly-unbound sites were re-mutated
 > and every mutant is now killed — **22/22 fix sites test-bound**. Gate:
 > `cargo test --workspace` **522 / 0 / 14**. Details in §10.7.
+>
+> **STATUS UPDATE — 2026-07-31, P1 begun.** **B1 is done** (§8): the `adapt_tools` schema
+> seam — four dialects, transforms exactly as measured in Exp 3 — is wired at all three
+> serialization sites; Vertex is covered through `build_anthropic_body`. Bound by 11 unit
+> tests plus 3 body-shape wiring tests that capture the literal HTTP body through the real
+> `complete()` path, and a 7-mutant audit with every mutant killed. A live Gemini
+> positive/negative pair is in the tree (`gemini.rs::live_dialect_tests`) but has **not yet
+> run against the live API** — no Gemini key in the dev environment. Gate:
+> `cargo test --workspace` **554 passed / 0 failed / 21 ignored**. Open: P1's
+> F-08/F-09/B2/F-23, §10.5 #3/#4/#8/#9, P2–P3.
 
 ---
 
@@ -1133,7 +1143,7 @@ Each item is phrased to be filed verbatim.
 - [x] **F-A15** Append the valid-value list to every "not found". *(S)* — Phase 2. `tool_feedback::not_found` (+ `closest()` did-you-mean). **Bound (5 tests).**
 
 ### P1 — profile-or-schema work
-- [ ] **B1** `adapt_tools()` seam at the three serialization sites. *(M)*
+- [x] **B1** `adapt_tools()` seam at the three serialization sites. *(M)* — **DONE 2026-07-31.** `cersei-provider/src/adapt.rs`: the four-dialect enum from §6, transforms exactly per Exp 3 (§7.0). Wired in `build_anthropic_body` (Vertex reuses it, so the third site covers two providers), `openai.rs::complete` (`OpenAiLoose` until B2's quirks opt models into strict), and `gemini.rs::complete` (`GeminiSubset`). Names sanitized to `^[a-zA-Z0-9_-]{1,64}$` and deduped; a rename would need a reverse map at dispatch, deferred with MCP itself (which is dead code, §9). Bound by 11 unit tests + 3 body-shape wiring tests — `tests/tool_body_shapes.rs` captures the literal HTTP body through the real `complete()` for OpenAI and Gemini; the Anthropic site is bound in `anthropic.rs::tests`. 7-mutant audit (bypass each site, swap each site's dialect, disable the Gemini strip, disable sanitization): **all killed.** Live Gemini positive/negative pair added (`gemini.rs::live_dialect_tests`) but **not yet run against the live API** — no Gemini key in the dev environment; run with `GEMINI_API_KEY=… cargo test -p cersei-provider --lib live_ -- --ignored`.
 - [ ] **F-08** Ungate the no-tool-call nudge; add `tool_choice`/`functionCallingConfig` support. *(M)*
 - [ ] **F-09** Send Ollama `num_ctx`; make the context catch-all conservative. *(M)*
 - [ ] **B2** Four-field `ProviderQuirks` resolved in `router.rs::build_provider`. *(M)*

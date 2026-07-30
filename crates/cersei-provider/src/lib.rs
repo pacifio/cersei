@@ -3,6 +3,7 @@
 //! Providers abstract over different LLM backends (Anthropic, OpenAI, local models).
 //! Each provider implements streaming completion, token counting, and capability discovery.
 
+pub mod adapt;
 pub mod anthropic;
 pub mod anthropic_vertex;
 pub mod gemini;
@@ -18,6 +19,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 // Re-exports
+pub use adapt::{adapt_tools, SchemaDialect};
 pub use anthropic::Anthropic;
 pub use anthropic_vertex::AnthropicVertex;
 pub use gemini::Gemini;
