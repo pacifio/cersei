@@ -193,50 +193,53 @@ pub(crate) fn build_anthropic_body(
 
     let mode = thinking_mode(model);
 
-    // `temperature` / `top_p` / `top_k` were removed on the same models that
-    // dropped the manual thinking API, and return a 400 there.
-    if mode.accepts_sampling_params() {
+    if !request.stop_sequences.is_empty() {
+        body["stop_sequences"] = serde_json::json!(request.stop_sequences);
+    }
+
+    // Thinking is resolved *before* temperature, because whether a thinking key
+    // is emitted is half of what decides whether temperature is legal. Doing it
+    // the other way round is what let the manual-model 400 through.
+    //
+    // A `thinking_budget` of `None` — or of 0, this codebase's "disable
+    // thinking" sentinel (see `gemini.rs`) — means the caller does not want
+    // extended thinking, so no `thinking` key is emitted in any mode.
+    let requested_budget = thinking_budget.filter(|&budget| budget > 0);
+    let thinking = match mode {
+        // Any explicit `thinking` config is a 400 here, `{type:"disabled"}`
+        // included — and thinking is on regardless. Emit nothing.
+        ThinkingMode::AlwaysOn => None,
+        // Depth is the model's call; `budget_tokens` would be a 400.
+        // `display: "summarized"` is opt-in: the default is `"omitted"`, which
+        // streams empty thinking blocks and would silently blank the thinking
+        // output this agent already renders from `ThinkingDelta`.
+        ThinkingMode::Adaptive => requested_budget
+            .map(|_| serde_json::json!({ "type": "adaptive", "display": "summarized" })),
+        ThinkingMode::Manual => requested_budget
+            .and_then(|budget| clamp_thinking_budget(budget, request.max_tokens, model))
+            .map(|budget| serde_json::json!({ "type": "enabled", "budget_tokens": budget })),
+    };
+    if let Some(thinking) = &thinking {
+        body["thinking"] = thinking.clone();
+    }
+
+    // The request-level ban below is an *Anthropic* rule. Non-Claude ids arrive
+    // through `ANTHROPIC_BASE_URL` gateways whose sampling behaviour this build
+    // cannot know, and the same reasoning that makes `thinking_mode` default
+    // them to the legacy shape applies here: leave them exactly as they were.
+    let thinking_bans_temperature = thinking.is_some() && model.contains("claude");
+    if mode.accepts_sampling_params(thinking_bans_temperature) {
         if let Some(temp) = request.temperature {
             body["temperature"] = serde_json::json!(temp);
         }
     } else if request.temperature.is_some() {
         tracing::debug!(
-            "dropping temperature for model '{model}': sampling parameters are rejected \
-             with a 400 on this model"
+            "dropping temperature for model '{model}': rejected with a 400 either \
+             because this model dropped sampling parameters, or because extended \
+             thinking is enabled on this request"
         );
     }
 
-    if !request.stop_sequences.is_empty() {
-        body["stop_sequences"] = serde_json::json!(request.stop_sequences);
-    }
-
-    // A `thinking_budget` of `None` — or of 0, this codebase's "disable
-    // thinking" sentinel (see `gemini.rs`) — means the caller does not want
-    // extended thinking, so no `thinking` key is emitted in any mode.
-    let requested_budget = thinking_budget.filter(|&budget| budget > 0);
-    match mode {
-        // Any explicit `thinking` config is a 400 here, `{type:"disabled"}`
-        // included — and thinking is on regardless. Emit nothing.
-        ThinkingMode::AlwaysOn => {}
-        // Depth is the model's call; `budget_tokens` would be a 400.
-        // `display: "summarized"` is opt-in: the default is `"omitted"`, which
-        // streams empty thinking blocks and would silently blank the thinking
-        // output this agent already renders from `ThinkingDelta`.
-        ThinkingMode::Adaptive => {
-            if requested_budget.is_some() {
-                body["thinking"] =
-                    serde_json::json!({ "type": "adaptive", "display": "summarized" });
-            }
-        }
-        ThinkingMode::Manual => {
-            if let Some(budget) = requested_budget
-                .and_then(|budget| clamp_thinking_budget(budget, request.max_tokens, model))
-            {
-                body["thinking"] =
-                    serde_json::json!({ "type": "enabled", "budget_tokens": budget });
-            }
-        }
-    }
     body
 }
 
@@ -268,9 +271,29 @@ enum ThinkingMode {
 }
 
 impl ThinkingMode {
-    /// Whether this model still accepts `temperature` / `top_p` / `top_k`.
-    fn accepts_sampling_params(self) -> bool {
-        matches!(self, Self::Manual)
+    /// Whether `temperature` / `top_p` / `top_k` may be sent on this request.
+    ///
+    /// There are **two independent bans**, and missing the second one is a live
+    /// 400 on the direct-Anthropic default model:
+    ///
+    /// 1. *Model-level.* Adaptive-only and always-on models removed sampling
+    ///    parameters altogether.
+    /// 2. *Request-level.* **Any** model rejects a non-default temperature while
+    ///    extended thinking is enabled. Verbatim, from the live API on
+    ///    `claude-sonnet-4-6` — a `Manual` model:
+    ///
+    ///    > `temperature` may only be set to 1 when thinking is enabled.
+    ///
+    ///    So `Manual` is not a blanket permit; it is a permit only while no
+    ///    `thinking` key is being sent. The original gate checked the model and
+    ///    not the request, which fixed F-01's adaptive path and left every
+    ///    `--effort`-driven run on 4.6-era models sending an illegal body.
+    ///
+    /// Temperature 1 is technically legal alongside thinking, but 1 is also the
+    /// value the API uses when thinking is on, so dropping it is equivalent and
+    /// avoids a float comparison deciding whether a request 400s.
+    fn accepts_sampling_params(self, thinking_enabled: bool) -> bool {
+        matches!(self, Self::Manual) && !thinking_enabled
     }
 }
 
@@ -905,24 +928,44 @@ mod tests {
     fn unrecognised_ids_keep_the_legacy_manual_shape() {
         let mut r = req(CLI_MAX_TOKENS);
         r.temperature = Some(0.3);
-        for model in [
+        let unrecognised_claude = [
             "claude-opus-4-20250514",   // Opus 4, dated snapshot
             "claude-sonnet-4@20250514", // Sonnet 4, Vertex @-versioned
             "claude-sonnet-4.5",        // dotted minor version
             "claude-haiku-4-5",         // no adaptive support at all
-            "glm-4.6",                  // ANTHROPIC_BASE_URL gateway
-            "kimi-k2-thinking",         // ANTHROPIC_BASE_URL gateway
-        ] {
+        ];
+        let gateway = [
+            "glm-4.6",          // ANTHROPIC_BASE_URL gateway
+            "kimi-k2-thinking", // ANTHROPIC_BASE_URL gateway
+        ];
+
+        for model in unrecognised_claude.iter().chain(gateway.iter()) {
             let body = build_anthropic_body(model, &r, Some(8192), None);
             assert_eq!(
                 body["thinking"],
                 serde_json::json!({ "type": "enabled", "budget_tokens": 8192 }),
                 "{model} is not a known adaptive-only model and must keep the manual shape"
             );
+        }
+
+        // Claude ids obey Anthropic's request-level rule: no temperature while
+        // thinking is on, whether or not this build recognises the version.
+        for model in unrecognised_claude {
+            let body = build_anthropic_body(model, &r, Some(8192), None);
+            assert!(
+                body.get("temperature").is_none(),
+                "{model} is a Claude id with thinking enabled, so temperature 400s"
+            );
+        }
+
+        // Gateway ids are not Anthropic and their sampling rules are unknown, so
+        // they keep exactly the behaviour they had before either gate existed.
+        for model in gateway {
+            let body = build_anthropic_body(model, &r, Some(8192), None);
             assert_eq!(
                 body["temperature"],
                 serde_json::json!(0.3f32),
-                "{model} still accepts temperature; stripping it is a regression"
+                "{model} is a non-Claude gateway id; stripping temperature is a regression"
             );
         }
     }
@@ -998,16 +1041,41 @@ mod tests {
                 body.get("temperature")
             );
         }
-        // Models that still accept it must keep it. Compare against an `f32`
-        // literal: the body widens `request.temperature` (f32) to f64, so
-        // `json!(0.3f64)` would not compare equal to it.
+        // Manual models with extended thinking ON: the model-level ban does not
+        // apply, but the request-level one does. Confirmed live on
+        // claude-sonnet-4-6: "`temperature` may only be set to 1 when thinking
+        // is enabled." This is the case the first version of this gate got
+        // wrong — it asserted the opposite and shipped a guaranteed 400.
         for model in ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"] {
             let body = build_anthropic_body(model, &r, Some(8192), None);
-            assert_eq!(
-                body["temperature"],
-                serde_json::json!(0.3f32),
-                "{model} accepts temperature; it must be preserved"
+            assert!(
+                body["thinking"].is_object(),
+                "precondition: {model} should have been given a manual thinking budget"
             );
+            assert!(
+                body.get("temperature").is_none(),
+                "{model} 400s on a non-default temperature while thinking is enabled, \
+                 got {:?}",
+                body.get("temperature")
+            );
+        }
+        // Manual models with thinking OFF: nothing bans temperature, so the
+        // caller's value must survive. Compare against an `f32` literal — the
+        // body widens `request.temperature` (f32) to f64, so `json!(0.3f64)`
+        // would not compare equal to it.
+        for model in ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"] {
+            for budget in [None, Some(0)] {
+                let body = build_anthropic_body(model, &r, budget, None);
+                assert!(
+                    body.get("thinking").is_none(),
+                    "precondition: budget {budget:?} must mean no thinking key"
+                );
+                assert_eq!(
+                    body["temperature"],
+                    serde_json::json!(0.3f32),
+                    "{model} accepts temperature when thinking is off; it must be preserved"
+                );
+            }
         }
     }
 
