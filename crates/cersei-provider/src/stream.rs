@@ -212,3 +212,198 @@ impl Default for StreamAccumulator {
         Self::new()
     }
 }
+
+// These tests bind the shared accumulator itself, not any one provider's SSE
+// reader. `sse_pathologies` covers the openai.rs copy of the F-03 logic, but
+// Anthropic and Gemini stream through this struct, and the mutation audit
+// (TOOL-CALLING-RELIABILITY.md §10.3) showed both F-03 halves here could be
+// reverted with the whole workspace suite green.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tool_use_events(json_deltas: &[&str]) -> Vec<StreamEvent> {
+        let mut events = vec![
+            StreamEvent::MessageStart {
+                id: "msg_1".into(),
+                model: "test-model".into(),
+            },
+            StreamEvent::ContentBlockStart {
+                index: 0,
+                block_type: "tool_use".into(),
+                id: Some("tu_1".into()),
+                name: Some("Read".into()),
+            },
+        ];
+        for d in json_deltas {
+            events.push(StreamEvent::InputJsonDelta {
+                index: 0,
+                partial_json: (*d).into(),
+            });
+        }
+        events.push(StreamEvent::ContentBlockStop { index: 0 });
+        events
+    }
+
+    fn accumulate(events: Vec<StreamEvent>) -> StreamAccumulator {
+        let mut acc = StreamAccumulator::new();
+        for e in events {
+            acc.process_event(e);
+        }
+        acc
+    }
+
+    fn sole_tool_use_input(response: &crate::CompletionResponse) -> serde_json::Value {
+        match &response.message.content {
+            MessageContent::Blocks(blocks) => blocks
+                .iter()
+                .find_map(|b| match b {
+                    ContentBlock::ToolUse { input, .. } => Some(input.clone()),
+                    _ => None,
+                })
+                .expect("response must contain a tool_use block"),
+            other => panic!("expected block content, got {other:?}"),
+        }
+    }
+
+    // ── F-03b: a mid-stream provider error must fail the turn ──
+
+    #[test]
+    fn stream_error_fails_the_turn_even_with_a_terminal_event() {
+        let mut events = tool_use_events(&[r#"{"file_path":"/a.rs"}"#]);
+        events.push(StreamEvent::Error {
+            message: "provider exploded mid-stream".into(),
+        });
+        // A terminal event after the error must not launder it into success.
+        events.push(StreamEvent::MessageStop);
+
+        let err = accumulate(events)
+            .into_response()
+            .expect_err("an errored stream must not become a clean response");
+        assert!(
+            err.to_string().contains("provider exploded mid-stream"),
+            "the provider's message is the only diagnostic: {err}"
+        );
+    }
+
+    #[test]
+    fn first_stream_error_wins_over_cascade_noise() {
+        let mut events = tool_use_events(&[]);
+        events.push(StreamEvent::Error {
+            message: "root cause".into(),
+        });
+        events.push(StreamEvent::Error {
+            message: "cascade noise".into(),
+        });
+        events.push(StreamEvent::MessageStop);
+
+        let err = accumulate(events).into_response().expect_err("must fail");
+        assert!(
+            err.to_string().contains("root cause"),
+            "the first error is the diagnostic one, got: {err}"
+        );
+    }
+
+    // ── F-03c: a stream that just stops is not a clean EndTurn ──
+
+    #[test]
+    fn terminal_less_stream_is_an_error_not_end_turn() {
+        // Identical to a healthy tool-call stream except no MessageStop and no
+        // stop_reason ever arrive: the connection was cut mid-flight.
+        let events = tool_use_events(&[r#"{"file_path":"/a.rs"}"#]);
+
+        let err = accumulate(events)
+            .into_response()
+            .expect_err("an unterminated stream must not report a clean turn");
+        assert!(
+            err.to_string().contains("terminal"),
+            "the error must say the stream never terminated: {err}"
+        );
+    }
+
+    #[test]
+    fn message_stop_alone_is_a_clean_end_turn() {
+        // Control: the same stream with a proper terminal event succeeds.
+        let mut events = tool_use_events(&[r#"{"file_path":"/a.rs"}"#]);
+        events.push(StreamEvent::MessageStop);
+
+        let response = accumulate(events)
+            .into_response()
+            .expect("a properly terminated stream is a valid response");
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+    }
+
+    #[test]
+    fn stop_reason_via_message_delta_counts_as_terminal() {
+        // Providers may send stop_reason in a MessageDelta and never a
+        // MessageStop; that is still a provider-ended turn.
+        let mut events = tool_use_events(&[r#"{"file_path":"/a.rs"}"#]);
+        events.push(StreamEvent::MessageDelta {
+            stop_reason: Some(StopReason::ToolUse),
+            usage: None,
+        });
+
+        let response = accumulate(events)
+            .into_response()
+            .expect("stop_reason is a terminal signal");
+        assert_eq!(response.stop_reason, StopReason::ToolUse);
+    }
+
+    // ── F-05a: a no-argument call is `{}`, never `null` ──
+
+    #[test]
+    fn tool_use_with_no_argument_deltas_yields_empty_object() {
+        let mut events = tool_use_events(&[]);
+        events.push(StreamEvent::MessageStop);
+
+        let response = accumulate(events).into_response().expect("valid stream");
+        assert_eq!(
+            sole_tool_use_input(&response),
+            serde_json::json!({}),
+            "zero input_json_delta events is a no-argument call, not null"
+        );
+    }
+
+    #[test]
+    fn literal_null_arguments_yield_empty_object() {
+        let mut events = tool_use_events(&["null"]);
+        events.push(StreamEvent::MessageStop);
+
+        let response = accumulate(events).into_response().expect("valid stream");
+        assert_eq!(
+            sole_tool_use_input(&response),
+            serde_json::json!({}),
+            "a literal `null` payload is a no-argument call, not a type error"
+        );
+    }
+
+    #[test]
+    fn whitespace_only_arguments_yield_empty_object() {
+        let mut events = tool_use_events(&["  \n"]);
+        events.push(StreamEvent::MessageStop);
+
+        let response = accumulate(events).into_response().expect("valid stream");
+        assert_eq!(sole_tool_use_input(&response), serde_json::json!({}));
+    }
+
+    // ── F-05b at this seam: malformed JSON keeps the raw text and the error ──
+
+    #[test]
+    fn malformed_arguments_preserve_raw_text_and_parse_error() {
+        let raw = r#"{'file_path': '/a.rs'}"#; // single quotes: invalid JSON
+        let mut events = tool_use_events(&[raw]);
+        events.push(StreamEvent::MessageStop);
+
+        let response = accumulate(events).into_response().expect("valid stream");
+        let input = sole_tool_use_input(&response);
+        assert_eq!(
+            input["__raw"].as_str(),
+            Some(raw),
+            "the model's exact bytes must survive so dispatch can echo them"
+        );
+        assert!(
+            input["__parse_error"].as_str().is_some_and(|e| !e.is_empty()),
+            "the parse error must survive alongside the raw text: {input}"
+        );
+    }
+}
