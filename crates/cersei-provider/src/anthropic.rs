@@ -722,6 +722,38 @@ mod tests {
         assert!(body["tools"][0].get("cache_control").is_none());
     }
 
+    // ─── F-A8: the system prompt is the cacheable prefix ─────────────────────
+
+    /// The system string — project instructions before the dynamic boundary
+    /// included — lands in one system block carrying the cache breakpoint.
+    /// The CLI-side half (instructions appear exactly once, before the
+    /// boundary) is bound in `abstract-cli/src/prompt.rs`; together they bind
+    /// F-A8's request-body claim. Splitting the block *at* the boundary so
+    /// the dynamic tail stops invalidating the prefix is P3.
+    #[test]
+    fn body_system_block_carries_the_cache_breakpoint() {
+        let mut r = CompletionRequest::new("claude-sonnet-5");
+        r.max_tokens = 1024;
+        r.system =
+            Some("INSTRUCTIONS_MARKER\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\ndynamic tail".into());
+        r.messages = vec![Message::user("go")];
+
+        let body = build_anthropic_body("claude-sonnet-5", &r, None, None);
+        let system = body["system"].as_array().expect("system must be blocks");
+        assert_eq!(system.len(), 1);
+        assert_eq!(
+            system[0]["cache_control"],
+            serde_json::json!({ "type": "ephemeral" })
+        );
+        let text = system[0]["text"].as_str().unwrap();
+        assert_eq!(text.matches("INSTRUCTIONS_MARKER").count(), 1);
+        assert!(
+            text.find("INSTRUCTIONS_MARKER").unwrap()
+                < text.find("__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__").unwrap(),
+            "instructions must precede the boundary in the cached block"
+        );
+    }
+
     // ─── F-08 wiring: forced tool choice ────────────────────────────────────
 
     fn request_with_tools(model: &str, tool_choice: Option<&str>) -> CompletionRequest {
@@ -934,6 +966,60 @@ mod tests {
         // Non-streaming keeps the assertion about status, not SSE parsing.
         body["stream"] = serde_json::json!(false);
         body
+    }
+
+    /// F-A8's cacheability claim, measured: the system block Cersei builds
+    /// carries a breakpoint the real API honors. The first call must create
+    /// a cache entry (`cache_creation_input_tokens > 0`), and an identical
+    /// second call must read it back (`cache_read_input_tokens > 0`). A
+    /// per-run nonce keeps the first call from hitting a prior run's entry.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_system_prefix_is_created_then_read_from_cache() {
+        let model = live_model();
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        // Long enough to clear the API's minimum cacheable prefix (1024
+        // tokens on sonnet-class models).
+        let filler =
+            "Project instructions live on the cacheable side of the prompt. ".repeat(200);
+        let mut r = CompletionRequest::new(&model);
+        r.max_tokens = 64;
+        r.system = Some(format!("Session {nonce}. {filler}"));
+        r.messages = vec![Message::user("Reply with the single word: ok")];
+        let mut body = build_anthropic_body(&model, &r, None, None);
+        body["stream"] = serde_json::json!(false);
+
+        let Some((status1, text1)) = post_live(&body).await else {
+            return;
+        };
+        assert!(
+            (200..300).contains(&status1),
+            "first call failed: {status1}: {text1}"
+        );
+        let usage1 = serde_json::from_str::<serde_json::Value>(&text1).unwrap()["usage"].clone();
+        let created = usage1["cache_creation_input_tokens"].as_u64().unwrap_or(0);
+        assert!(
+            created > 0,
+            "first call should create the cache entry: {usage1:#}"
+        );
+
+        let Some((status2, text2)) = post_live(&body).await else {
+            return;
+        };
+        assert!(
+            (200..300).contains(&status2),
+            "second call failed: {status2}: {text2}"
+        );
+        let usage2 = serde_json::from_str::<serde_json::Value>(&text2).unwrap()["usage"].clone();
+        let read = usage2["cache_read_input_tokens"].as_u64().unwrap_or(0);
+        assert!(
+            read > 0,
+            "identical second call should read the cached prefix: {usage2:#}"
+        );
+        eprintln!("cache_creation={created}, cache_read={read}");
     }
 
     /// The positive case: what the gate actually builds for an adaptive-only

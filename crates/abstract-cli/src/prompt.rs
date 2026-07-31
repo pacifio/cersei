@@ -15,7 +15,11 @@ pub fn build_cli_system_prompt(
     if config.benchmark_mode {
         return build_benchmark_prompt(model, &config.working_dir);
     }
-    let memory_content = memory_manager.build_context();
+    // F-A8: only the MEMORY.md index — which can change mid-session as
+    // memories are stored — stays on the dynamic side of the cache boundary.
+    // The CLAUDE.md hierarchy is stable within a session and is injected on
+    // the cacheable side below.
+    let memory_content = memory_manager.build_memory_index();
 
     // Git snapshot (computed once, used for both environment block and prompt injection)
     let git_status = build_git_snapshot(&config.working_dir);
@@ -36,9 +40,25 @@ pub fn build_cli_system_prompt(
         ),
     )];
 
-    // Project instructions: walk up directory tree for AGENTS.md, CLAUDE.md, CONTEXT.md
+    // Project instructions, all on the cacheable side (F-A8).
+    // The CLAUDE.md hierarchy (managed rules, user, project, local) comes from
+    // the memory manager — with frontmatter stripping and @include expansion —
+    // and the directory walk below skips any file the hierarchy already
+    // loaded, so {root}/CLAUDE.md is injected exactly once.
     let mut extra_cached: Vec<(String, String)> = Vec::new();
-    let instruction_files = collect_instruction_files(&config.working_dir);
+    let mut already_loaded: std::collections::HashSet<std::path::PathBuf> =
+        std::collections::HashSet::new();
+    for file in memory_manager.claude_instruction_files() {
+        already_loaded.insert(file.path.canonicalize().unwrap_or_else(|_| file.path.clone()));
+        extra_cached.push((
+            "project_instructions".to_string(),
+            format!("# From: {}\n{}", file.path.display(), file.content),
+        ));
+    }
+
+    // Walk up the directory tree for AGENTS.md, CONTEXT.md, and any
+    // ancestor CLAUDE.md the hierarchy does not cover.
+    let instruction_files = collect_instruction_files(&config.working_dir, &already_loaded);
     for (path_label, content) in instruction_files {
         extra_cached.push((
             "project_instructions".to_string(),
@@ -160,7 +180,12 @@ fn build_git_snapshot(working_dir: &std::path::Path) -> Option<GitSnapshot> {
 
 /// Walk up from working_dir collecting instruction files (AGENTS.md, CLAUDE.md, etc.).
 /// Returns files in outermost-first order (project root instructions come first).
-fn collect_instruction_files(working_dir: &std::path::Path) -> Vec<(String, String)> {
+/// Paths in `skip` (canonicalized) were already injected by another loader
+/// and are not read again (F-A8).
+fn collect_instruction_files(
+    working_dir: &std::path::Path,
+    skip: &std::collections::HashSet<std::path::PathBuf>,
+) -> Vec<(String, String)> {
     use std::path::Path;
 
     const INSTRUCTION_FILES: &[&str] = &[
@@ -176,6 +201,9 @@ fn collect_instruction_files(working_dir: &std::path::Path) -> Vec<(String, Stri
     loop {
         for filename in INSTRUCTION_FILES {
             let path = current.join(filename);
+            if skip.contains(&path.canonicalize().unwrap_or_else(|_| path.clone())) {
+                continue;
+            }
             if path.exists() {
                 if let Ok(content) = std::fs::read_to_string(&path) {
                     if !content.trim().is_empty() {
@@ -355,4 +383,56 @@ Do NOT blindly retry the same command. Do NOT skip this reflection.
     }
 
     prompt
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cersei_agent::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY;
+
+    /// F-A8: {root}/CLAUDE.md must appear exactly once in the assembled
+    /// prompt, on the cacheable side of the dynamic boundary. Before the fix
+    /// it was injected twice — raw via the instruction-file walk (cached) and
+    /// again via `MemoryManager::build_context` (dynamic).
+    #[test]
+    fn claude_md_injected_once_on_the_cached_side() {
+        let tmp = tempfile::tempdir().unwrap();
+        let claude_sentinel = "F_A8_CLAUDE_MD_SENTINEL_7c1d";
+        let agents_sentinel = "F_A8_AGENTS_MD_SENTINEL_7c1d";
+        std::fs::write(
+            tmp.path().join("CLAUDE.md"),
+            format!("# Rules\n{claude_sentinel}"),
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path().join("AGENTS.md"),
+            format!("# Agents\n{agents_sentinel}"),
+        )
+        .unwrap();
+
+        let config = AppConfig {
+            working_dir: tmp.path().to_path_buf(),
+            ..Default::default()
+        };
+        let memory_manager =
+            MemoryManager::new(&config.working_dir).with_memory_dir(tmp.path().join("mem"));
+
+        let prompt = build_cli_system_prompt(&config, &memory_manager, "claude-fable-5");
+
+        let boundary = prompt
+            .find(SYSTEM_PROMPT_DYNAMIC_BOUNDARY)
+            .expect("prompt must contain the dynamic boundary");
+        assert_eq!(
+            prompt.matches(claude_sentinel).count(),
+            1,
+            "CLAUDE.md must be injected exactly once"
+        );
+        assert!(
+            prompt.find(claude_sentinel).unwrap() < boundary,
+            "CLAUDE.md must sit on the cacheable side of the boundary"
+        );
+        // The instruction-file walk still collects non-CLAUDE.md files, cached.
+        assert_eq!(prompt.matches(agents_sentinel).count(), 1);
+        assert!(prompt.find(agents_sentinel).unwrap() < boundary);
+    }
 }
