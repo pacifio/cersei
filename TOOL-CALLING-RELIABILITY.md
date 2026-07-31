@@ -155,10 +155,11 @@ prior reviews were re-derived, not carried forward.
 > the REQUIRED `oauth-2025-04-20` beta flag — fixed, docs-cited, no OAuth
 > token available to live-verify (said so in §8). 2 tests (unit + full-
 > header wire capture), 3-mutant audit all killed. **All three P3 items are
-> code-complete and mutation-audited; the live suite (now 11 ignored live
-> tests incl. the new stable-prefix pair) has NOT been re-run since P2's
-> 10/10 — the pending keyed run is the remaining evidence gap for P3.**
-> Gate: `cargo test --workspace` **597 passed / 0 failed / 25 ignored**.
+> code-complete and mutation-audited; the live suite (now 12 ignored live
+> tests: the 10 from P2, the new stable-prefix pair, and the §10.5 #8
+> adaptive-form probe) has NOT been re-run since P2's 10/10 — the pending
+> keyed run is the remaining evidence gap for P3.**
+> Gate: `cargo test --workspace` **597 passed / 0 failed / 26 ignored**.
 
 ---
 
