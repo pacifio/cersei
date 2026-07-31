@@ -222,13 +222,16 @@ pub fn build_system_prompt(opts: &SystemPromptOptions) -> String {
         parts.push(COORDINATOR_SECTION.to_string());
     }
 
-    // 11. Session guidance: Agent tool
-    if opts
-        .tools_available
-        .iter()
-        .any(|t| t == "Agent" || t == "TaskCreate")
-    {
+    // 11. Session guidance: Agent tool — only when `Agent` is actually
+    // registered. Advertising it off `TaskCreate` (F-A9) told models to call
+    // a tool that does not exist in the default registry.
+    if opts.tools_available.iter().any(|t| t == "Agent") {
         parts.push(SESSION_AGENT_GUIDANCE.to_string());
+    }
+
+    // 11b. Session guidance: task tracking
+    if opts.tools_available.iter().any(|t| t == "TaskCreate") {
+        parts.push(SESSION_TASK_GUIDANCE.to_string());
     }
 
     // 12. Session guidance: Skills
@@ -449,7 +452,14 @@ deep research. Each sub-agent runs independently with its own context window.
 - Launch multiple agents in parallel when tasks are independent
 - Provide each agent with a complete, self-contained prompt
 - The agent's output is not visible to the user — summarize results yourself
-- Use TaskCreate/TaskUpdate to track background work
+"#;
+
+const SESSION_TASK_GUIDANCE: &str = r#"
+## Task tracking
+
+Use TaskCreate/TaskUpdate to track multi-step work. Create a task per distinct
+step, mark it in_progress when you start and completed when done, so progress
+stays visible across turns.
 "#;
 
 const SESSION_SKILLS_GUIDANCE: &str = r#"
@@ -631,6 +641,40 @@ mod tests {
         };
         let prompt = build_system_prompt(&opts);
         assert!(!prompt.contains("Sub-agents"));
+    }
+
+    /// F-A9 defect case: `TaskCreate` alone must not advertise the `Agent`
+    /// tool, but must still get task-tracking guidance.
+    #[test]
+    fn test_taskcreate_alone_does_not_advertise_agent() {
+        let opts = SystemPromptOptions {
+            tools_available: vec!["TaskCreate".into(), "TaskUpdate".into()],
+            ..Default::default()
+        };
+        let prompt = build_system_prompt(&opts);
+        assert!(!prompt.contains("Sub-agents"));
+        assert!(!prompt.contains("Agent tool"));
+        assert!(prompt.contains("Task tracking"));
+    }
+
+    /// F-A9 wiring case: the shipped default registry (`cersei_tools::all()`)
+    /// does not contain `Agent`, so the prompt built from its real names must
+    /// not advertise it.
+    #[test]
+    fn test_default_registry_does_not_advertise_agent() {
+        let tools_available: Vec<String> = cersei_tools::all()
+            .iter()
+            .map(|t| t.name().to_string())
+            .collect();
+        assert!(!tools_available.iter().any(|t| t == "Agent"));
+        let opts = SystemPromptOptions {
+            tools_available,
+            ..Default::default()
+        };
+        let prompt = build_system_prompt(&opts);
+        assert!(!prompt.contains("Sub-agents"));
+        assert!(!prompt.contains("Agent tool"));
+        assert!(prompt.contains("Task tracking"));
     }
 
     #[test]

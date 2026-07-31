@@ -78,6 +78,15 @@ prior reviews were re-derived, not carried forward.
 > documented.** Still open: §10.5 #8/#9, P2–P3, and Exp 5's efficacy question
 > (does forcing a tool call actually help a 7B model — mechanism landed,
 > benefit unmeasured).
+>
+> **P2 begun — 2026-07-31, branch `runtime-fix`.** F-A9 is done: the `Agent`
+> advertisement is now gated on `Agent` actually being registered (it fired off
+> `TaskCreate` before, so every default CLI session advertised a tool that
+> returns tool-not-found), with task-tracking guidance split into its own
+> `TaskCreate`-gated section. Registering `AgentTool` instead was rejected —
+> it runs sub-agents under `AllowAll`, bypassing the parent permission policy;
+> see §8. 2 new tests, 2-mutant audit both killed. Gate: `cargo test
+> --workspace` **577 passed / 0 failed / 23 ignored**.
 
 ---
 
@@ -1191,7 +1200,7 @@ Each item is phrased to be filed verbatim.
 
 ### P2 — prompt & tool surface
 - [ ] **F-A5** Unify `file_path`/`path`; extend alias coercion beyond Edit/MultiEdit. *(S)* — partially superseded: F-10 removed Edit's aliases entirely; what remains is the naming unification.
-- [ ] **F-A9** Remove the `Agent` advertisement or register the tool. *(S)*
+- [x] **F-A9** Remove the `Agent` advertisement or register the tool. *(S)* — **DONE 2026-07-31: removed (gated), not registered.** The defect mechanism was the conflated guard at `system_prompt.rs` §11: `SESSION_AGENT_GUIDANCE` ("Use the Agent tool…") fired when *either* `Agent` *or* `TaskCreate` was in `tools_available` — and the CLI registers `cersei_tools::all()`, which has `TaskCreate` but no `Agent`, so every default session advertised a tool that returns tool-not-found on call. Registering was rejected deliberately: `AgentTool` exists and is unit-tested (`cersei-agent/src/agent_tool.rs`) but needs a provider factory, so it cannot live in the zero-arg `cersei_tools::all()` registry, and its `execute` runs sub-agents under `permission_policy(AllowAll)` — wiring it into the default CLI would silently bypass the parent's permission policy. That is a feature decision (permissions, cost accounting, recursion depth), not a P2 quality fix. The fix splits the guard: Agent guidance requires `Agent`; a new `SESSION_TASK_GUIDANCE` section gated on `TaskCreate` keeps task-tracking guidance, and the `TaskCreate/TaskUpdate` line was dropped from the Agent section (same defect class in reverse — it advertised task tools that may be unregistered when only `Agent` is). `COORDINATOR_SECTION` also names the Agent tool but is gated on the embedder-set `coordinator_mode` flag (only an example sets it) — left as an explicit opt-in, noted here. Bound by 2 new tests: `test_taskcreate_alone_does_not_advertise_agent` (defect case) and `test_default_registry_does_not_advertise_agent` (wiring case — builds the prompt from the *real* `cersei_tools::all()` names). 2-mutant audit (restore the `|| TaskCreate` guard; drop the task-guidance push): **both killed** (2 tests each). Gate: 577/0/23.
 - [ ] **F-A8** De-duplicate CLAUDE.md injection. *(S)*
 - [ ] **F-A10** Soften the four parallel-tool-call mandates. *(S)*
 - [ ] Register `ToolSearch`; add per-tool guidance for the 25 unexplained tools. *(M)*
