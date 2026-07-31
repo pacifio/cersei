@@ -152,13 +152,53 @@ pub(crate) fn build_anthropic_body(
         None => body["model"] = serde_json::Value::String(model.to_string()),
     }
 
-    // System prompt as a cacheable content block (stable prefix).
+    // System prompt as cacheable content block(s). When the agent marked the
+    // stable/dynamic boundary, split there: the breakpoint goes on the stable
+    // block only, so per-turn tail changes (git status, date, memory index)
+    // stop re-creating the whole cached prefix. The marker string itself
+    // never goes on the wire. No marker (SDK callers setting raw system
+    // strings) keeps the previous single-block-with-breakpoint behavior.
     if let Some(system) = &request.system {
-        body["system"] = serde_json::json!([{
-            "type": "text",
-            "text": system,
-            "cache_control": { "type": "ephemeral" },
-        }]);
+        match system.split_once(SYSTEM_PROMPT_DYNAMIC_BOUNDARY) {
+            Some((stable, dynamic)) => {
+                // Defensive: a marker should occur once; scrub any repeats so
+                // the literal string can never leak to the model.
+                let dynamic = dynamic.replace(SYSTEM_PROMPT_DYNAMIC_BOUNDARY, "");
+                let mut blocks = Vec::new();
+                if !stable.trim().is_empty() {
+                    blocks.push(serde_json::json!({
+                        "type": "text",
+                        "text": stable,
+                        "cache_control": { "type": "ephemeral" },
+                    }));
+                }
+                if !dynamic.trim().is_empty() {
+                    let mut block = serde_json::json!({
+                        "type": "text",
+                        "text": dynamic,
+                    });
+                    // Marker at the very start (no stable half): keep the
+                    // pre-split behavior of a breakpoint on the one block.
+                    if blocks.is_empty() {
+                        block["cache_control"] =
+                            serde_json::json!({ "type": "ephemeral" });
+                    }
+                    blocks.push(block);
+                }
+                // Both halves empty (system was only the marker): send no
+                // system at all rather than an empty block the API rejects.
+                if !blocks.is_empty() {
+                    body["system"] = serde_json::Value::Array(blocks);
+                }
+            }
+            None => {
+                body["system"] = serde_json::json!([{
+                    "type": "text",
+                    "text": system,
+                    "cache_control": { "type": "ephemeral" },
+                }]);
+            }
+        }
     }
 
     // Tools, with a cache breakpoint on the last tool (caches the whole tool set).
@@ -773,16 +813,17 @@ mod tests {
         assert!(body["tools"][0].get("cache_control").is_none());
     }
 
-    // ─── F-A8: the system prompt is the cacheable prefix ─────────────────────
+    // ─── F-A8/P3: the stable system prefix is the cacheable block ────────────
 
-    /// The system string — project instructions before the dynamic boundary
-    /// included — lands in one system block carrying the cache breakpoint.
+    /// P3 cache-breakpoint stability: a system string carrying the dynamic
+    /// boundary is split into TWO blocks — the stable half with the cache
+    /// breakpoint, the dynamic tail without one — and the marker string
+    /// itself never reaches the wire. This is what stops a git-status or
+    /// date change from re-creating the whole ~3.8k-token cached prefix.
     /// The CLI-side half (instructions appear exactly once, before the
-    /// boundary) is bound in `abstract-cli/src/prompt.rs`; together they bind
-    /// F-A8's request-body claim. Splitting the block *at* the boundary so
-    /// the dynamic tail stops invalidating the prefix is P3.
+    /// boundary) is bound in `abstract-cli/src/prompt.rs`.
     #[test]
-    fn body_system_block_carries_the_cache_breakpoint() {
+    fn body_splits_system_at_the_boundary_with_breakpoint_on_stable_half() {
         let mut r = CompletionRequest::new("claude-sonnet-5");
         r.max_tokens = 1024;
         r.system =
@@ -791,17 +832,95 @@ mod tests {
 
         let body = build_anthropic_body("claude-sonnet-5", &r, None, None);
         let system = body["system"].as_array().expect("system must be blocks");
+        assert_eq!(system.len(), 2, "stable + dynamic blocks: {system:#?}");
+
+        let stable = system[0]["text"].as_str().unwrap();
+        assert!(stable.contains("INSTRUCTIONS_MARKER"));
+        assert_eq!(
+            system[0]["cache_control"],
+            serde_json::json!({ "type": "ephemeral" }),
+            "the breakpoint belongs on the stable block"
+        );
+
+        let dynamic = system[1]["text"].as_str().unwrap();
+        assert!(dynamic.contains("dynamic tail"));
+        assert!(
+            system[1].get("cache_control").is_none(),
+            "a breakpoint on the dynamic tail would re-create the cache \
+             entry every turn: {system:#?}"
+        );
+
+        for block in system {
+            assert!(
+                !block["text"]
+                    .as_str()
+                    .unwrap()
+                    .contains(SYSTEM_PROMPT_DYNAMIC_BOUNDARY),
+                "the marker must never go over the wire: {block}"
+            );
+        }
+    }
+
+    /// No marker (SDK callers set raw system strings): exactly the pre-split
+    /// behavior — one block, breakpoint at its end.
+    #[test]
+    fn body_without_boundary_keeps_single_cached_system_block() {
+        let mut r = CompletionRequest::new("claude-sonnet-5");
+        r.max_tokens = 1024;
+        r.system = Some("just a plain system prompt".into());
+        r.messages = vec![Message::user("go")];
+
+        let body = build_anthropic_body("claude-sonnet-5", &r, None, None);
+        let system = body["system"].as_array().expect("system must be blocks");
         assert_eq!(system.len(), 1);
+        assert_eq!(system[0]["text"], "just a plain system prompt");
         assert_eq!(
             system[0]["cache_control"],
             serde_json::json!({ "type": "ephemeral" })
         );
-        let text = system[0]["text"].as_str().unwrap();
-        assert_eq!(text.matches("INSTRUCTIONS_MARKER").count(), 1);
+    }
+
+    /// Marker with an empty half: never emit an empty text block (the API
+    /// rejects them). Marker-at-end keeps the cached stable block; marker-at-
+    /// start keeps the breakpoint on the one remaining block.
+    #[test]
+    fn body_boundary_with_an_empty_half_never_emits_an_empty_block() {
+        let mut tail_only = CompletionRequest::new("claude-sonnet-5");
+        tail_only.max_tokens = 1024;
+        tail_only.system = Some("stable text\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__".into());
+        tail_only.messages = vec![Message::user("go")];
+        let body = build_anthropic_body("claude-sonnet-5", &tail_only, None, None);
+        let system = body["system"].as_array().unwrap();
+        assert_eq!(system.len(), 1, "empty dynamic tail: {system:#?}");
+        assert!(system[0]["text"].as_str().unwrap().contains("stable text"));
+        assert_eq!(
+            system[0]["cache_control"],
+            serde_json::json!({ "type": "ephemeral" })
+        );
+
+        let mut head_only = CompletionRequest::new("claude-sonnet-5");
+        head_only.max_tokens = 1024;
+        head_only.system = Some("__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\ndynamic only".into());
+        head_only.messages = vec![Message::user("go")];
+        let body = build_anthropic_body("claude-sonnet-5", &head_only, None, None);
+        let system = body["system"].as_array().unwrap();
+        assert_eq!(system.len(), 1, "empty stable half: {system:#?}");
+        assert!(system[0]["text"].as_str().unwrap().contains("dynamic only"));
+        assert_eq!(
+            system[0]["cache_control"],
+            serde_json::json!({ "type": "ephemeral" }),
+            "single remaining block keeps the pre-split breakpoint behavior"
+        );
+
+        let mut marker_only = CompletionRequest::new("claude-sonnet-5");
+        marker_only.max_tokens = 1024;
+        marker_only.system = Some("__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__".into());
+        marker_only.messages = vec![Message::user("go")];
+        let body = build_anthropic_body("claude-sonnet-5", &marker_only, None, None);
         assert!(
-            text.find("INSTRUCTIONS_MARKER").unwrap()
-                < text.find("__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__").unwrap(),
-            "instructions must precede the boundary in the cached block"
+            body.get("system").is_none(),
+            "marker-only system must send no system at all: {:#?}",
+            body.get("system")
         );
     }
 
@@ -1099,6 +1218,85 @@ mod tests {
             response.usage.cache_read_input_tokens,
             response.usage.cache_creation_input_tokens,
             response.usage.output_tokens
+        );
+    }
+
+    /// P3 cache-breakpoint stability, measured — THE claim the item exists
+    /// for: two calls identical BEFORE the dynamic boundary but different
+    /// after it, and the second must still read the cached stable prefix.
+    /// Pre-split (one system block, breakpoint at its end) any tail change
+    /// re-created the whole prefix, so the second call's read would be 0.
+    /// Runs through the real provider path, so the typed usage fields from
+    /// the usage-accounting item are the instrument.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_dynamic_tail_change_still_reads_cached_stable_prefix() {
+        let model = live_model();
+        let Ok(key) = std::env::var("ANTHROPIC_API_KEY") else {
+            eprintln!("skipping: ANTHROPIC_API_KEY not set");
+            return;
+        };
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        // The STABLE half alone must clear the minimum cacheable prefix
+        // (1024 tokens on sonnet-class models).
+        let filler =
+            "Project instructions live on the cacheable side of the prompt. ".repeat(200);
+        let stable = format!("Session {nonce}. {filler}");
+        let provider = Anthropic::builder()
+            .api_key(key)
+            .model(&model)
+            .build()
+            .expect("provider builds");
+
+        let mut r1 = CompletionRequest::new(&model);
+        r1.max_tokens = 64;
+        r1.system = Some(format!(
+            "{stable}\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}\ngit status: clean, turn 1"
+        ));
+        r1.messages = vec![Message::user("Reply with the single word: ok")];
+        let usage1 = provider
+            .complete(r1)
+            .await
+            .expect("first live call")
+            .collect()
+            .await
+            .expect("first stream collects")
+            .usage;
+        assert!(
+            usage1.cache_creation_input_tokens > 0,
+            "first call should create the stable-prefix cache entry: {usage1:?}"
+        );
+
+        // Identical before the boundary, entirely different after it — the
+        // pre-split body missed the cache on exactly this shape.
+        let mut r2 = CompletionRequest::new(&model);
+        r2.max_tokens = 64;
+        r2.system = Some(format!(
+            "{stable}\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}\ngit status: 3 files changed, \
+             turn 2, a completely different dynamic tail with different length"
+        ));
+        r2.messages = vec![Message::user("Reply with the single word: ok")];
+        let usage2 = provider
+            .complete(r2)
+            .await
+            .expect("second live call")
+            .collect()
+            .await
+            .expect("second stream collects")
+            .usage;
+        assert_eq!(
+            usage2.cache_read_input_tokens, usage1.cache_creation_input_tokens,
+            "the changed tail must not touch the cached stable prefix — the \
+             second call should read back exactly what the first created \
+             (created {}, read {})",
+            usage1.cache_creation_input_tokens, usage2.cache_read_input_tokens
+        );
+        eprintln!(
+            "stable prefix: created={}, read-after-tail-change={}",
+            usage1.cache_creation_input_tokens, usage2.cache_read_input_tokens
         );
     }
 

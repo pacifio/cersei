@@ -235,6 +235,21 @@ impl Message {
     }
 }
 
+// ─── System-prompt dynamic boundary ──────────────────────────────────────────
+
+/// Marker an agent may embed in `CompletionRequest.system` to separate the
+/// stable (cacheable) prefix from the per-turn dynamic tail (git status,
+/// date, memory index). Providers split or strip it before the request goes
+/// on the wire: Anthropic places its cache breakpoint on the stable half
+/// only, so tail changes stop invalidating the cached prefix; providers with
+/// automatic caching just remove the marker. A system string without the
+/// marker is sent as a single block, unchanged.
+///
+/// Defined here (not in `cersei-agent`, which historically owned it and now
+/// re-exports it) because the dependency direction is agent -> provider: the
+/// providers that must consume the marker cannot import the agent crate.
+pub const SYSTEM_PROMPT_DYNAMIC_BOUNDARY: &str = "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__";
+
 // ─── Usage / Cost ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

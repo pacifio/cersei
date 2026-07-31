@@ -357,3 +357,64 @@ async fn gemini_body_carries_mode_any_when_asked() {
         serde_json::json!("ANY")
     );
 }
+
+// ─── P3: the dynamic-boundary marker never reaches a wire ───────────────────
+//
+// The Anthropic path SPLITS at the marker (bound in `anthropic.rs::tests`);
+// OpenAI and Gemini have automatic caching and just strip it — before P3 the
+// literal `__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__` string went to the model.
+
+#[tokio::test]
+async fn openai_body_strips_the_dynamic_boundary_marker() {
+    let (url, rx) = capture_one("data: [DONE]\n\n");
+    let provider = OpenAi::builder()
+        .api_key("test-key")
+        .base_url(format!("{url}/v1"))
+        .model("test-model")
+        .build()
+        .expect("build provider");
+    let mut req = schemars_like_request();
+    req.system = Some(format!(
+        "stable half\n{}\ndynamic half",
+        cersei_types::SYSTEM_PROMPT_DYNAMIC_BOUNDARY
+    ));
+    let _ = async { provider.complete(req).await?.collect().await }.await;
+
+    let body = body_json(&rx);
+    let system = body["messages"][0]["content"].as_str().expect("system message");
+    assert!(system.contains("stable half") && system.contains("dynamic half"));
+    assert!(
+        !system.contains(cersei_types::SYSTEM_PROMPT_DYNAMIC_BOUNDARY),
+        "the marker leaked to the OpenAI wire: {system}"
+    );
+}
+
+#[tokio::test]
+async fn gemini_body_strips_the_dynamic_boundary_marker() {
+    let (url, rx) = capture_one(
+        "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}],\
+         \"role\":\"model\"},\"finishReason\":\"STOP\"}]}\n\n",
+    );
+    let provider = Gemini::builder()
+        .api_key("test-key")
+        .base_url(url)
+        .model("test-model")
+        .build()
+        .expect("build provider");
+    let mut req = schemars_like_request();
+    req.system = Some(format!(
+        "stable half\n{}\ndynamic half",
+        cersei_types::SYSTEM_PROMPT_DYNAMIC_BOUNDARY
+    ));
+    let _ = async { provider.complete(req).await?.collect().await }.await;
+
+    let body = body_json(&rx);
+    let text = body["systemInstruction"]["parts"][0]["text"]
+        .as_str()
+        .expect("systemInstruction text");
+    assert!(text.contains("stable half") && text.contains("dynamic half"));
+    assert!(
+        !text.contains(cersei_types::SYSTEM_PROMPT_DYNAMIC_BOUNDARY),
+        "the marker leaked to the Gemini wire: {text}"
+    );
+}

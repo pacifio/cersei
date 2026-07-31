@@ -10,7 +10,11 @@ use std::sync::{Mutex, OnceLock};
 
 // ─── Dynamic boundary marker ────────────────────────────────────────────────
 
-pub const SYSTEM_PROMPT_DYNAMIC_BOUNDARY: &str = "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__";
+// Moved to `cersei-types` so providers (which the agent depends on, not the
+// reverse) can split the system block at the boundary; re-exported here so
+// existing `cersei_agent::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY`
+// imports keep compiling.
+pub use cersei_types::SYSTEM_PROMPT_DYNAMIC_BOUNDARY;
 
 // ─── Section cache ──────────────────────────────────────────────────────────
 

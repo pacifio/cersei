@@ -78,9 +78,13 @@ impl Provider for OpenAi {
         let mut api_messages: Vec<serde_json::Value> = Vec::new();
 
         if let Some(system) = &request.system {
+            // The boundary marker is a client-side cache hint; OpenAI-compat
+            // caching is automatic, so just keep the literal string off the
+            // wire instead of letting the model read it.
+            let content = system.replace(SYSTEM_PROMPT_DYNAMIC_BOUNDARY, "");
             api_messages.push(serde_json::json!({
                 "role": "system",
-                "content": system,
+                "content": content,
             }));
         }
 

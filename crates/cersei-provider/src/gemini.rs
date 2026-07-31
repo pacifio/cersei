@@ -227,10 +227,13 @@ impl Provider for Gemini {
             },
         });
 
-        // System instruction (Gemini's equivalent of system prompt)
+        // System instruction (Gemini's equivalent of system prompt). The
+        // boundary marker is a client-side cache hint; Gemini caching is
+        // automatic, so keep the literal string off the wire.
         if let Some(system) = &request.system {
+            let text = system.replace(SYSTEM_PROMPT_DYNAMIC_BOUNDARY, "");
             body["systemInstruction"] = serde_json::json!({
-                "parts": [{ "text": system }],
+                "parts": [{ "text": text }],
             });
         }
 
