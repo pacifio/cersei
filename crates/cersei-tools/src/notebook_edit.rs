@@ -24,7 +24,7 @@ impl Tool for NotebookEditTool {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "file_path": { "type": "string", "description": "Path to .ipynb file" },
+                "file_path": { "type": "string", "description": "Absolute path to the .ipynb file" },
                 "cell_index": { "type": "integer", "description": "0-based cell index to edit" },
                 "new_source": { "type": "string", "description": "New cell source content" },
                 "cell_type": { "type": "string", "description": "Optional: 'code' or 'markdown'" }
