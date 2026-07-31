@@ -1336,6 +1336,43 @@ mod tests {
         );
     }
 
+    /// §10.5 #8 probe: do the 4.6-era models accept the ADAPTIVE form? They
+    /// currently stay on manual+clamp because migrating was untestable risk;
+    /// the docs say adaptive is recommended on 4.6. A 200 from both models
+    /// makes the migration a tested change instead of a leap; a 400 settles
+    /// it the other way (keep manual) — either outcome is the answer, which
+    /// is why this asserts rather than merely logging.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and ANTHROPIC_API_KEY set"]
+    async fn live_4_6_models_accept_the_adaptive_form_probe() {
+        for model in ["claude-sonnet-4-6", "claude-opus-4-6"] {
+            assert_eq!(
+                thinking_mode(model),
+                ThinkingMode::Manual,
+                "probe precondition drifted: '{model}' is no longer classified \
+                 Manual, so §10.5 #8 is already resolved — delete this probe"
+            );
+            let mut r = CompletionRequest::new(model);
+            r.max_tokens = 64;
+            r.messages = vec![Message::user("Reply with the single word: ok")];
+            // Bypass the gate deliberately: this is the body the MIGRATED
+            // classifier would build, not what today's build emits.
+            let mut body = build_anthropic_body(model, &r, None, None);
+            body["thinking"] = serde_json::json!({ "type": "adaptive" });
+            body["stream"] = serde_json::json!(false);
+
+            let Some((status, text)) = post_live(&body).await else {
+                return;
+            };
+            eprintln!("{model} + adaptive → HTTP {status}");
+            assert!(
+                (200..300).contains(&status),
+                "'{model}' rejected the adaptive form ({status}) — §10.5 #8 \
+                 resolves to KEEP manual+clamp for it: {text}"
+            );
+        }
+    }
+
     /// The positive case: what the gate actually builds for an adaptive-only
     /// model is accepted. If this 400s, the gate is emitting a shape the API
     /// does not take and F-01 is not fixed.
