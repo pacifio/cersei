@@ -228,7 +228,7 @@ mod tests {
             let prompt = req.messages.last().and_then(|m| m.get_text()).unwrap_or("").to_string();
             let (tx, rx) = mpsc::channel(16);
             tokio::spawn(async move {
-                let _ = tx.send(StreamEvent::MessageStart { id: "1".into(), model: "echo".into() }).await;
+                let _ = tx.send(StreamEvent::MessageStart { id: "1".into(), model: "echo".into(), usage: None }).await;
                 let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "text".into(), id: None, name: None }).await;
                 let _ = tx.send(StreamEvent::TextDelta { index: 0, text: format!("done: {prompt}") }).await;
                 let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;

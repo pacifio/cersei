@@ -337,6 +337,7 @@ impl Provider for MockCodingProvider {
                 .send(StreamEvent::MessageStart {
                     id: format!("msg_{turn}"),
                     model: "claude-sonnet-4-6".into(),
+                    usage: None,
                 })
                 .await;
 
@@ -392,11 +393,10 @@ impl Provider for MockCodingProvider {
                                 input_tokens: base_input - cache_read,
                                 output_tokens,
                                 total_tokens: base_input + output_tokens,
+                                cache_creation_input_tokens: 1200,
+                                cache_read_input_tokens: cache_read,
                                 cost_usd: Some(cost),
-                                provider_usage: serde_json::json!({
-                                    "cache_creation_input_tokens": 1200,
-                                    "cache_read_input_tokens": cache_read,
-                                }),
+                                ..Default::default()
                             }),
                         })
                         .await;
@@ -450,11 +450,9 @@ impl Provider for MockCodingProvider {
                                 input_tokens: base_input - cache_read,
                                 output_tokens: 380,
                                 total_tokens: base_input + 380,
+                                cache_read_input_tokens: cache_read,
                                 cost_usd: Some(cost),
-                                provider_usage: serde_json::json!({
-                                    "cache_creation_input_tokens": 0,
-                                    "cache_read_input_tokens": cache_read,
-                                }),
+                                ..Default::default()
                             }),
                         })
                         .await;
@@ -507,11 +505,9 @@ impl Provider for MockCodingProvider {
                                 input_tokens: base_input - cache_read,
                                 output_tokens: 195,
                                 total_tokens: base_input + 195,
+                                cache_read_input_tokens: cache_read,
                                 cost_usd: Some(cost),
-                                provider_usage: serde_json::json!({
-                                    "cache_creation_input_tokens": 0,
-                                    "cache_read_input_tokens": cache_read,
-                                }),
+                                ..Default::default()
                             }),
                         })
                         .await;
@@ -557,11 +553,9 @@ impl Provider for MockCodingProvider {
                                 input_tokens: base_input - cache_read,
                                 output_tokens: 285,
                                 total_tokens: base_input + 285,
+                                cache_read_input_tokens: cache_read,
                                 cost_usd: Some(cost),
-                                provider_usage: serde_json::json!({
-                                    "cache_creation_input_tokens": 0,
-                                    "cache_read_input_tokens": cache_read,
-                                }),
+                                ..Default::default()
                             }),
                         })
                         .await;

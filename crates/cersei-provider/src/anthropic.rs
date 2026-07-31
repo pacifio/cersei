@@ -484,9 +484,13 @@ fn parse_sse_event(raw: &str) -> Option<StreamEvent> {
     match event_type.as_str() {
         "message_start" => {
             let msg = &json["message"];
+            // `message_start` is the only Anthropic event carrying the cache
+            // accounting fields; discarding its usage object is what forced
+            // the F-A8 live test to parse raw response JSON (P3 item #2).
             Some(StreamEvent::MessageStart {
                 id: msg["id"].as_str().unwrap_or("").to_string(),
                 model: msg["model"].as_str().unwrap_or("").to_string(),
+                usage: msg["usage"].as_object().map(parse_usage_object),
             })
         }
         "content_block_start" => {
@@ -541,15 +545,7 @@ fn parse_sse_event(raw: &str) -> Option<StreamEvent> {
                 "stop_sequence" => Some(StopReason::StopSequence),
                 _ => None,
             });
-            let usage = if let Some(u) = json["usage"].as_object() {
-                Some(Usage {
-                    input_tokens: u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-                    output_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-                    ..Default::default()
-                })
-            } else {
-                None
-            };
+            let usage = json["usage"].as_object().map(parse_usage_object);
             Some(StreamEvent::MessageDelta { stop_reason, usage })
         }
         "message_stop" => Some(StreamEvent::MessageStop),
@@ -561,6 +557,19 @@ fn parse_sse_event(raw: &str) -> Option<StreamEvent> {
                 .to_string(),
         }),
         _ => None,
+    }
+}
+
+/// Parse an Anthropic `usage` object (from `message_start` or `message_delta`)
+/// into the typed `Usage`, including the prompt-cache accounting fields.
+fn parse_usage_object(u: &serde_json::Map<String, serde_json::Value>) -> Usage {
+    let field = |name: &str| u.get(name).and_then(|v| v.as_u64()).unwrap_or(0);
+    Usage {
+        input_tokens: field("input_tokens"),
+        output_tokens: field("output_tokens"),
+        cache_creation_input_tokens: field("cache_creation_input_tokens"),
+        cache_read_input_tokens: field("cache_read_input_tokens"),
+        ..Default::default()
     }
 }
 
@@ -653,6 +662,48 @@ mod tests {
                 assert_eq!(signature, "EqQBCgIY");
             }
             other => panic!("signature_delta must parse to SignatureDelta, got {other:?}"),
+        }
+    }
+
+    /// P3 #2: `message_start` is the ONLY Anthropic event that reports the
+    /// prompt-cache accounting fields. Dropping its usage object (the pre-fix
+    /// behavior) is what forced the F-A8 live test to parse raw response JSON.
+    #[test]
+    fn sse_message_start_carries_cache_usage() {
+        let raw = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-sonnet-4-6\",\"usage\":{\"input_tokens\":3571,\"cache_creation_input_tokens\":3815,\"cache_read_input_tokens\":6656,\"output_tokens\":2}}}";
+        match parse_sse_event(raw) {
+            Some(StreamEvent::MessageStart { usage: Some(u), .. }) => {
+                assert_eq!(u.input_tokens, 3571);
+                assert_eq!(u.cache_creation_input_tokens, 3815);
+                assert_eq!(u.cache_read_input_tokens, 6656);
+                assert_eq!(u.output_tokens, 2);
+            }
+            other => panic!("message_start must carry its usage object, got {other:?}"),
+        }
+    }
+
+    /// A `message_start` without a usage object (as mocks and non-Anthropic
+    /// gateways may send) must still parse, with `usage: None`.
+    #[test]
+    fn sse_message_start_without_usage_still_parses() {
+        let raw = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"m\"}}";
+        match parse_sse_event(raw) {
+            Some(StreamEvent::MessageStart { usage, .. }) => assert!(usage.is_none()),
+            other => panic!("usage-less message_start must parse, got {other:?}"),
+        }
+    }
+
+    /// `message_delta` usage picks up the cache fields too when the API sends
+    /// them there (harmless when absent — they default to 0).
+    #[test]
+    fn sse_message_delta_parses_cache_fields() {
+        let raw = "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":727,\"cache_read_input_tokens\":6656}}";
+        match parse_sse_event(raw) {
+            Some(StreamEvent::MessageDelta { usage: Some(u), .. }) => {
+                assert_eq!(u.output_tokens, 727);
+                assert_eq!(u.cache_read_input_tokens, 6656);
+            }
+            other => panic!("message_delta usage must parse cache fields, got {other:?}"),
         }
     }
 
@@ -1020,6 +1071,35 @@ mod tests {
             "identical second call should read the cached prefix: {usage2:#}"
         );
         eprintln!("cache_creation={created}, cache_read={read}");
+
+        // Third call, through the full typed path this time (provider →
+        // SSE parse → accumulator). P3 #2's plumbing must surface the same
+        // cache read as first-class `Usage` fields — this test previously
+        // HAD to parse raw response JSON because they did not exist.
+        let provider = Anthropic::builder()
+            .api_key(std::env::var("ANTHROPIC_API_KEY").unwrap())
+            .model(&model)
+            .build()
+            .expect("provider builds");
+        let response = provider
+            .complete(r)
+            .await
+            .expect("live streaming call")
+            .collect()
+            .await
+            .expect("stream collects");
+        assert!(
+            response.usage.cache_read_input_tokens > 0,
+            "typed usage must carry the cache read end to end; got {:?}",
+            response.usage
+        );
+        eprintln!(
+            "typed path: input={}, cache_read={}, cache_creation={}, output={}",
+            response.usage.input_tokens,
+            response.usage.cache_read_input_tokens,
+            response.usage.cache_creation_input_tokens,
+            response.usage.output_tokens
+        );
     }
 
     /// The positive case: what the gate actually builds for an adaptive-only

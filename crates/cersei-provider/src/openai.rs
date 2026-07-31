@@ -322,6 +322,7 @@ impl Provider for OpenAi {
                 .send(StreamEvent::MessageStart {
                     id: String::new(),
                     model: String::new(),
+                    usage: None,
                 })
                 .await;
             let mut stream = response.bytes_stream();

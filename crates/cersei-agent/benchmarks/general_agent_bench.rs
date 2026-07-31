@@ -281,6 +281,7 @@ impl Provider for StubProvider {
                 .send(StreamEvent::MessageStart {
                     id: "stub-1".into(),
                     model: "stub".into(),
+                    usage: None,
                 })
                 .await;
             let _ = tx

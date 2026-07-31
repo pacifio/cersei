@@ -206,6 +206,7 @@ mod tests {
                     .send(StreamEvent::MessageStart {
                         id: "1".into(),
                         model: "echo".into(),
+                        usage: None,
                     })
                     .await;
                 let _ = tx

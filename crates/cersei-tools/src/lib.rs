@@ -195,11 +195,12 @@ impl CostTracker {
         self.usage.lock().merge(usage);
     }
 
-    /// Add usage with cost estimation based on model pricing.
+    /// Add usage with cost estimation based on model pricing, including the
+    /// prompt-cache accounting fields (reads ~0.1x, writes ~1.25x input rate).
     pub fn add_with_model(&self, usage: &Usage, model: &str) {
         let mut u = usage.clone();
         if u.cost_usd.is_none() || u.cost_usd == Some(0.0) {
-            u.cost_usd = Some(estimate_cost(model, u.input_tokens, u.output_tokens));
+            u.cost_usd = Some(estimate_cost_usage(model, &u));
         }
         self.usage.lock().merge(&u);
     }
@@ -215,9 +216,37 @@ impl Default for CostTracker {
     }
 }
 
+/// Anthropic prompt-cache write premium for the default 5-minute-TTL
+/// `{"type": "ephemeral"}` breakpoint Cersei sends (a 1h TTL would be 2.0).
+const CACHE_WRITE_MULTIPLIER: f64 = 1.25;
+/// Anthropic prompt-cache read discount relative to the base input rate.
+const CACHE_READ_MULTIPLIER: f64 = 0.1;
+
+/// Estimate USD cost for a full [`Usage`], pricing prompt-cache writes at
+/// 1.25x and cache reads at 0.1x the model's input rate. The cache fields are
+/// populated only on the Anthropic path (OpenAI/Gemini report cached tokens
+/// inside their prompt totals, under different discounts), so for other
+/// providers this reduces to [`estimate_cost`].
+pub fn estimate_cost_usage(model: &str, usage: &Usage) -> f64 {
+    let (input_per_m, _) = model_rates(model);
+    estimate_cost(model, usage.input_tokens, usage.output_tokens)
+        + (usage.cache_creation_input_tokens as f64 / 1_000_000.0)
+            * input_per_m
+            * CACHE_WRITE_MULTIPLIER
+        + (usage.cache_read_input_tokens as f64 / 1_000_000.0) * input_per_m * CACHE_READ_MULTIPLIER
+}
+
 /// Estimate USD cost from token counts based on model pricing (per 1M tokens).
+/// Cache-unaware; prefer [`estimate_cost_usage`] when a full `Usage` is at hand.
 pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> f64 {
-    let (input_per_m, output_per_m) = match model {
+    let (input_per_m, output_per_m) = model_rates(model);
+    (input_tokens as f64 / 1_000_000.0) * input_per_m
+        + (output_tokens as f64 / 1_000_000.0) * output_per_m
+}
+
+/// (input, output) USD per 1M tokens for a model id.
+fn model_rates(model: &str) -> (f64, f64) {
+    match model {
         m if m.contains("gpt-5.3") => (2.0, 10.0),
         m if m.contains("gpt-5") => (2.0, 10.0),
         m if m.contains("gpt-4o") => (2.50, 10.0),
@@ -233,9 +262,68 @@ pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> f64 
         m if m.contains("mistral-large") => (2.0, 6.0),
         m if m.contains("llama") => (0.0, 0.0), // local/free
         _ => (2.0, 10.0),
-    };
-    (input_tokens as f64 / 1_000_000.0) * input_per_m
-        + (output_tokens as f64 / 1_000_000.0) * output_per_m
+    }
+}
+
+#[cfg(test)]
+mod cost_tests {
+    use super::*;
+
+    /// P3 #2: cache reads price at 0.1x and cache writes at 1.25x the input
+    /// rate (sonnet input rate: $3/M).
+    #[test]
+    fn cache_tokens_price_at_their_multipliers() {
+        let read_only = Usage {
+            cache_read_input_tokens: 1_000_000,
+            ..Default::default()
+        };
+        let cost = estimate_cost_usage("claude-sonnet-4-6", &read_only);
+        assert!((cost - 0.30).abs() < 1e-9, "1M cached reads = $0.30, got {cost}");
+
+        let write_only = Usage {
+            cache_creation_input_tokens: 1_000_000,
+            ..Default::default()
+        };
+        let cost = estimate_cost_usage("claude-sonnet-4-6", &write_only);
+        assert!((cost - 3.75).abs() < 1e-9, "1M cache writes = $3.75, got {cost}");
+    }
+
+    /// Without cache fields the usage-aware estimator must agree with the
+    /// legacy pair, so non-Anthropic providers price exactly as before.
+    #[test]
+    fn without_cache_fields_the_estimators_agree() {
+        let plain = Usage {
+            input_tokens: 200_000,
+            output_tokens: 50_000,
+            ..Default::default()
+        };
+        assert_eq!(
+            estimate_cost_usage("claude-sonnet-4-6", &plain),
+            estimate_cost("claude-sonnet-4-6", 200_000, 50_000),
+        );
+    }
+
+    /// Wiring: `add_with_model` must price through the cache-aware estimator
+    /// and the tracker must accumulate the cache fields themselves.
+    #[test]
+    fn cost_tracker_prices_and_accumulates_cache_fields() {
+        let tracker = CostTracker::new();
+        tracker.add_with_model(
+            &Usage {
+                input_tokens: 1_000_000,
+                cache_read_input_tokens: 1_000_000,
+                ..Default::default()
+            },
+            "claude-sonnet-4-6",
+        );
+        let current = tracker.current();
+        assert_eq!(current.cache_read_input_tokens, 1_000_000);
+        let cost = current.cost_usd.expect("cost estimated");
+        assert!(
+            (cost - 3.30).abs() < 1e-9,
+            "1M input + 1M cached reads on sonnet = $3.30, got {cost}"
+        );
+    }
 }
 
 // ─── Shell state (persisted across Bash invocations) ─────────────────────────

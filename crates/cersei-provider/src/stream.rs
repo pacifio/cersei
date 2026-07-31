@@ -48,9 +48,15 @@ impl StreamAccumulator {
 
     pub fn process_event(&mut self, event: StreamEvent) {
         match event {
-            StreamEvent::MessageStart { id, model } => {
+            StreamEvent::MessageStart { id, model, usage } => {
                 self.message_id = Some(id);
                 self.model = Some(model);
+                // Anthropic reports the input/cache side of usage only here;
+                // merge_cumulative (not additive merge) because the final
+                // message_delta repeats output_tokens as a cumulative total.
+                if let Some(u) = usage {
+                    self.usage.merge_cumulative(&u);
+                }
             }
             StreamEvent::ContentBlockStart {
                 index,
@@ -153,7 +159,10 @@ impl StreamAccumulator {
                     self.stop_reason = Some(sr);
                 }
                 if let Some(u) = usage {
-                    self.usage.merge(&u);
+                    // Cumulative-snapshot semantics: all three providers emit
+                    // their end-of-stream usage as totals, and Anthropic's
+                    // message_start already contributed the input/cache side.
+                    self.usage.merge_cumulative(&u);
                 }
             }
             StreamEvent::MessageStop => {
@@ -239,6 +248,7 @@ mod tests {
             StreamEvent::MessageStart {
                 id: "msg_1".into(),
                 model: "test-model".into(),
+                usage: None,
             },
             StreamEvent::ContentBlockStart {
                 index: 0,
@@ -407,6 +417,7 @@ mod tests {
             StreamEvent::MessageStart {
                 id: "msg_1".into(),
                 model: "test-model".into(),
+                usage: None,
             },
             StreamEvent::ContentBlockStart {
                 index: 0,
@@ -496,6 +507,49 @@ mod tests {
         assert!(
             input["__parse_error"].as_str().is_some_and(|e| !e.is_empty()),
             "the parse error must survive alongside the raw text: {input}"
+        );
+    }
+
+    // ── P3 #2: cache accounting flows from message_start to the response ─────
+
+    /// Anthropic reports the input/cache side of usage on `message_start` and
+    /// the cumulative output total on the final `message_delta`. The response
+    /// must carry all four fields, and output must be the delta's total —
+    /// NOT start + delta (they are snapshots, not increments).
+    #[test]
+    fn cache_usage_from_message_start_survives_to_the_response() {
+        let mut acc = StreamAccumulator::new();
+        for e in [
+            StreamEvent::MessageStart {
+                id: "msg_1".into(),
+                model: "claude-sonnet-4-6".into(),
+                usage: Some(Usage {
+                    input_tokens: 3571,
+                    cache_creation_input_tokens: 3815,
+                    cache_read_input_tokens: 6656,
+                    output_tokens: 2, // initial snapshot, superseded by the delta
+                    ..Default::default()
+                }),
+            },
+            StreamEvent::MessageDelta {
+                stop_reason: Some(StopReason::EndTurn),
+                usage: Some(Usage {
+                    output_tokens: 727, // cumulative total for the message
+                    ..Default::default()
+                }),
+            },
+            StreamEvent::MessageStop,
+        ] {
+            acc.process_event(e);
+        }
+
+        let response = acc.into_response().expect("valid stream");
+        assert_eq!(response.usage.input_tokens, 3571);
+        assert_eq!(response.usage.cache_creation_input_tokens, 3815);
+        assert_eq!(response.usage.cache_read_input_tokens, 6656);
+        assert_eq!(
+            response.usage.output_tokens, 727,
+            "output must be the cumulative snapshot, not start+delta (729)"
         );
     }
 }

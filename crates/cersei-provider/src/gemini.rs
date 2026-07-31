@@ -315,6 +315,7 @@ impl Provider for Gemini {
                 .send(StreamEvent::MessageStart {
                     id: String::new(),
                     model: String::new(),
+                    usage: None,
                 })
                 .await;
 

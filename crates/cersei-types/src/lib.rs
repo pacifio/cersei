@@ -239,13 +239,23 @@ impl Message {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Usage {
+    /// Uncached prompt tokens billed at the full input rate. The total prompt
+    /// size is `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`.
     pub input_tokens: u64,
     pub output_tokens: u64,
     #[serde(default)]
     pub total_tokens: u64,
+    /// Prompt tokens written to the provider's prompt cache this request
+    /// (Anthropic: billed at ~1.25x the input rate for the default 5m TTL).
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    /// Prompt tokens served from the provider's prompt cache this request
+    /// (Anthropic: billed at ~0.1x the input rate).
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_usd: Option<f64>,
-    /// Provider-specific usage data (e.g. cache_creation_input_tokens for Anthropic)
+    /// Provider-specific usage data not covered by the fields above.
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub provider_usage: Value,
 }
@@ -259,13 +269,38 @@ impl Usage {
         }
     }
 
+    /// Additive merge for accumulating usage ACROSS requests (session totals,
+    /// cost tracking). Do not use this to combine usage events within one
+    /// streamed message — see [`Usage::merge_cumulative`].
     pub fn merge(&mut self, other: &Usage) {
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
+        self.cache_creation_input_tokens += other.cache_creation_input_tokens;
+        self.cache_read_input_tokens += other.cache_read_input_tokens;
         self.total_tokens = self.input_tokens + self.output_tokens;
         if let (Some(a), Some(b)) = (self.cost_usd, other.cost_usd) {
             self.cost_usd = Some(a + b);
         } else if other.cost_usd.is_some() {
+            self.cost_usd = other.cost_usd;
+        }
+    }
+
+    /// Merge for usage events WITHIN one streamed message, where counters are
+    /// cumulative snapshots rather than increments: Anthropic's `message_start`
+    /// carries the input/cache side plus a small initial `output_tokens`, and
+    /// the final `message_delta` carries the cumulative output total. Adding
+    /// them would double-count, so each field takes the larger snapshot.
+    pub fn merge_cumulative(&mut self, other: &Usage) {
+        self.input_tokens = self.input_tokens.max(other.input_tokens);
+        self.output_tokens = self.output_tokens.max(other.output_tokens);
+        self.cache_creation_input_tokens = self
+            .cache_creation_input_tokens
+            .max(other.cache_creation_input_tokens);
+        self.cache_read_input_tokens = self
+            .cache_read_input_tokens
+            .max(other.cache_read_input_tokens);
+        self.total_tokens = self.input_tokens + self.output_tokens;
+        if other.cost_usd.is_some() {
             self.cost_usd = other.cost_usd;
         }
     }
@@ -299,6 +334,11 @@ pub enum StreamEvent {
     MessageStart {
         id: String,
         model: String,
+        /// Usage carried on the message-open event. Anthropic's `message_start`
+        /// is the ONLY event that reports `cache_creation_input_tokens` /
+        /// `cache_read_input_tokens`, so dropping this loses cache accounting.
+        /// None for providers that report usage only at end of stream.
+        usage: Option<Usage>,
     },
     ContentBlockStart {
         index: usize,
@@ -474,6 +514,64 @@ pub struct MemoryEntry {
     pub content: String,
     pub relevance: f32,
     pub source: String,
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::*;
+
+    /// P3 #2: the cache accounting fields are first-class and must survive
+    /// cross-request accumulation (session totals, CostTracker).
+    #[test]
+    fn merge_sums_cache_fields_across_requests() {
+        let mut total = Usage {
+            input_tokens: 100,
+            output_tokens: 10,
+            cache_creation_input_tokens: 3815,
+            cache_read_input_tokens: 0,
+            ..Default::default()
+        };
+        total.merge(&Usage {
+            input_tokens: 50,
+            output_tokens: 20,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 3815,
+            ..Default::default()
+        });
+        assert_eq!(total.input_tokens, 150);
+        assert_eq!(total.output_tokens, 30);
+        assert_eq!(total.cache_creation_input_tokens, 3815);
+        assert_eq!(total.cache_read_input_tokens, 3815);
+    }
+
+    /// Within one streamed message the usage events are cumulative snapshots
+    /// (Anthropic: message_start carries input/cache + a small initial output;
+    /// the final message_delta repeats output as a total). Each field takes
+    /// the larger snapshot — adding would double-count.
+    #[test]
+    fn merge_cumulative_takes_snapshots_not_sums() {
+        let mut msg = Usage {
+            input_tokens: 3571,
+            output_tokens: 2,
+            cache_read_input_tokens: 6656,
+            ..Default::default()
+        };
+        msg.merge_cumulative(&Usage {
+            output_tokens: 727,
+            ..Default::default()
+        });
+        assert_eq!(msg.input_tokens, 3571, "input snapshot must be kept");
+        assert_eq!(msg.output_tokens, 727, "727, not 2 + 727");
+        assert_eq!(msg.cache_read_input_tokens, 6656);
+
+        // Applying the same snapshot twice must not grow anything.
+        let before = (msg.input_tokens, msg.output_tokens);
+        msg.merge_cumulative(&Usage {
+            output_tokens: 727,
+            ..Default::default()
+        });
+        assert_eq!((msg.input_tokens, msg.output_tokens), before);
+    }
 }
 
 #[cfg(test)]
