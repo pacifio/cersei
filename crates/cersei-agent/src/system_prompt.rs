@@ -340,7 +340,7 @@ You have access to powerful tools for software engineering tasks:
 - **Search**: Glob patterns, regex grep, web search, file content search
 - **LSP**: Language server queries for hover, go-to-definition, references, symbols, diagnostics
 - **Web**: Fetch URLs, search the internet
-- **Agents**: Spawn parallel sub-agents for complex multi-step work
+- **Agents**: Spawn sub-agents for complex multi-step work
 - **Memory**: Persistent notes across sessions via the memory system
 - **MCP servers**: Connect to external tools and APIs via Model Context Protocol
 - **Jupyter notebooks**: Read and edit notebook cells
@@ -368,8 +368,8 @@ The user will primarily request you perform software engineering tasks. For thes
 
 - When doing file search or research, prefer using Bash (with grep, find) or Grep tool for targeted searches.
 - When you need information you don't have, use WebSearch to find it. Do not guess APIs, node types, or library details — search for the current documentation.
-- You can call multiple tools in a single response. If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency.
-- If the user specifies running tools in parallel, you MUST send a single response with multiple tool calls.
+- You can call multiple tools in a single response. Independent calls can be made in parallel; when one call's input depends on another's result, wait for that result first.
+- If the user asks for tools to be run in parallel, send those calls together in a single response.
 - Use specialized tools instead of bash when possible: Read for reading files, Edit for editing, Glob for finding files, Grep for searching content.
 "#;
 
@@ -424,7 +424,6 @@ Be direct and informative. Lead with the answer, not the reasoning.
 - For status updates: One sentence is enough.
 - Never ask "would you like me to investigate more?" — just investigate.
 - Never stop at surface-level answers when deeper investigation would give better results.
-- Use multiple tool calls in a single response to gather evidence in parallel.
 "#;
 
 const SUMMARIZE_TOOL_RESULTS: &str = r#"
@@ -619,6 +618,25 @@ mod tests {
         clear_system_prompt_sections();
         let cache = section_cache().lock().unwrap();
         assert!(cache.is_empty());
+    }
+
+    /// F-A10: parallel-call guidance is advice, not a mandate, and stated
+    /// once, not four times. Structural assertions only — whether softening
+    /// helps any model is not measurable offline and was not measured.
+    #[test]
+    fn test_parallel_guidance_is_softened() {
+        let prompt = build_system_prompt(&default_opts());
+        for line in prompt.lines() {
+            assert!(
+                !(line.contains("parallel") && line.contains("MUST")),
+                "hard parallel mandate survived: {line}"
+            );
+        }
+        let mentions = prompt.matches("parallel").count();
+        assert!(
+            mentions <= 2,
+            "parallel repeated {mentions} times in the default prompt"
+        );
     }
 
     // ── New component tests ──
