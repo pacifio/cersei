@@ -263,7 +263,7 @@ pub fn clear_session_shell_state(session_id: &str) {
 
 // ─── Built-in tool sets ──────────────────────────────────────────────────────
 
-/// All built-in tools (35 tools).
+/// All built-in tools.
 pub fn all() -> Vec<Box<dyn Tool>> {
     let mut tools: Vec<Box<dyn Tool>> = Vec::new();
     tools.extend(filesystem());
@@ -275,6 +275,9 @@ pub fn all() -> Vec<Box<dyn Tool>> {
     tools.push(Box::new(ask_user::AskUserQuestionTool));
     tools.push(Box::new(synthetic_output::SyntheticOutputTool));
     tools.push(Box::new(config_tool::ConfigTool));
+    // Last, so it indexes every tool registered above.
+    let search = tool_search::ToolSearchTool::new(&tools);
+    tools.push(Box::new(search));
     tools
 }
 

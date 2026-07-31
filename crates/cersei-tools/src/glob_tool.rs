@@ -12,7 +12,7 @@ impl Tool for GlobTool {
         "Glob"
     }
     fn description(&self) -> &str {
-        "Find files matching a glob pattern."
+        "Find files matching a glob pattern (e.g. src/**/*.rs), rooted at `path` or the working directory. Matches names/paths only — use Grep to search file contents."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::ReadOnly

@@ -100,7 +100,7 @@ impl Tool for CronListTool {
         "CronList"
     }
     fn description(&self) -> &str {
-        "List all scheduled cron jobs."
+        "List all scheduled cron jobs with their IDs, schedules, and run counts."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::None
@@ -141,7 +141,7 @@ impl Tool for CronDeleteTool {
         "CronDelete"
     }
     fn description(&self) -> &str {
-        "Delete a scheduled cron job by ID."
+        "Delete a scheduled cron job by ID (CronList shows the IDs)."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::Execute

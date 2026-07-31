@@ -87,7 +87,7 @@ pub fn build_cli_system_prompt(
         ));
     }
 
-    // Tool names (all 34 built-in tools)
+    // Tool names (the full built-in registry)
     let tools_available: Vec<String> = cersei_tools::all()
         .iter()
         .map(|t| t.name().to_string())

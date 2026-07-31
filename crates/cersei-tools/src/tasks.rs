@@ -180,7 +180,7 @@ impl Tool for TaskUpdateTool {
         "TaskUpdate"
     }
     fn description(&self) -> &str {
-        "Update a task's status and/or output."
+        "Update a task's status and/or output by ID. Mark a task completed when its work is done."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::None
@@ -248,7 +248,7 @@ impl Tool for TaskListTool {
         "TaskList"
     }
     fn description(&self) -> &str {
-        "List all tasks with their status."
+        "List all tasks with their status. Use it to find task IDs for TaskGet/TaskUpdate/TaskStop."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::None
@@ -287,7 +287,7 @@ impl Tool for TaskStopTool {
         "TaskStop"
     }
     fn description(&self) -> &str {
-        "Stop/cancel a running task."
+        "Stop/cancel a running task by ID."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::None
@@ -346,7 +346,7 @@ impl Tool for TaskOutputTool {
         "TaskOutput"
     }
     fn description(&self) -> &str {
-        "Get the full output of a completed task."
+        "Get the full output of a completed task by ID."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::None

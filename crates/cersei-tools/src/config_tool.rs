@@ -23,7 +23,7 @@ impl Tool for ConfigTool {
         "Config"
     }
     fn description(&self) -> &str {
-        "Read or modify configuration values."
+        "Read or modify the agent's configuration values at runtime."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::None

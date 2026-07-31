@@ -12,7 +12,7 @@ impl Tool for FileReadTool {
         "Read"
     }
     fn description(&self) -> &str {
-        "Read a file from the filesystem."
+        "Read a file from the filesystem. Use offset/limit to read a slice of a large file. Read a file before you edit it."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::ReadOnly

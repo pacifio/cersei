@@ -80,7 +80,7 @@ impl Tool for ExitWorktreeTool {
         "ExitWorktree"
     }
     fn description(&self) -> &str {
-        "Remove a git worktree."
+        "Remove a git worktree previously created with EnterWorktree, given its path."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::Write
