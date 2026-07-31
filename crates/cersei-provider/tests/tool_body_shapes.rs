@@ -11,7 +11,7 @@
 //! `build_anthropic_body`, and is bound by body-shape tests in
 //! `anthropic.rs::tests`.
 
-use cersei_provider::{from_model_string, CompletionRequest, Gemini, OpenAi, Provider};
+use cersei_provider::{from_model_string, Anthropic, CompletionRequest, Gemini, OpenAi, Provider};
 use cersei_types::*;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -61,6 +61,52 @@ fn capture_one(sse: &'static str) -> (String, mpsc::Receiver<Vec<u8>>) {
         if let Ok((mut sock, _)) = listener.accept() {
             let body = read_request(&mut sock);
             let _ = tx.send(body);
+            let payload = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\
+                 Connection: close\r\n\r\n{sse}"
+            );
+            let _ = sock.write_all(payload.as_bytes());
+            let _ = sock.flush();
+            let _ = sock.shutdown(std::net::Shutdown::Write);
+        }
+    });
+    (format!("http://127.0.0.1:{port}"), rx)
+}
+
+/// Like `capture_one`, but hands the FULL request — header lines included —
+/// to the test, for assertions about what headers reach the wire.
+fn capture_one_full(sse: &'static str) -> (String, mpsc::Receiver<Vec<u8>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        if let Ok((mut sock, _)) = listener.accept() {
+            let mut buf = Vec::new();
+            let mut tmp = [0u8; 4096];
+            // Drain headers + declared body exactly as `read_request` does,
+            // but keep the header bytes.
+            let head_end = loop {
+                match sock.read(&mut tmp) {
+                    Ok(0) | Err(_) => break 0,
+                    Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                }
+                if let Some(p) = find(&buf, b"\r\n\r\n") {
+                    break p + 4;
+                }
+            };
+            let head = String::from_utf8_lossy(&buf[..head_end]).to_lowercase();
+            let len = head
+                .lines()
+                .find_map(|l| l.strip_prefix("content-length:"))
+                .and_then(|v| v.trim().parse::<usize>().ok())
+                .unwrap_or(0);
+            while buf.len() < head_end + len {
+                match sock.read(&mut tmp) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                }
+            }
+            let _ = tx.send(buf);
             let payload = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\
                  Connection: close\r\n\r\n{sse}"
@@ -416,5 +462,45 @@ async fn gemini_body_strips_the_dynamic_boundary_marker() {
     assert!(
         !text.contains(cersei_types::SYSTEM_PROMPT_DYNAMIC_BOUNDARY),
         "the marker leaked to the Gemini wire: {text}"
+    );
+}
+
+// ─── P3: Vertex beta-header parity, resolved by subtraction ─────────────────
+//
+// The direct path used to send `anthropic-beta: token-efficient-tools-2025-02-19`
+// on every request while Vertex sent no beta header. The identifier is built
+// into all Claude 4+ models (documented no-op) and Sonnet 3.7 — the family it
+// existed for — is retired, so the direct api-key path now sends no beta
+// header either. The OAuth-only `oauth-2025-04-20` flag is bound in
+// `anthropic.rs::tests`.
+
+#[tokio::test]
+async fn anthropic_api_key_request_carries_no_beta_header() {
+    let (url, rx) = capture_one_full(
+        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+    );
+    let provider = Anthropic::builder()
+        .api_key("test-key")
+        .base_url(url)
+        .model("test-model")
+        .build()
+        .expect("build provider");
+    let _ = async { provider.complete(schemars_like_request()).await?.collect().await }.await;
+
+    let raw = rx
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("the provider never sent a request");
+    let head = String::from_utf8_lossy(&raw).to_lowercase();
+    assert!(
+        head.contains("x-api-key"),
+        "sanity: this must be an authenticated Anthropic request: {head}"
+    );
+    assert!(
+        head.contains("anthropic-version"),
+        "sanity: the version header must survive: {head}"
+    );
+    assert!(
+        !head.contains("anthropic-beta"),
+        "the api-key path must send no beta header (parity with Vertex): {head}"
     );
 }

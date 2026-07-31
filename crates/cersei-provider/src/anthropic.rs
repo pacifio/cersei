@@ -7,12 +7,17 @@ use tokio::sync::mpsc;
 
 const ANTHROPIC_API_BASE: &str = "https://api.anthropic.com";
 const ANTHROPIC_API_VERSION: &str = "2023-06-01";
-// `interleaved-thinking-2025-04-14` is a stale beta identifier the current
-// Anthropic API rejects with HTTP 400, breaking every request since this
-// header was sent unconditionally. Extended thinking still works via the
-// `thinking` body parameter, which needs no beta header. See
-// https://github.com/pacifio/cersei/issues/20.
-const ANTHROPIC_BETA_HEADER: &str = "token-efficient-tools-2025-02-19";
+// No blanket `anthropic-beta` header (P3 Vertex parity, resolved by
+// subtraction). The direct path used to send
+// `token-efficient-tools-2025-02-19` on every request while Vertex sent
+// nothing; that identifier is built into every Claude 4+ model (documented
+// "no effect") and the one family that needed it — Sonnet 3.7 — is retired,
+// so both paths now send no beta header. The stale
+// `interleaved-thinking-2025-04-14` identifier that once 400'd every
+// request (issue #20) stays gone with it. The one beta flag that IS
+// load-bearing — `oauth-2025-04-20`, required for Bearer OAuth tokens on
+// /v1/messages — is attached per-auth in `auth_headers`.
+const OAUTH_BETA_HEADER: &str = "oauth-2025-04-20";
 
 // ─── Anthropic provider ──────────────────────────────────────────────────────
 
@@ -57,10 +62,16 @@ impl Anthropic {
         match &self.auth {
             Auth::ApiKey(key) => Ok(vec![("x-api-key".into(), key.clone())]),
             Auth::Bearer(token) => Ok(vec![("authorization".into(), format!("Bearer {}", token))]),
-            Auth::OAuth { token, .. } => Ok(vec![(
-                "authorization".into(),
-                format!("Bearer {}", token.access_token),
-            )]),
+            // OAuth access tokens are rejected by /v1/messages without the
+            // oauth beta flag (documented requirement; the api-key path
+            // needs no beta header at all).
+            Auth::OAuth { token, .. } => Ok(vec![
+                (
+                    "authorization".into(),
+                    format!("Bearer {}", token.access_token),
+                ),
+                ("anthropic-beta".into(), OAUTH_BETA_HEADER.into()),
+            ]),
             Auth::Custom(provider) => {
                 let (name, value) = provider.get_credentials().await?;
                 Ok(vec![(name, value)])
@@ -103,7 +114,6 @@ impl Provider for Anthropic {
             .client
             .post(&url)
             .header("anthropic-version", ANTHROPIC_API_VERSION)
-            .header("anthropic-beta", ANTHROPIC_BETA_HEADER)
             .header("content-type", "application/json");
         for (name, value) in self.auth_headers().await? {
             req_builder = req_builder.header(&name, &value);
@@ -748,13 +758,39 @@ mod tests {
     }
 
     #[test]
-    fn beta_header_omits_stale_interleaved_thinking_identifier() {
-        // `interleaved-thinking-2025-04-14` is rejected by the current
-        // Anthropic API with HTTP 400, breaking every request since this
-        // header is sent unconditionally. See
-        // https://github.com/pacifio/cersei/issues/20.
-        assert!(!ANTHROPIC_BETA_HEADER.contains("interleaved-thinking-2025-04-14"));
-        assert_eq!(ANTHROPIC_BETA_HEADER, "token-efficient-tools-2025-02-19");
+    fn oauth_auth_carries_the_oauth_beta_flag_and_api_key_auth_does_not() {
+        // /v1/messages rejects Bearer OAuth tokens without this beta flag;
+        // the api-key path needs no beta header at all (parity with Vertex,
+        // which never sent one — the wire-level halves are bound in
+        // `tests/tool_body_shapes.rs`).
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        let with_key = Anthropic::builder()
+            .api_key("k")
+            .build()
+            .expect("api-key provider");
+        let headers = rt.block_on(with_key.auth_headers()).unwrap();
+        assert!(
+            headers.iter().all(|(name, _)| name != "anthropic-beta"),
+            "api-key auth must add no beta header: {headers:?}"
+        );
+
+        let with_oauth = Anthropic::builder()
+            .oauth(OAuthToken {
+                access_token: "tok".into(),
+                refresh_token: None,
+                expires_at_ms: None,
+                scopes: vec![],
+            })
+            .build()
+            .expect("oauth provider");
+        let headers = rt.block_on(with_oauth.auth_headers()).unwrap();
+        assert!(
+            headers
+                .iter()
+                .any(|(name, value)| name == "anthropic-beta" && value == OAUTH_BETA_HEADER),
+            "oauth auth must carry `{OAUTH_BETA_HEADER}`: {headers:?}"
+        );
     }
 
     // ─── B1 wiring ───────────────────────────────────────────────────────────
