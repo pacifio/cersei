@@ -62,4 +62,5 @@ service-account.json
 /oslo-vault/
 
 # Temp Folder For test and dump
-/joy/
+/joy
+TOOL-CALLING-RELIABILITY.md
