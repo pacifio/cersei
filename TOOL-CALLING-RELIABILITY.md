@@ -117,6 +117,13 @@ prior reviews were re-derived, not carried forward.
 > tests pass unchanged, so no API drift since the P1 verification. Every
 > P2 claim with an oracle is now measured; the rest is labeled unmeasured.
 > Open: §10.5 #8/#9, P3, Exp 5 efficacy.
+>
+> **CI removed — 2026-07-31, user request.** The two GitHub workflows (offline
+> gate on push, weekly live drift check) are deleted. The equivalents remain
+> local commands: `cargo test --workspace` and
+> `cargo test -p cersei-provider --lib live_ -- --ignored` with keys. The
+> §10.5 #10 drift rationale still stands — live claims are only as fresh as
+> the last keyed run.
 
 ---
 
