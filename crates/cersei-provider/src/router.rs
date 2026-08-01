@@ -177,6 +177,7 @@ fn auto_detect(model: &str) -> Result<(&'static ProviderEntry, &str)> {
         m if m.starts_with("mistral-") || m.starts_with("codestral-") => Some("mistral"),
         m if m.starts_with("deepseek-") => Some("deepseek"),
         m if m.starts_with("grok-") => Some("xai"),
+        m if m.starts_with("MiniMax-") => Some("minimax"),
         m if m.starts_with("command-") => Some("cohere"),
         m if m.starts_with("llama") => {
             // llama models could be on Groq, Together, etc.
@@ -268,6 +269,16 @@ mod tests {
     }
 
     #[test]
+    fn test_minimax_registry_entry() {
+        let entry = registry::lookup("minimax").unwrap();
+        assert_eq!(entry.name, "MiniMax");
+        assert_eq!(entry.default_model, "MiniMax-M3");
+        assert_eq!(entry.api_format, ApiFormat::OpenAiCompatible);
+        assert_eq!(entry.context_window("MiniMax-M3"), 1_000_000);
+        assert_eq!(entry.context_window("MiniMax-M2.7"), 204_800);
+    }
+
+    #[test]
     fn test_registry_lookup_new_providers() {
         assert!(registry::lookup("cohere").is_some());
         assert!(registry::lookup("sambanova").is_some());
@@ -287,6 +298,14 @@ mod tests {
             .unwrap_or_else(|_| (registry::lookup("cohere").unwrap(), "command-r-plus"));
         assert_eq!(entry.id, "cohere");
         assert_eq!(model, "command-r-plus");
+    }
+
+    #[test]
+    fn test_auto_detect_minimax() {
+        let (entry, model) = auto_detect("MiniMax-M3")
+            .unwrap_or_else(|_| (registry::lookup("minimax").unwrap(), "MiniMax-M3"));
+        assert_eq!(entry.id, "minimax");
+        assert_eq!(model, "MiniMax-M3");
     }
 
     #[test]
