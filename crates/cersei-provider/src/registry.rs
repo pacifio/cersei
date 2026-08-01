@@ -4,7 +4,6 @@
 //! API format (Anthropic or OpenAI-compatible), and known models with
 //! context windows.
 
-
 /// API format used by a provider.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ApiFormat {
@@ -328,6 +327,24 @@ pub static REGISTRY: &[ProviderEntry] = &[
         }],
     },
     ProviderEntry {
+        id: "minimax",
+        name: "MiniMax",
+        api_base: "https://api.minimax.io/v1",
+        env_keys: &["MINIMAX_API_KEY", "MINIMAX_KEY"],
+        api_format: ApiFormat::OpenAiCompatible,
+        default_model: "MiniMax-M3",
+        models: &[
+            ModelEntry {
+                id: "MiniMax-M3",
+                context_window: 1_000_000,
+            },
+            ModelEntry {
+                id: "MiniMax-M2.7",
+                context_window: 204_800,
+            },
+        ],
+    },
+    ProviderEntry {
         id: "together",
         name: "Together",
         api_base: "https://api.together.xyz/v1",
@@ -507,6 +524,22 @@ mod tests {
         std::env::remove_var("OPENAI_BASE_URL");
         assert_eq!(base, "https://api.deepseek.com/v1"); // trailing slash trimmed
         assert!(!base.contains("api.openai.com"));
+    }
+
+    #[test]
+    fn minimax_resolves_global_base_by_default() {
+        let entry = lookup("minimax").unwrap();
+        std::env::remove_var("MINIMAX_BASE_URL");
+        assert_eq!(entry.resolved_api_base(), "https://api.minimax.io/v1");
+    }
+
+    #[test]
+    fn minimax_base_url_override_supports_regional_endpoint() {
+        let entry = lookup("minimax").unwrap();
+        std::env::set_var("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1/");
+        let base = entry.resolved_api_base();
+        std::env::remove_var("MINIMAX_BASE_URL");
+        assert_eq!(base, "https://api.minimaxi.com/v1");
     }
 
     #[test]
