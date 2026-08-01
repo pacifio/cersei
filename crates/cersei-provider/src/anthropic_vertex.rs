@@ -17,7 +17,7 @@ use crate::*;
 use cersei_types::*;
 use std::sync::Arc;
 
-const VERTEX_VERSION: &str = "vertex-2023-10-16";
+pub(crate) const VERTEX_VERSION: &str = "vertex-2023-10-16";
 const CLOUD_PLATFORM_SCOPE: &str = "https://www.googleapis.com/auth/cloud-platform";
 
 /// How credentials are obtained. All non-`Static` kinds resolve to a
@@ -46,7 +46,9 @@ pub struct AnthropicVertex {
 }
 
 impl AnthropicVertex {
-    pub fn new(
+    // Not `pub`: `VertexAuthSpec` is private, so no external caller could ever
+    // name the first argument anyway. Construct via `from_env`.
+    fn new(
         auth_spec: VertexAuthSpec,
         project_id: impl Into<String>,
         location: impl Into<String>,
@@ -108,7 +110,6 @@ impl AnthropicVertex {
     }
 
     async fn bearer_token(&self) -> Result<String> {
-        use gcp_auth::TokenProvider;
         if let VertexAuthSpec::Static(t) = &self.auth_spec {
             return Ok(t.clone());
         }
@@ -138,17 +139,6 @@ impl Provider for AnthropicVertex {
         200_000
     }
 
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: true,
-            vision: true,
-            thinking: true,
-            system_prompt: true,
-            caching: true,
-        }
-    }
-
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
         let model = if request.model.is_empty() {
             self.default_model.clone()
@@ -161,7 +151,7 @@ impl Provider for AnthropicVertex {
             .or(self.thinking_budget);
 
         // Vertex: no `model` in body, add the vertex anthropic_version.
-        let body = build_anthropic_body(None, &request, thinking_budget, Some(VERTEX_VERSION));
+        let body = build_anthropic_body(&model, &request, thinking_budget, Some(VERTEX_VERSION));
 
         let token = self.bearer_token().await?;
         let http_request = self
@@ -173,7 +163,7 @@ impl Provider for AnthropicVertex {
             .build()
             .map_err(CerseiError::Http)?;
 
-        Ok(spawn_sse(self.client.clone(), http_request))
+        spawn_sse(self.client.clone(), http_request).await
     }
 }
 

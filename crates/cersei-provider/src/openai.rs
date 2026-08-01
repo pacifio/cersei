@@ -11,6 +11,14 @@ pub struct OpenAi {
     auth: Auth,
     base_url: String,
     default_model: String,
+    /// F-09: emit `options.num_ctx` on the wire. Ollama-only — OpenAI proper
+    /// rejects unknown top-level fields with a 400, so the router sets this
+    /// only for local providers whose server-side default window (often 4k)
+    /// would otherwise silently truncate the prompt front.
+    send_num_ctx: bool,
+    /// B2: which schema dialect tools serialize into. `OpenAiLoose` unless
+    /// the router's quirks opt a model into `OpenAiStrict`.
+    dialect: crate::adapt::SchemaDialect,
     client: reqwest::Client,
 }
 
@@ -24,6 +32,8 @@ impl OpenAi {
             auth,
             base_url,
             default_model: "gpt-4o".to_string(),
+            send_num_ctx: false,
+            dialect: crate::adapt::SchemaDialect::OpenAiLoose,
             client: reqwest::Client::new(),
         }
     }
@@ -57,17 +67,6 @@ impl Provider for OpenAi {
         }
     }
 
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: true,
-            vision: true,
-            thinking: false,
-            system_prompt: true,
-            caching: false,
-        }
-    }
-
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
         let model = if request.model.is_empty() {
             self.default_model.clone()
@@ -79,9 +78,13 @@ impl Provider for OpenAi {
         let mut api_messages: Vec<serde_json::Value> = Vec::new();
 
         if let Some(system) = &request.system {
+            // The boundary marker is a client-side cache hint; OpenAI-compat
+            // caching is automatic, so just keep the literal string off the
+            // wire instead of letting the model read it.
+            let content = system.replace(SYSTEM_PROMPT_DYNAMIC_BOUNDARY, "");
             api_messages.push(serde_json::json!({
                 "role": "system",
-                "content": system,
+                "content": content,
             }));
         }
 
@@ -91,10 +94,16 @@ impl Provider for OpenAi {
                     // Check if this is a tool result message
                     if let MessageContent::Blocks(blocks) = &msg.content {
                         for block in blocks {
+                            // `is_error` is deliberately discarded: OpenAI's
+                            // `role:"tool"` message has no error field on the
+                            // wire. The failure signal still reaches the model
+                            // because the runner appends its error note into
+                            // the result content itself (see §2.1 of the
+                            // tool-calling audit).
                             if let ContentBlock::ToolResult {
                                 tool_use_id,
                                 content,
-                                is_error,
+                                is_error: _,
                             } = block
                             {
                                 api_messages.push(serde_json::json!({
@@ -257,22 +266,28 @@ impl Provider for OpenAi {
             body["reasoning_effort"] = serde_json::json!(effort);
         }
 
+        // F-09: without this, Ollama runs the whole session at its
+        // server-side default window (often 4k) while compaction budgets
+        // against the model's real window — the front of the prompt silently
+        // truncates. The runner supplies the value; the flag gates the wire.
+        if self.send_num_ctx {
+            if let Some(num_ctx) = request.options.get::<u64>("num_ctx") {
+                body["options"] = serde_json::json!({ "num_ctx": num_ctx });
+            }
+        }
+
         if !request.tools.is_empty() {
-            let tools: Vec<serde_json::Value> = request
-                .tools
-                .iter()
-                .map(|t| {
-                    serde_json::json!({
-                        "type": "function",
-                        "function": {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.input_schema,
-                        }
-                    })
-                })
-                .collect();
+            // B1: schemas cross the provider boundary only through
+            // `adapt_tools`. The dialect is router-resolved (B2): loose until
+            // quirks opt a model into strict.
+            let tools = crate::adapt::adapt_tools(&request.tools, self.dialect);
             body["tools"] = serde_json::Value::Array(tools);
+
+            // F-08: forced tool choice, requested per-turn by the runner's
+            // no-tool-call nudge.
+            if request.options.get::<String>("tool_choice").as_deref() == Some("required") {
+                body["tool_choice"] = serde_json::json!("required");
+            }
         }
 
         let url = format!("{}/chat/completions", self.base_url);
@@ -281,8 +296,6 @@ impl Provider for OpenAi {
             Auth::OAuth { token, .. } => format!("Bearer {}", token.access_token),
             Auth::Custom(_) => String::new(),
         };
-
-        let (tx, rx) = mpsc::channel(256);
 
         let req = self
             .client
@@ -293,218 +306,380 @@ impl Provider for OpenAi {
             .build()
             .map_err(CerseiError::Http)?;
 
-        let client = self.client.clone();
+        // F-02: await the response and check its status *before* spawning, so a
+        // non-2xx returns as a typed `Err` from `complete()`. The runner's retry
+        // loop guards `provider.complete()` and nothing else — a status reported
+        // from inside the spawned reader lands below that loop, where it can only
+        // end the session.
+        let response = self.client.execute(req).await.map_err(CerseiError::Http)?;
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let retry_after = crate::parse_retry_after(response.headers());
+            let body = response.text().await.unwrap_or_default();
+            return Err(CerseiError::from_http_status(status, retry_after, body));
+        }
+
+        let (tx, rx) = mpsc::channel(256);
 
         tokio::spawn(async move {
-            match client.execute(req).await {
-                Ok(response) => {
-                    if !response.status().is_success() {
-                        let status = response.status().as_u16();
-                        let body = response.text().await.unwrap_or_default();
+            let _ = tx
+                .send(StreamEvent::MessageStart {
+                    id: String::new(),
+                    model: String::new(),
+                    usage: None,
+                })
+                .await;
+            let mut stream = response.bytes_stream();
+            let mut buffer = String::new();
+            let mut text_started = false;
+            // Track tool calls being assembled across chunks
+            // OpenAI sends: tool_calls[i].id, tool_calls[i].function.name (first chunk)
+            //               tool_calls[i].function.arguments (subsequent chunks, accumulated)
+            // Ordered so the post-loop flush emits calls in ascending slot
+            // order (a HashMap made live event order nondeterministic).
+            let mut tool_calls: std::collections::BTreeMap<usize, (String, String, String)> =
+                std::collections::BTreeMap::new(); // slot -> (id, name, args_json)
+            // F-A2: servers that omit `tool_calls[].index` (llama.cpp, some
+            // Ollama builds, LiteLLM proxies) get synthetic slots correlated
+            // by call id, instead of every parallel call collapsing onto slot
+            // 0 and its argument bodies concatenating into invalid JSON.
+            let mut slot_for_id: std::collections::HashMap<String, usize> =
+                std::collections::HashMap::new();
+            let mut last_slot: Option<usize> = None;
+            // F-03: tool calls are flushed exactly once, after the read loop.
+            // `[DONE]` now only records that the stream terminated cleanly.
+            let mut saw_done = false;
+            let mut final_stop: Option<StopReason> = None;
+
+            'read: while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(bytes) => {
+                        buffer.push_str(&String::from_utf8_lossy(&bytes));
+                        while let Some(pos) = buffer.find("\n") {
+                            let line = buffer[..pos].to_string();
+                            buffer = buffer[pos + 1..].to_string();
+
+                            if let Some(data) = line.strip_prefix("data: ") {
+                                let data = data.trim();
+                                if data == "[DONE]" {
+                                    // F-03: do not flush here. Record the
+                                    // clean termination and fall out to the
+                                    // single finalize block after the read
+                                    // loop, which also runs on plain EOF.
+                                    saw_done = true;
+                                    break 'read;
+                                }
+
+                                if let Ok(json) =
+                                    serde_json::from_str::<serde_json::Value>(data)
+                                {
+                                    let delta = &json["choices"][0]["delta"];
+                                    let finish_reason =
+                                        json["choices"][0]["finish_reason"].as_str();
+                                    // Capture the terminal reason wherever it
+                                    // appears. The mapping further down only
+                                    // runs when the same chunk also carries
+                                    // `usage`, and the finalize MessageDelta
+                                    // would overwrite it regardless.
+                                    match finish_reason {
+                                        Some("stop") => {
+                                            final_stop = Some(StopReason::EndTurn)
+                                        }
+                                        Some("tool_calls") => {
+                                            final_stop = Some(StopReason::ToolUse)
+                                        }
+                                        Some("length") => {
+                                            final_stop = Some(StopReason::MaxTokens)
+                                        }
+                                        _ => {}
+                                    }
+
+                                    // Text content
+                                    if let Some(text) = delta["content"].as_str() {
+                                        if !text_started {
+                                            text_started = true;
+                                            let _ = tx
+                                                .send(StreamEvent::ContentBlockStart {
+                                                    index: 0,
+                                                    block_type: "text".into(),
+                                                    id: None,
+                                                    name: None,
+                                                })
+                                                .await;
+                                        }
+                                        let _ = tx
+                                            .send(StreamEvent::TextDelta {
+                                                index: 0,
+                                                text: text.to_string(),
+                                            })
+                                            .await;
+                                    }
+
+                                    // Tool calls (accumulated across chunks)
+                                    if let Some(tc_array) = delta["tool_calls"].as_array() {
+                                        for tc in tc_array {
+                                            let tc_id =
+                                                tc["id"].as_str().filter(|s| !s.is_empty());
+                                            // F-A2: only an explicit `index` is
+                                            // trusted. Without one, correlate by
+                                            // call id so parallel calls land in
+                                            // distinct slots; an id-less delta is
+                                            // a continuation of the slot most
+                                            // recently touched.
+                                            let idx = match tc["index"].as_u64() {
+                                                Some(i) => i as usize,
+                                                None => match tc_id
+                                                    .and_then(|id| {
+                                                        slot_for_id.get(id).copied()
+                                                    }) {
+                                                    Some(slot) => slot,
+                                                    None if tc_id.is_some() => tool_calls
+                                                        .keys()
+                                                        .next_back()
+                                                        .map(|k| k + 1)
+                                                        .unwrap_or(0),
+                                                    None => last_slot.unwrap_or(0),
+                                                },
+                                            };
+                                            if let Some(id) = tc_id {
+                                                slot_for_id.insert(id.to_string(), idx);
+                                            }
+                                            last_slot = Some(idx);
+                                            let entry = tool_calls
+                                                .entry(idx)
+                                                .or_insert_with(|| {
+                                                    (
+                                                        String::new(),
+                                                        String::new(),
+                                                        String::new(),
+                                                    )
+                                                });
+
+                                            // First chunk has id and function.name.
+                                            // F-A3: never let an empty-string field
+                                            // from a later delta clobber a good one.
+                                            if let Some(id) = tc_id {
+                                                entry.0 = id.to_string();
+                                            }
+                                            if let Some(name) = tc["function"]["name"]
+                                                .as_str()
+                                                .filter(|s| !s.is_empty())
+                                            {
+                                                entry.1 = name.to_string();
+                                            }
+                                            // Arguments accumulate across chunks
+                                            if let Some(args) =
+                                                tc["function"]["arguments"].as_str()
+                                            {
+                                                entry.2.push_str(args);
+                                            }
+                                        }
+                                    }
+
+                                    // Usage from the final chunk
+                                    if let Some(usage) = json["usage"].as_object() {
+                                        let input_tokens = usage
+                                            .get("prompt_tokens")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        let output_tokens = usage
+                                            .get("completion_tokens")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        let _ = tx
+                                            .send(StreamEvent::MessageDelta {
+                                                stop_reason: finish_reason.and_then(|r| {
+                                                    match r {
+                                                        "stop" => Some(StopReason::EndTurn),
+                                                        "tool_calls" => {
+                                                            Some(StopReason::ToolUse)
+                                                        }
+                                                        "length" => {
+                                                            Some(StopReason::MaxTokens)
+                                                        }
+                                                        _ => None,
+                                                    }
+                                                }),
+                                                usage: Some(Usage {
+                                                    input_tokens,
+                                                    output_tokens,
+                                                    ..Default::default()
+                                                }),
+                                            })
+                                            .await;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
                         let _ = tx
                             .send(StreamEvent::Error {
-                                message: format!("HTTP {}: {}", status, body),
+                                message: e.to_string(),
                             })
                             .await;
                         return;
                     }
-
-                    let _ = tx
-                        .send(StreamEvent::MessageStart {
-                            id: String::new(),
-                            model: String::new(),
-                        })
-                        .await;
-                    let mut stream = response.bytes_stream();
-                    let mut buffer = String::new();
-                    let mut text_started = false;
-                    // Track tool calls being assembled across chunks
-                    // OpenAI sends: tool_calls[i].id, tool_calls[i].function.name (first chunk)
-                    //               tool_calls[i].function.arguments (subsequent chunks, accumulated)
-                    let mut tool_calls: std::collections::HashMap<usize, (String, String, String)> =
-                        std::collections::HashMap::new(); // index -> (id, name, args_json)
-                    let mut has_tool_calls = false;
-
-                    while let Some(chunk) = stream.next().await {
-                        match chunk {
-                            Ok(bytes) => {
-                                buffer.push_str(&String::from_utf8_lossy(&bytes));
-                                while let Some(pos) = buffer.find("\n") {
-                                    let line = buffer[..pos].to_string();
-                                    buffer = buffer[pos + 1..].to_string();
-
-                                    if let Some(data) = line.strip_prefix("data: ") {
-                                        let data = data.trim();
-                                        if data == "[DONE]" {
-                                            // Emit accumulated tool calls
-                                            for (idx, (id, name, args)) in &tool_calls {
-                                                let input: serde_json::Value =
-                                                    serde_json::from_str(args)
-                                                        .unwrap_or(serde_json::Value::Null);
-                                                let _ = tx
-                                                    .send(StreamEvent::ContentBlockStart {
-                                                        index: *idx + 1,
-                                                        block_type: "tool_use".into(),
-                                                        id: Some(id.clone()),
-                                                        name: Some(name.clone()),
-                                                    })
-                                                    .await;
-                                                // Send full args as InputJsonDelta
-                                                let _ = tx
-                                                    .send(StreamEvent::InputJsonDelta {
-                                                        index: *idx + 1,
-                                                        partial_json: args.clone(),
-                                                    })
-                                                    .await;
-                                                let _ = tx
-                                                    .send(StreamEvent::ContentBlockStop {
-                                                        index: *idx + 1,
-                                                    })
-                                                    .await;
-                                            }
-
-                                            if text_started {
-                                                let _ = tx
-                                                    .send(StreamEvent::ContentBlockStop {
-                                                        index: 0,
-                                                    })
-                                                    .await;
-                                            }
-
-                                            let stop = if has_tool_calls {
-                                                StopReason::ToolUse
-                                            } else {
-                                                StopReason::EndTurn
-                                            };
-
-                                            // Extract usage if available
-                                            let _ = tx
-                                                .send(StreamEvent::MessageDelta {
-                                                    stop_reason: Some(stop),
-                                                    usage: None,
-                                                })
-                                                .await;
-                                            let _ = tx.send(StreamEvent::MessageStop).await;
-                                            return;
-                                        }
-
-                                        if let Ok(json) =
-                                            serde_json::from_str::<serde_json::Value>(data)
-                                        {
-                                            let delta = &json["choices"][0]["delta"];
-                                            let finish_reason =
-                                                json["choices"][0]["finish_reason"].as_str();
-
-                                            // Text content
-                                            if let Some(text) = delta["content"].as_str() {
-                                                if !text_started {
-                                                    text_started = true;
-                                                    let _ = tx
-                                                        .send(StreamEvent::ContentBlockStart {
-                                                            index: 0,
-                                                            block_type: "text".into(),
-                                                            id: None,
-                                                            name: None,
-                                                        })
-                                                        .await;
-                                                }
-                                                let _ = tx
-                                                    .send(StreamEvent::TextDelta {
-                                                        index: 0,
-                                                        text: text.to_string(),
-                                                    })
-                                                    .await;
-                                            }
-
-                                            // Tool calls (accumulated across chunks)
-                                            if let Some(tc_array) = delta["tool_calls"].as_array() {
-                                                has_tool_calls = true;
-                                                for tc in tc_array {
-                                                    let idx =
-                                                        tc["index"].as_u64().unwrap_or(0) as usize;
-                                                    let entry = tool_calls
-                                                        .entry(idx)
-                                                        .or_insert_with(|| {
-                                                            (
-                                                                String::new(),
-                                                                String::new(),
-                                                                String::new(),
-                                                            )
-                                                        });
-
-                                                    // First chunk has id and function.name
-                                                    if let Some(id) = tc["id"].as_str() {
-                                                        entry.0 = id.to_string();
-                                                    }
-                                                    if let Some(name) =
-                                                        tc["function"]["name"].as_str()
-                                                    {
-                                                        entry.1 = name.to_string();
-                                                    }
-                                                    // Arguments accumulate across chunks
-                                                    if let Some(args) =
-                                                        tc["function"]["arguments"].as_str()
-                                                    {
-                                                        entry.2.push_str(args);
-                                                    }
-                                                }
-                                            }
-
-                                            // Usage from the final chunk
-                                            if let Some(usage) = json["usage"].as_object() {
-                                                let input_tokens = usage
-                                                    .get("prompt_tokens")
-                                                    .and_then(|v| v.as_u64())
-                                                    .unwrap_or(0);
-                                                let output_tokens = usage
-                                                    .get("completion_tokens")
-                                                    .and_then(|v| v.as_u64())
-                                                    .unwrap_or(0);
-                                                let _ = tx
-                                                    .send(StreamEvent::MessageDelta {
-                                                        stop_reason: finish_reason.and_then(|r| {
-                                                            match r {
-                                                                "stop" => Some(StopReason::EndTurn),
-                                                                "tool_calls" => {
-                                                                    Some(StopReason::ToolUse)
-                                                                }
-                                                                "length" => {
-                                                                    Some(StopReason::MaxTokens)
-                                                                }
-                                                                _ => None,
-                                                            }
-                                                        }),
-                                                        usage: Some(Usage {
-                                                            input_tokens,
-                                                            output_tokens,
-                                                            ..Default::default()
-                                                        }),
-                                                    })
-                                                    .await;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                let _ = tx
-                                    .send(StreamEvent::Error {
-                                        message: e.to_string(),
-                                    })
-                                    .await;
-                                return;
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    let _ = tx
-                        .send(StreamEvent::Error {
-                            message: e.to_string(),
-                        })
-                        .await;
                 }
             }
+
+            // ── Finalize (F-03) ──────────────────────────────────────
+            // Reached both on `[DONE]` (via `break 'read`) and on plain
+            // EOF. This is the ONLY place tool calls are emitted, so a
+            // cleanly terminated stream cannot double-emit.
+            let mut emitted = 0usize;
+            // Subset of `emitted` the runner can actually *dispatch*:
+            // routable id/name AND arguments stream.rs will hand over as
+            // real input instead of stamping `__parse_error` on. Truncated
+            // arguments still get emitted (the dispatch layer echoes the
+            // parse error plus the schema back to the model, F-05), but a
+            // call nobody can run is not evidence the turn produced work,
+            // so it must not override a truncation stop reason.
+            let mut executable = 0usize;
+            let mut rejected: Vec<String> = Vec::new();
+            for (idx, (id, name, args)) in &tool_calls {
+                // F-A3: never emit a call the dispatch layer cannot route.
+                // An empty name produces "Unknown tool: "; an empty id is
+                // echoed back as "tool_call_id": "" on the next request and
+                // rejected with a 400, wedging the conversation permanently.
+                if id.is_empty() || name.is_empty() {
+                    rejected.push(format!(
+                        "slot {}: id={:?} name={:?} arguments={:?}",
+                        idx, id, name, args
+                    ));
+                    continue;
+                }
+                let _ = tx
+                    .send(StreamEvent::ContentBlockStart {
+                        index: *idx + 1,
+                        block_type: "tool_use".into(),
+                        id: Some(id.clone()),
+                        name: Some(name.clone()),
+                    })
+                    .await;
+                let _ = tx
+                    .send(StreamEvent::InputJsonDelta {
+                        index: *idx + 1,
+                        partial_json: args.clone(),
+                    })
+                    .await;
+                let _ = tx
+                    .send(StreamEvent::ContentBlockStop { index: *idx + 1 })
+                    .await;
+                emitted += 1;
+                // Mirror stream.rs's ContentBlockStop parse exactly: empty
+                // arguments are a no-argument call (`{}`); anything that
+                // deserializes is usable; only a parse failure is not.
+                if args.trim().is_empty()
+                    || serde_json::from_str::<serde_json::Value>(args).is_ok()
+                {
+                    executable += 1;
+                }
+            }
+
+            // P1-HIGH: an unusable call must not take its valid siblings
+            // down with it. When something usable survived, report the loss
+            // in-band on this same assistant message rather than raising a
+            // stream-level Error — stream.rs short-circuits `into_response`
+            // on the first error and never looks at `content_blocks`, so the
+            // good calls would be silently destroyed and the turn aborted.
+            // A text block reaches the model on the next request (assistant
+            // `content` alongside `tool_calls`), so it can re-issue whatever
+            // was dropped.
+            if !rejected.is_empty() && emitted > 0 {
+                tracing::warn!(
+                    rejected = rejected.len(),
+                    emitted,
+                    "provider emitted unusable tool call(s); keeping the valid ones"
+                );
+                let note = format!(
+                    "{}[cersei] dropped {} unusable tool call(s) (empty id or name): {}. \
+                     {} valid call(s) were kept; re-issue the dropped one(s) if you \
+                     still need them.",
+                    if text_started { "\n\n" } else { "" },
+                    rejected.len(),
+                    rejected.join("; "),
+                    emitted
+                );
+                if !text_started {
+                    text_started = true;
+                    let _ = tx
+                        .send(StreamEvent::ContentBlockStart {
+                            index: 0,
+                            block_type: "text".into(),
+                            id: None,
+                            name: None,
+                        })
+                        .await;
+                }
+                let _ = tx
+                    .send(StreamEvent::TextDelta {
+                        index: 0,
+                        text: note,
+                    })
+                    .await;
+            }
+
+            if text_started {
+                let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;
+            }
+
+            let stop = match final_stop {
+                // P1-BLOCKER: `finish_reason` describes how generation
+                // *ended*, not what it produced. Once a dispatchable call is
+                // on the wire it must be run, and ToolUse is the only stop
+                // reason that makes the runner dispatch it. Any other value
+                // drops the calls while the assistant message is still
+                // serialized WITH `tool_calls` (see the Role::Assistant arm
+                // above), so the next request carries a tool_call that no
+                // `role: "tool"` message answers -> provider 400 ->
+                // CerseiError::Provider, which is not retryable -> the
+                // conversation is wedged for good. "length" is the dangerous
+                // one: hitting the cap on the token *after* a complete call
+                // still leaves that call fully executable.
+                _ if executable > 0 => StopReason::ToolUse,
+                // Some servers report "stop" even when they emitted tool
+                // calls; the calls are the ground truth.
+                Some(StopReason::EndTurn) if emitted > 0 => StopReason::ToolUse,
+                // Nothing dispatchable came out, so the provider's own
+                // reason stands (a truncated call really is MaxTokens).
+                Some(sr) => sr,
+                None if emitted > 0 => StopReason::ToolUse,
+                None => StopReason::EndTurn,
+            };
+            let _ = tx
+                .send(StreamEvent::MessageDelta {
+                    stop_reason: Some(stop),
+                    usage: None,
+                })
+                .await;
+
+            // Surface what the stream got wrong instead of laundering it —
+            // but only kill the turn when the rejection left nothing to run.
+            // The surviving-siblings case was already reported in-band above.
+            if !rejected.is_empty() && emitted == 0 {
+                let _ = tx
+                    .send(StreamEvent::Error {
+                        message: format!(
+                            "provider emitted {} unusable tool call(s) \
+                             (empty id or name): {}",
+                            rejected.len(),
+                            rejected.join("; ")
+                        ),
+                    })
+                    .await;
+            } else if !saw_done && emitted == 0 && !text_started {
+                // A stream that was cut short AND yielded nothing. Without
+                // this the accumulator reports a confident, empty EndTurn.
+                let _ = tx
+                    .send(StreamEvent::Error {
+                        message: "stream ended without [DONE] and produced no content"
+                            .into(),
+                    })
+                    .await;
+            }
+
+            let _ = tx.send(StreamEvent::MessageStop).await;
         });
 
         Ok(CompletionStream::new(rx))
@@ -562,6 +737,8 @@ pub struct OpenAiBuilder {
     api_key: Option<String>,
     base_url: Option<String>,
     model: Option<String>,
+    send_num_ctx: bool,
+    dialect: Option<crate::adapt::SchemaDialect>,
 }
 
 impl OpenAiBuilder {
@@ -580,6 +757,18 @@ impl OpenAiBuilder {
         self
     }
 
+    /// F-09: opt this provider into emitting `options.num_ctx` (Ollama only).
+    pub fn send_num_ctx(mut self, enabled: bool) -> Self {
+        self.send_num_ctx = enabled;
+        self
+    }
+
+    /// B2: schema dialect for tool serialization (default `OpenAiLoose`).
+    pub fn dialect(mut self, dialect: crate::adapt::SchemaDialect) -> Self {
+        self.dialect = Some(dialect);
+        self
+    }
+
     pub fn build(self) -> Result<OpenAi> {
         let auth = if let Some(key) = self.api_key {
             Auth::ApiKey(key)
@@ -593,6 +782,10 @@ impl OpenAiBuilder {
             auth,
             base_url: self.base_url.unwrap_or_else(|| OPENAI_API_BASE.to_string()),
             default_model: self.model.unwrap_or_else(|| "gpt-4o".to_string()),
+            send_num_ctx: self.send_num_ctx,
+            dialect: self
+                .dialect
+                .unwrap_or(crate::adapt::SchemaDialect::OpenAiLoose),
             client: reqwest::Client::new(),
         })
     }

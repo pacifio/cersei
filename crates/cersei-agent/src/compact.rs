@@ -95,21 +95,12 @@ pub fn estimate_messages_tokens(messages: &[Message]) -> u64 {
 }
 
 /// Get context window size for a model.
+///
+/// B2 moved the table into `cersei_provider::quirks` so the runner, the
+/// F-09 `num_ctx` path, and router-time quirk resolution budget against one
+/// truth. This wrapper keeps the agent-side call sites and tests stable.
 pub fn context_window_for_model(model: &str) -> u64 {
-    match model {
-        m if m.contains("gpt-5") => 1_000_000,
-        m if m.contains("gemini") => 1_000_000,
-        m if m.starts_with("o1") || m.starts_with("o3") => 200_000,
-        m if m.contains("opus") => 200_000,
-        m if m.contains("sonnet") => 200_000,
-        m if m.contains("haiku") => 200_000,
-        m if m.contains("gpt-4o") => 128_000,
-        m if m.contains("gpt-4-turbo") => 128_000,
-        m if m.contains("gpt-4") => 8_192,
-        m if m.contains("gpt-3.5") => 16_385,
-        m if m.contains("llama") => 8_192,
-        _ => 200_000, // default to large
-    }
+    cersei_provider::quirks::context_window_for_model(model)
 }
 
 // ─── Warning state ───────────────────────────────────────────────────────────
@@ -207,17 +198,136 @@ pub fn group_messages_for_compact(messages: &[Message]) -> Vec<MessageGroup> {
     groups
 }
 
+// ─── Tool-pair-aware splitting (F-04) ────────────────────────────────────────
+
+/// `tool_result` ids in `msg` that no earlier `tool_use` in `msgs` answers.
+///
+/// This is the same check every provider runs server-side. A `tool_result`
+/// without its `tool_use` in the *same request* is a 400, and the runner maps a
+/// 400 to `CerseiError::Provider`, which `is_retryable()` does not match — so
+/// the conversation is wedged for good rather than retried.
+pub fn find_orphaned_tool_results(msgs: &[Message]) -> Vec<String> {
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut orphaned = Vec::new();
+    for m in msgs {
+        let MessageContent::Blocks(blocks) = &m.content else {
+            continue;
+        };
+        // Same message first: a tool_use and its result never share a message
+        // in practice, but scanning uses before results keeps that from
+        // mattering.
+        for b in blocks {
+            if let ContentBlock::ToolUse { id, .. } = b {
+                seen.insert(id);
+            }
+        }
+        for b in blocks {
+            if let ContentBlock::ToolResult { tool_use_id, .. } = b {
+                if !seen.contains(tool_use_id.as_str()) {
+                    orphaned.push(tool_use_id.clone());
+                }
+            }
+        }
+    }
+    orphaned
+}
+
+/// The mirror rule (§10.5 #3): `tool_use` ids in `msgs` that no `tool_result`
+/// anywhere in `msgs` answers.
+///
+/// Providers enforce this direction too — an assistant `tool_use` with no
+/// `tool_result` in the following user message is the same unretryable 400 as
+/// an orphaned result. Every request the runner builds ends with a user
+/// message, so at request time there is no legitimately-unanswered call.
+pub fn find_unanswered_tool_uses(msgs: &[Message]) -> Vec<String> {
+    let mut answered: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for m in msgs {
+        let MessageContent::Blocks(blocks) = &m.content else {
+            continue;
+        };
+        for b in blocks {
+            if let ContentBlock::ToolResult { tool_use_id, .. } = b {
+                answered.insert(tool_use_id);
+            }
+        }
+    }
+    let mut unanswered = Vec::new();
+    for m in msgs {
+        let MessageContent::Blocks(blocks) = &m.content else {
+            continue;
+        };
+        for b in blocks {
+            if let ContentBlock::ToolUse { id, .. } = b {
+                if !answered.contains(id.as_str()) {
+                    unanswered.push(id.clone());
+                }
+            }
+        }
+    }
+    unanswered
+}
+
+/// True if `msg` carries any `tool_result` block.
+fn carries_tool_result(msg: &Message) -> bool {
+    match &msg.content {
+        MessageContent::Blocks(b) => b
+            .iter()
+            .any(|x| matches!(x, ContentBlock::ToolResult { .. })),
+        _ => false,
+    }
+}
+
+/// Where to cut a history so that `msgs[split..]` is a valid request.
+///
+/// The naive `len - keep_n` is wrong half the time. The runner builds a
+/// strictly alternating history (idx 0 `user`, odd `assistant[tool_use]`, even
+/// `user[tool_result]`), and `KEEP_RECENT_MESSAGES` is even, so
+/// `parity(split) == parity(len)`: for every even-length conversation the cut
+/// lands on a `user[tool_result]` and discards the `tool_use` that answers it.
+///
+/// Backing off one message reaches the `assistant[tool_use]`, which repairs the
+/// pair and, for the summary path, also removes the `user(summary)` /
+/// `user(tool_result)` adjacency that Gemini and most local chat templates
+/// reject. It only ever keeps *more* context than asked, never less.
+pub fn pair_aware_split(msgs: &[Message], keep_n: usize) -> usize {
+    let mut split = msgs.len().saturating_sub(keep_n);
+    while split > 0 && carries_tool_result(&msgs[split]) {
+        split -= 1;
+    }
+    split
+}
+
 // ─── Snip compact (simple truncation) ────────────────────────────────────────
 
-/// Remove oldest messages, keeping only the newest `keep_n`.
+/// Stands in for the turns the snip fallback dropped, so the history still
+/// opens with a `user` message. Kept short: it is pure overhead on a path taken
+/// precisely when context is scarce.
+pub const SNIP_TRUNCATION_NOTICE: &str =
+    "[earlier turns were dropped to free context; continue from the messages below]";
+
+/// Remove oldest messages, keeping the newest `keep_n` — plus one more when
+/// that boundary would sever a `tool_use`/`tool_result` pair (see
+/// [`pair_aware_split`]). `keep_n` is a floor, not an exact count.
+///
 /// Returns (remaining messages, estimated tokens freed).
 pub fn snip_compact(messages: Vec<Message>, keep_n: usize) -> (Vec<Message>, u64) {
     if messages.len() <= keep_n {
         return (messages, 0);
     }
-    let removed = &messages[..messages.len() - keep_n];
-    let freed = estimate_messages_tokens(removed);
-    let kept = messages[messages.len() - keep_n..].to_vec();
+    let split = pair_aware_split(&messages, keep_n);
+    let freed = estimate_messages_tokens(&messages[..split]);
+    let mut kept = messages[split..].to_vec();
+
+    // Backing off to keep a tool pair intact lands on the `assistant[tool_use]`,
+    // so the surviving history opens with an assistant turn. The summary path
+    // gets away with that because it prepends `user(summary)`; this path
+    // prepends nothing, and Anthropic rejects any request whose first message is
+    // not `user`. Fixing only the orphan would have swapped one guaranteed 400
+    // for another — so the marker goes in here, where it also tells the model
+    // why its history starts mid-task.
+    if !matches!(kept.first().map(|m| m.role), Some(Role::User) | None) {
+        kept.insert(0, Message::user(SNIP_TRUNCATION_NOTICE));
+    }
     (kept, freed)
 }
 
@@ -339,7 +449,11 @@ pub async fn compact_conversation(
         });
     }
 
-    let split_idx = messages.len() - keep_recent;
+    // The same split the caller will actually apply (F-04). Using the naive
+    // `len - keep_recent` here instead would summarise one message that the
+    // runner then also keeps verbatim, and would make the `messages_after` and
+    // `tokens_freed_estimate` reported below describe a history nobody builds.
+    let split_idx = pair_aware_split(messages, keep_recent);
     let old_messages = &messages[..split_idx];
     let recent_messages = &messages[split_idx..];
 
@@ -532,6 +646,56 @@ mod tests {
         assert_eq!(context_window_for_model("claude-sonnet-4-6"), 200_000);
         assert_eq!(context_window_for_model("gpt-4o"), 128_000);
         assert_eq!(context_window_for_model("gpt-4"), 8_192);
+        // Newer Claude ids carry none of the tier names.
+        assert_eq!(context_window_for_model("claude-fable-5"), 200_000);
+        // F-09: unknown tags are usually local Ollama models with small real
+        // windows — overestimating means silent front-truncation, so the
+        // catch-all must be conservative.
+        assert_eq!(context_window_for_model("qwen2.5-coder:7b"), 8_192);
+        assert_eq!(context_window_for_model("deepseek-r1"), 8_192);
+    }
+
+    /// §10.5 #3, the mirror rule: a tool_use with no answering tool_result
+    /// anywhere in the request is the provider 400 from the other direction.
+    #[test]
+    fn unanswered_tool_uses_are_found_and_answered_ones_are_not() {
+        let msgs = vec![
+            Message::user("go"),
+            Message::assistant_blocks(vec![
+                ContentBlock::ToolUse {
+                    id: "answered".into(),
+                    name: "Read".into(),
+                    input: serde_json::json!({}),
+                },
+                ContentBlock::ToolUse {
+                    id: "ghost".into(),
+                    name: "Grep".into(),
+                    input: serde_json::json!({}),
+                },
+            ]),
+            Message::user_blocks(vec![ContentBlock::ToolResult {
+                tool_use_id: "answered".into(),
+                content: ToolResultContent::Text("ok".into()),
+                is_error: Some(false),
+            }]),
+        ];
+        assert_eq!(find_unanswered_tool_uses(&msgs), vec!["ghost".to_string()]);
+
+        // Fully-paired history is clean in both directions.
+        let paired = vec![
+            Message::assistant_blocks(vec![ContentBlock::ToolUse {
+                id: "a".into(),
+                name: "Read".into(),
+                input: serde_json::json!({}),
+            }]),
+            Message::user_blocks(vec![ContentBlock::ToolResult {
+                tool_use_id: "a".into(),
+                content: ToolResultContent::Text("ok".into()),
+                is_error: Some(false),
+            }]),
+        ];
+        assert!(find_unanswered_tool_uses(&paired).is_empty());
+        assert!(find_orphaned_tool_results(&paired).is_empty());
     }
 
     #[test]

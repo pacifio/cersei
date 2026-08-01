@@ -10,7 +10,11 @@ use std::sync::{Mutex, OnceLock};
 
 // ─── Dynamic boundary marker ────────────────────────────────────────────────
 
-pub const SYSTEM_PROMPT_DYNAMIC_BOUNDARY: &str = "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__";
+// Moved to `cersei-types` so providers (which the agent depends on, not the
+// reverse) can split the system block at the boundary; re-exported here so
+// existing `cersei_agent::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY`
+// imports keep compiling.
+pub use cersei_types::SYSTEM_PROMPT_DYNAMIC_BOUNDARY;
 
 // ─── Section cache ──────────────────────────────────────────────────────────
 
@@ -222,13 +226,16 @@ pub fn build_system_prompt(opts: &SystemPromptOptions) -> String {
         parts.push(COORDINATOR_SECTION.to_string());
     }
 
-    // 11. Session guidance: Agent tool
-    if opts
-        .tools_available
-        .iter()
-        .any(|t| t == "Agent" || t == "TaskCreate")
-    {
+    // 11. Session guidance: Agent tool — only when `Agent` is actually
+    // registered. Advertising it off `TaskCreate` (F-A9) told models to call
+    // a tool that does not exist in the default registry.
+    if opts.tools_available.iter().any(|t| t == "Agent") {
         parts.push(SESSION_AGENT_GUIDANCE.to_string());
+    }
+
+    // 11b. Session guidance: task tracking
+    if opts.tools_available.iter().any(|t| t == "TaskCreate") {
+        parts.push(SESSION_TASK_GUIDANCE.to_string());
     }
 
     // 12. Session guidance: Skills
@@ -337,7 +344,7 @@ You have access to powerful tools for software engineering tasks:
 - **Search**: Glob patterns, regex grep, web search, file content search
 - **LSP**: Language server queries for hover, go-to-definition, references, symbols, diagnostics
 - **Web**: Fetch URLs, search the internet
-- **Agents**: Spawn parallel sub-agents for complex multi-step work
+- **Agents**: Spawn sub-agents for complex multi-step work
 - **Memory**: Persistent notes across sessions via the memory system
 - **MCP servers**: Connect to external tools and APIs via Model Context Protocol
 - **Jupyter notebooks**: Read and edit notebook cells
@@ -365,8 +372,8 @@ The user will primarily request you perform software engineering tasks. For thes
 
 - When doing file search or research, prefer using Bash (with grep, find) or Grep tool for targeted searches.
 - When you need information you don't have, use WebSearch to find it. Do not guess APIs, node types, or library details — search for the current documentation.
-- You can call multiple tools in a single response. If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency.
-- If the user specifies running tools in parallel, you MUST send a single response with multiple tool calls.
+- You can call multiple tools in a single response. Independent calls can be made in parallel; when one call's input depends on another's result, wait for that result first.
+- If the user asks for tools to be run in parallel, send those calls together in a single response.
 - Use specialized tools instead of bash when possible: Read for reading files, Edit for editing, Glob for finding files, Grep for searching content.
 "#;
 
@@ -421,7 +428,6 @@ Be direct and informative. Lead with the answer, not the reasoning.
 - For status updates: One sentence is enough.
 - Never ask "would you like me to investigate more?" — just investigate.
 - Never stop at surface-level answers when deeper investigation would give better results.
-- Use multiple tool calls in a single response to gather evidence in parallel.
 "#;
 
 const SUMMARIZE_TOOL_RESULTS: &str = r#"
@@ -449,7 +455,14 @@ deep research. Each sub-agent runs independently with its own context window.
 - Launch multiple agents in parallel when tasks are independent
 - Provide each agent with a complete, self-contained prompt
 - The agent's output is not visible to the user — summarize results yourself
-- Use TaskCreate/TaskUpdate to track background work
+"#;
+
+const SESSION_TASK_GUIDANCE: &str = r#"
+## Task tracking
+
+Use TaskCreate/TaskUpdate to track multi-step work. Create a task per distinct
+step, mark it in_progress when you start and completed when done, so progress
+stays visible across turns.
 "#;
 
 const SESSION_SKILLS_GUIDANCE: &str = r#"
@@ -611,6 +624,25 @@ mod tests {
         assert!(cache.is_empty());
     }
 
+    /// F-A10: parallel-call guidance is advice, not a mandate, and stated
+    /// once, not four times. Structural assertions only — whether softening
+    /// helps any model is not measurable offline and was not measured.
+    #[test]
+    fn test_parallel_guidance_is_softened() {
+        let prompt = build_system_prompt(&default_opts());
+        for line in prompt.lines() {
+            assert!(
+                !(line.contains("parallel") && line.contains("MUST")),
+                "hard parallel mandate survived: {line}"
+            );
+        }
+        let mentions = prompt.matches("parallel").count();
+        assert!(
+            mentions <= 2,
+            "parallel repeated {mentions} times in the default prompt"
+        );
+    }
+
     // ── New component tests ──
 
     #[test]
@@ -631,6 +663,40 @@ mod tests {
         };
         let prompt = build_system_prompt(&opts);
         assert!(!prompt.contains("Sub-agents"));
+    }
+
+    /// F-A9 defect case: `TaskCreate` alone must not advertise the `Agent`
+    /// tool, but must still get task-tracking guidance.
+    #[test]
+    fn test_taskcreate_alone_does_not_advertise_agent() {
+        let opts = SystemPromptOptions {
+            tools_available: vec!["TaskCreate".into(), "TaskUpdate".into()],
+            ..Default::default()
+        };
+        let prompt = build_system_prompt(&opts);
+        assert!(!prompt.contains("Sub-agents"));
+        assert!(!prompt.contains("Agent tool"));
+        assert!(prompt.contains("Task tracking"));
+    }
+
+    /// F-A9 wiring case: the shipped default registry (`cersei_tools::all()`)
+    /// does not contain `Agent`, so the prompt built from its real names must
+    /// not advertise it.
+    #[test]
+    fn test_default_registry_does_not_advertise_agent() {
+        let tools_available: Vec<String> = cersei_tools::all()
+            .iter()
+            .map(|t| t.name().to_string())
+            .collect();
+        assert!(!tools_available.iter().any(|t| t == "Agent"));
+        let opts = SystemPromptOptions {
+            tools_available,
+            ..Default::default()
+        };
+        let prompt = build_system_prompt(&opts);
+        assert!(!prompt.contains("Sub-agents"));
+        assert!(!prompt.contains("Agent tool"));
+        assert!(prompt.contains("Task tracking"));
     }
 
     #[test]

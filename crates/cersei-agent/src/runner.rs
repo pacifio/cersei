@@ -24,6 +24,166 @@ fn rand_jitter() -> u64 {
     seed ^ (seed >> 16) ^ (seed << 7)
 }
 
+// ─── Read-before-edit guard (F-11) ───────────────────────────────────────────
+
+/// Paths a call would write to, as the model named them.
+///
+/// `ApplyPatch` is the awkward one: its targets are not a parameter, they are
+/// inside the patch body. They are read out of the `+++ ` headers and put
+/// through the *same* normalisation `apply_patch.rs` applies before it joins
+/// against the working directory — timestamp stripped, git-style `b/` prefix
+/// stripped.
+///
+/// Keeping the two in step is load-bearing, not tidiness. A guard that resolves
+/// a target differently from the tool does not merely mis-report: for
+/// `+++ b/a.rs` it would look up `<wd>/b/a.rs`, find nothing, conclude the file
+/// is new and needs no prior read, and wave through an overwrite of an unread
+/// `<wd>/a.rs`. The failure is silent and in the unsafe direction.
+fn write_targets(tool_name: &str, tool_input: &serde_json::Value) -> Vec<String> {
+    let named = || {
+        tool_input
+            .get("file_path")
+            .and_then(serde_json::Value::as_str)
+            .map(|s| vec![s.to_string()])
+            .unwrap_or_default()
+    };
+    match tool_name {
+        "Write" | "write" | "Edit" | "edit" | "MultiEdit" | "multi_edit" | "NotebookEdit"
+        | "notebook_edit" => named(),
+        "ApplyPatch" | "apply_patch" => tool_input
+            .get("patch")
+            .and_then(serde_json::Value::as_str)
+            .map(|p| {
+                p.lines()
+                    .filter_map(|l| l.strip_prefix("+++ "))
+                    // Mirrors apply_patch.rs: timestamp, then git prefix.
+                    .map(|t| t.split('\t').next().unwrap_or(t))
+                    .map(|t| t.strip_prefix("b/").unwrap_or(t))
+                    .map(|t| t.trim().to_string())
+                    .filter(|t| !t.is_empty() && t != "/dev/null")
+                    .collect()
+            })
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+/// One spelling for one file, so the read side and the write side can be
+/// compared at all.
+///
+/// The set of seen files is keyed by this. Comparing raw strings meant
+/// `Read("src/x.rs")` followed by `Edit("/wd/src/x.rs")` looked like two
+/// different files and the edit was refused, and it made `./x` and `x`
+/// distinct. Relative paths are resolved against the tool context's working
+/// directory; `canonicalize` then resolves symlinks and `..`, and is expected
+/// to fail for a path that does not exist yet — the lexical form is the right
+/// answer there.
+fn resolve_path(working_dir: &std::path::Path, p: &str) -> String {
+    let joined = if std::path::Path::new(p).is_absolute() {
+        std::path::PathBuf::from(p)
+    } else {
+        working_dir.join(p)
+    };
+    std::fs::canonicalize(&joined)
+        .unwrap_or(joined)
+        .to_string_lossy()
+        .to_string()
+}
+
+/// Refuse a blind overwrite: writing a file that exists but was never read.
+///
+/// Returns the message to hand back *instead of* running the tool. This must be
+/// consulted before dispatch. It used to be applied to the returned
+/// `ToolResult` after `execute` had already completed, which meant the file was
+/// modified and then the model was told the edit had been blocked — the worst
+/// of both, since it left disk and conversation disagreeing about what
+/// happened.
+///
+/// A path that does not exist yet is a creation, not an overwrite, and needs no
+/// prior read.
+fn read_before_edit_block(
+    tool_name: &str,
+    tool_input: &serde_json::Value,
+    files_read: &std::collections::HashSet<String>,
+    working_dir: &std::path::Path,
+) -> Option<String> {
+    for target in write_targets(tool_name, tool_input) {
+        // Both sides go through `resolve_path`, so a file counts as seen no
+        // matter which spelling the model used for the read and the write.
+        let resolved = resolve_path(working_dir, &target);
+        if files_read.contains(&resolved) {
+            continue;
+        }
+        if !std::path::Path::new(&resolved).exists() {
+            continue;
+        }
+        return Some(format!(
+            "{tool_name} was not run: '{target}' already exists and you have not read it in \
+             this session, so this call would overwrite content you have never seen. Call Read \
+             with file_path='{target}' first, then send this {tool_name} call again. Nothing \
+             was written."
+        ));
+    }
+    None
+}
+
+/// Decide which calls in a parallel batch must be refused, before any of them
+/// runs.
+///
+/// Taking the whole batch is what makes the ordering enforceable rather than
+/// merely intended: the result is computed from `tool_use_blocks` and then
+/// captured by the dispatch closures, so there is no way to build the futures
+/// without having decided the refusals first.
+///
+/// Note the concurrency semantics this fixes in place: `files_read` is the set
+/// as of the *start* of the batch. A model that issues `Read(f)` and `Edit(f)`
+/// in the same parallel batch still has the edit refused, because the read has
+/// not completed when the batch is dispatched and nothing orders the two.
+fn refusals_for_batch(
+    calls: &[(String, String, serde_json::Value)],
+    files_read: &std::collections::HashSet<String>,
+    working_dir: &std::path::Path,
+) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    for (id, name, input) in calls {
+        if let Some(msg) = read_before_edit_block(name, input, files_read, working_dir) {
+            out.insert(id.clone(), msg);
+        }
+    }
+    out
+}
+
+// ─── Repeated-failure steering (F-06) ────────────────────────────────────────
+
+/// Consecutive failures of one tool after which the advice stops being gentle.
+const MAX_TOOL_ERRORS_PER_TOOL: u32 = 3;
+
+/// Advice appended to a failing tool result, escalating with the streak.
+///
+/// This is steering, not a budget. The old text counted down "N attempts
+/// remaining" while nothing anywhere compared against a limit, so the countdown
+/// ran past zero into negative numbers and promised an intervention that never
+/// came. Rather than invent that intervention — refusing a tool outright can
+/// leave a turn with no way forward, which is the failure mode this work exists
+/// to remove — the claim is dropped and the wording says only what is true: the
+/// same call keeps failing, so try a different one.
+///
+/// [`MAX_TOOL_ERRORS_PER_TOOL`] is the point at which the advice turns blunt.
+fn error_budget_note(tool_name: &str, count: u32) -> String {
+    if count >= MAX_TOOL_ERRORS_PER_TOOL {
+        format!(
+            "[Tool '{tool_name}' has now failed {count} times in a row. Do not call it again \
+             with a variation of this input — that has not worked {count} times. Use a \
+             different tool, or tell the user what is blocking you and ask how to proceed.]"
+        )
+    } else {
+        format!(
+            "[Tool '{tool_name}' has failed {count} time(s) in a row. Read the error above and \
+             change your approach — do not resend the same call.]"
+        )
+    }
+}
+
 // ─── Tool result size management ─────────────────────────────────────────────
 
 /// Maximum number of lines to keep in a tool result before truncation.
@@ -219,6 +379,10 @@ pub async fn run_agent_streaming(
     const MAX_TOKENS_RETRY_LIMIT: u32 = 3;
     let mut had_tool_use = false;
     let mut depth_nudge_sent = false;
+    // F-08: the no-tool-call nudge fires at most once per session, and its
+    // retry turn carries a one-shot forced tool choice.
+    let mut no_tool_nudge_sent = false;
+    let mut force_tool_choice = false;
     let mut benchmark_retries: u32 = 0;
     const BENCHMARK_MAX_RETRIES: u32 = 4;
     let mut doom_loop_warned = false;
@@ -228,7 +392,6 @@ pub async fn run_agent_streaming(
     let mut files_read: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut tool_error_counts: std::collections::HashMap<String, u32> =
         std::collections::HashMap::new();
-    const MAX_TOOL_ERRORS_PER_TOOL: u32 = 3;
 
     // Build tool context
     let tool_ctx = ToolContext {
@@ -278,6 +441,17 @@ pub async fn run_agent_streaming(
         if let Some(budget) = agent.thinking_budget {
             options.set("thinking_budget", budget);
         }
+        // F-08: one-shot — applies only to the retry turn right after the
+        // no-tool-call nudge, then reverts to the provider default (auto).
+        if force_tool_choice {
+            force_tool_choice = false;
+            options.set("tool_choice", "required");
+        }
+        // F-09: the window this loop budgets against rides on every request;
+        // only providers flagged for it (Ollama) put it on the wire as
+        // options.num_ctx. Without it Ollama stays at its server-side
+        // default window and silently truncates the prompt front.
+        options.set("num_ctx", compact::context_window_for_model(&model));
 
         // Todo nudge: on turns > 2, remind model about incomplete todos
         let system_with_nudge = if turn > 2 {
@@ -301,6 +475,36 @@ pub async fn run_agent_streaming(
             agent.system_prompt.clone()
         };
 
+        // F-04: last line of defence. Compaction is the known way to sever a
+        // tool_use/tool_result pair, but anything that rewrites history can do
+        // it, and the provider's answer is always a 400 that the retry loop
+        // cannot rescue. Report it here, naming the ids, so the cause is in the
+        // log next to the request that carried it rather than inferred later
+        // from an opaque provider error.
+        let orphaned = compact::find_orphaned_tool_results(&messages);
+        if !orphaned.is_empty() {
+            tracing::error!(
+                orphaned_tool_use_ids = ?orphaned,
+                message_count = messages.len(),
+                "request carries tool_result blocks with no matching tool_use; \
+                 the provider will reject this with a 400"
+            );
+        }
+        // §10.5 #3, the mirror rule: an assistant tool_use with no tool_result
+        // anywhere in the request is the same unretryable 400 from the other
+        // direction. Every request this loop builds ends with a user message,
+        // so nothing is legitimately unanswered here.
+        let unanswered = compact::find_unanswered_tool_uses(&messages);
+        if !unanswered.is_empty() {
+            tracing::error!(
+                unanswered_tool_use_ids = ?unanswered,
+                message_count = messages.len(),
+                "request carries tool_use blocks with no matching tool_result; \
+                 the provider will reject this with a 400"
+            );
+        }
+
+        let tools_available = !tool_defs.is_empty();
         let request = CompletionRequest {
             model: model.clone(),
             messages: messages.clone(),
@@ -326,7 +530,20 @@ pub async fn run_agent_streaming(
 
         let (mut rx, mut accumulator) = loop {
             let req_clone = request.clone();
-            match agent.provider.complete(req_clone).await {
+            // `complete()` now awaits the provider's response headers before it
+            // returns (F-02) — that is what lets a 429 come back as a retryable
+            // `Err` instead of a stream event the retry loop can't see. But it
+            // also means this loop, not the stream loop below, is where the
+            // request spends its time-to-first-byte, and this loop is outside
+            // the `select!` that watches `cancel_token`. No provider configures
+            // a client timeout, so without this branch a cancel is ignored
+            // until the first byte arrives — forever, against a server that
+            // accepts the connection and then goes quiet.
+            let outcome = tokio::select! {
+                result = agent.provider.complete(req_clone) => result,
+                _ = agent.cancel_token.cancelled() => return Err(CerseiError::Cancelled),
+            };
+            match outcome {
                 Ok(stream) => {
                     break (stream.into_receiver(), StreamAccumulator::new());
                 }
@@ -356,7 +573,14 @@ pub async fn run_agent_streaming(
                         retry_count,
                         MAX_RETRIES
                     )));
-                    tokio::time::sleep(std::time::Duration::from_millis(actual_delay)).await;
+                    // Same reasoning as the `complete()` await above, and newly
+                    // load-bearing: until F-02 this sleep was unreachable, so
+                    // its uncancellability never showed. Five retries is up to
+                    // ~31s of it.
+                    tokio::select! {
+                        _ = tokio::time::sleep(std::time::Duration::from_millis(actual_delay)) => {}
+                        _ = agent.cancel_token.cancelled() => return Err(CerseiError::Cancelled),
+                    }
                     continue;
                 }
                 Err(e) => return Err(e),
@@ -588,6 +812,31 @@ pub async fn run_agent_streaming(
                     // The external verifier will run tests after.
                 }
 
+                // F-08: a prose-only session with tools available is *the*
+                // characteristic weak-model failure, and it was previously
+                // handled only in benchmark mode. The system prompt orders
+                // "ALWAYS verify information about the codebase using tools
+                // before answering"; this is the once-per-session enforcement.
+                // The retry turn also carries a forced tool choice
+                // (tool_choice: required / {type:"any"} / mode ANY) where the
+                // provider supports it.
+                if !had_tool_use && tools_available && !no_tool_nudge_sent {
+                    no_tool_nudge_sent = true;
+                    force_tool_choice = true;
+                    agent.messages.lock().push(Message::user(
+                        "[system] You answered without using any tools. Claims about \
+                         the codebase must be verified with tools before answering. \
+                         Gather evidence first (Read, Grep, Glob, Bash, ...), then \
+                         give your final answer grounded in what the tools returned."
+                    ));
+                    let _ = event_tx
+                        .send(AgentEvent::Status(
+                            "Nudging agent to use tools before answering".into(),
+                        ))
+                        .await;
+                    continue; // Don't break — force another round
+                }
+
                 // Depth nudge: if we had tool calls but ended very early (turn <= 3),
                 // push the model to explore deeper before giving final answer.
                 // This prevents shallow 1-round analysis. Only nudge once.
@@ -635,10 +884,27 @@ pub async fn run_agent_streaming(
 
                 // Phase 2: Execute all tools in PARALLEL via join_all
                 let msg_count = agent.messages.lock().len();
+                // Built once, outside the per-call closure: this is the same
+                // `agent.tools` the lookup below uses (so MCP-injected tools
+                // stay consistent), and building it inside the closure would
+                // re-allocate every tool name for every parallel call (F-A15).
+                let registered_tool_names: Vec<String> =
+                    agent.tools.iter().map(|t| t.name().to_string()).collect();
+
+                // ── Guard: read-before-edit, decided BEFORE dispatch (F-11) ──
+                // This used to run over the *returned* ToolResult, which meant
+                // the file had already been written by the time the model was
+                // told the edit was blocked: disk and conversation disagreed
+                // about whether the edit happened.
+                let refusals =
+                    refusals_for_batch(&tool_use_blocks, &files_read, &tool_ctx.working_dir);
+
                 let exec_futures: Vec<_> = tool_use_blocks
                     .iter()
                     .map(|(tool_id, tool_name, tool_input)| {
                         let tool_name = tool_name.clone();
+                        let registered_tool_names = registered_tool_names.clone();
+                        let refusal = refusals.get(tool_id).cloned();
                         let tool_id = tool_id.clone();
                         let tool_input = tool_input.clone();
                         let tool_ctx = tool_ctx.clone();
@@ -652,7 +918,11 @@ pub async fn run_agent_streaming(
                         async move {
                             let start = Instant::now();
 
-                            let result = if let Some(idx) = tool_idx {
+                            let result = if let Some(msg) = refusal {
+                                // Refused before dispatch: the tool never runs,
+                                // so nothing reaches disk.
+                                ToolResult::error(msg)
+                            } else if let Some(idx) = tool_idx {
                                 let tool = &agent.tools[idx];
                                 // Check permissions
                                 let perm_req = PermissionRequest {
@@ -697,7 +967,15 @@ pub async fn run_agent_streaming(
                                     }
                                 }
                             } else {
-                                ToolResult::error(format!("Unknown tool: {}", tool_name))
+                                // F-A15: weak models hallucinate tool names
+                                // constantly, and "Unknown tool: X" gave them
+                                // nothing to correct toward.
+                                cersei_tools::tool_feedback::not_found(
+                                    "tool",
+                                    &tool_name,
+                                    &registered_tool_names,
+                                    "Call ToolSearch with a keyword to find the right tool, then call that tool by its exact name.",
+                                )
                             };
 
                             let duration = start.elapsed();
@@ -712,37 +990,39 @@ pub async fn run_agent_streaming(
                 let mut result_blocks: Vec<ContentBlock> = Vec::new();
 
                 for (tool_id, tool_name, tool_input, mut result, duration) in results {
-                    // ── Guard: Read-before-edit ──
-                    // Track files that have been read; block edits to unread files
+                    // ── Bookkeeping for the read-before-edit guard ──
+                    // The refusal itself now happens before dispatch; see
+                    // `refusals_for_batch`. What remains here is recording the
+                    // files whose contents the model can be said to know,
+                    // which needs the result to confirm the call succeeded.
+                    //
+                    // A successful *write* counts as much as a read: the model
+                    // supplied that content, so it is not overwriting anything
+                    // unseen. Recording only reads meant a file the model had
+                    // just created with `Write` could never be written again —
+                    // it existed on disk, was absent from this set, and every
+                    // later `Write`/`Edit` was refused as a blind overwrite of
+                    // content the model itself had authored.
+                    if !result.is_error {
+                        for target in write_targets(&tool_name, &tool_input) {
+                            files_read.insert(resolve_path(&tool_ctx.working_dir, &target));
+                        }
+                    }
                     if (tool_name == "Read" || tool_name == "read") && !result.is_error {
                         if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
-                            files_read.insert(path.to_string());
+                            files_read.insert(resolve_path(&tool_ctx.working_dir, path));
                         }
                     }
-                    if (tool_name == "Edit" || tool_name == "edit") && !result.is_error {
-                        if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
-                            if !files_read.contains(path) {
-                                // Check if file exists — new files don't need prior read
-                                let file_exists = std::path::Path::new(path).exists()
-                                    || tool_ctx.working_dir.join(path).exists();
-                                if file_exists {
-                                    result = ToolResult::error(
-                                        format!("You must Read '{}' before editing it. Read the file first to understand its current contents.", path)
-                                    );
-                                }
-                            }
-                        }
-                    }
+                    // The write-side guard now runs before dispatch; see
+                    // `refusals_for_batch`. Only the bookkeeping remains here,
+                    // because it needs the result to know the Read succeeded.
 
-                    // ── Guard: Per-tool error counter with reflection ──
+                    // ── Guard: Per-tool error counter with reflection (F-06) ──
                     if result.is_error {
                         let count = tool_error_counts.entry(tool_name.clone()).or_insert(0);
                         *count += 1;
-                        let remaining = MAX_TOOL_ERRORS_PER_TOOL.saturating_sub(*count);
-                        result.content = format!(
-                            "{}\n\n[Tool '{}' failed {} time(s). {} attempts remaining. Analyze the error and try a different approach.]",
-                            result.content, tool_name, count, remaining
-                        );
+                        result.content =
+                            format!("{}\n\n{}", result.content, error_budget_note(&tool_name, *count));
                     } else {
                         tool_error_counts.remove(&tool_name);
                     }
@@ -750,7 +1030,13 @@ pub async fn run_agent_streaming(
                     // Compress before emitting ToolEnd so the savings stats ride
                     // along on the event (error results are not compressed).
                     let (capped_content, compression) = if result.is_error {
-                        (result.content.clone(), None)
+                        // F-07: errors skip *compression* (a stack trace does
+                        // not summarise well) but must still be capped. They
+                        // were previously exempt from both, so an unbounded
+                        // failure body — a compiler dump, a full stack trace —
+                        // entered history whole and was re-sent on every
+                        // subsequent turn of the conversation.
+                        (cap_tool_result(&result.content), None)
                     } else {
                         let level = *agent.compression_level.lock();
                         let (compressed, stats) =
@@ -916,7 +1202,14 @@ pub async fn run_agent_streaming(
                     Ok(result) if !result.summary.is_empty() => {
                         let mut msgs = agent.messages.lock();
                         let before = msgs.len();
-                        let split_idx = msgs.len().saturating_sub(compact::KEEP_RECENT_MESSAGES);
+                        // F-04: not `len - KEEP_RECENT_MESSAGES`. That lands on
+                        // a `user[tool_result]` for every even-length history
+                        // and discards the `tool_use` answering it, which the
+                        // provider rejects with a 400 — an error the retry loop
+                        // does not match, so the conversation wedges exactly
+                        // when the context was full enough to need compacting.
+                        let split_idx =
+                            compact::pair_aware_split(&msgs, compact::KEEP_RECENT_MESSAGES);
                         let recent = msgs[split_idx..].to_vec();
                         *msgs = vec![Message::user(&result.summary)];
                         msgs.extend(recent);
@@ -1075,5 +1368,307 @@ fn benchmark_check_tests(tool_calls: &[ToolCallRecord]) -> BenchmarkVerification
         BenchmarkVerification::TestsFailed(last_test_output)
     } else {
         BenchmarkVerification::TestsPassed
+    }
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod guard_tests {
+    use super::*;
+    use serde_json::json;
+    use std::collections::HashSet;
+
+    /// The seen-file set, built the way the runner builds it: every path
+    /// normalised through `resolve_path`, never stored raw.
+    fn seen(wd: &std::path::Path, paths: &[&str]) -> HashSet<String> {
+        paths.iter().map(|p| resolve_path(wd, p)).collect()
+    }
+
+    /// The core of F-11: the refusal has to be decidable *before* dispatch.
+    ///
+    /// The old guard ran over the returned `ToolResult`, so by the time it
+    /// replaced the content with "you must Read first" the write had already
+    /// landed. Deciding from (name, input, files_read) alone is what makes it
+    /// possible to refuse without running the tool.
+    #[test]
+    fn existing_but_unread_file_is_refused_for_every_writing_tool() {
+        let tmp = tempfile::tempdir().unwrap();
+        let f = tmp.path().join("a.rs");
+        std::fs::write(&f, "existing\n").unwrap();
+        let p = f.to_str().unwrap();
+        let none = seen(tmp.path(), &[]);
+
+        for tool in ["Edit", "Write", "MultiEdit", "NotebookEdit"] {
+            let block = read_before_edit_block(tool, &json!({ "file_path": p }), &none, tmp.path());
+            assert!(
+                block.is_some(),
+                "{tool} may not overwrite an unread file that already exists"
+            );
+            let msg = block.unwrap();
+            assert!(msg.contains(p), "{tool}: message must name the file: {msg}");
+            assert!(
+                msg.contains("Read"),
+                "{tool}: message must say what to do: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn reading_the_file_first_lifts_the_refusal() {
+        let tmp = tempfile::tempdir().unwrap();
+        let f = tmp.path().join("a.rs");
+        std::fs::write(&f, "existing\n").unwrap();
+        let p = f.to_str().unwrap();
+
+        for tool in ["Edit", "Write", "MultiEdit", "NotebookEdit"] {
+            assert!(
+                read_before_edit_block(tool, &json!({ "file_path": p }), &seen(tmp.path(), &[p]), tmp.path())
+                    .is_none(),
+                "{tool} must run once the file has been read"
+            );
+        }
+    }
+
+    /// Creating a file is not overwriting one. Requiring a Read of something
+    /// that does not exist would be unsatisfiable.
+    #[test]
+    fn creating_a_new_file_needs_no_prior_read() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("brand_new.rs");
+        assert!(read_before_edit_block(
+            "Write",
+            &json!({ "file_path": p.to_str().unwrap() }),
+            &seen(tmp.path(), &[]),
+            tmp.path()
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn read_only_tools_are_never_blocked() {
+        let tmp = tempfile::tempdir().unwrap();
+        let f = tmp.path().join("a.rs");
+        std::fs::write(&f, "x\n").unwrap();
+        for tool in ["Read", "Grep", "Glob", "Bash", "CodeSearch"] {
+            assert!(read_before_edit_block(
+                tool,
+                &json!({ "file_path": f.to_str().unwrap() }),
+                &seen(tmp.path(), &[]),
+                tmp.path()
+            )
+            .is_none());
+        }
+    }
+
+    /// ApplyPatch hides its targets in the patch body, and names them relative
+    /// to the working directory while Read is given absolute paths. Both
+    /// spellings must resolve to the same file, or every patch following a read
+    /// would be refused.
+    #[test]
+    fn apply_patch_targets_come_from_the_patch_body() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("a.rs"), "x\n").unwrap();
+        let patch = json!({
+            "patch": "--- a/a.rs\n+++ a.rs\n@@ -1 +1 @@\n-x\n+y\n"
+        });
+
+        assert_eq!(write_targets("ApplyPatch", &patch), vec!["a.rs".to_string()]);
+        assert!(
+            read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[]), tmp.path()).is_some(),
+            "an unread patched file must be refused"
+        );
+        let abs = tmp.path().join("a.rs").to_string_lossy().to_string();
+        assert!(
+            read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[&abs]), tmp.path()).is_none(),
+            "reading the absolute path must satisfy a relative patch target"
+        );
+    }
+
+    /// A `Read` and an `Edit` of the same file in ONE parallel batch: the edit
+    /// is still refused.
+    ///
+    /// Nothing orders the two calls — they are dispatched together via
+    /// `join_all` — so the read has not completed when the edit would run.
+    /// Letting it through because a read "is in flight" would reintroduce
+    /// exactly the blind overwrite the guard exists to prevent.
+    #[test]
+    fn a_read_in_the_same_batch_does_not_unlock_the_edit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let f = tmp.path().join("a.rs");
+        std::fs::write(&f, "existing\n").unwrap();
+        let p = f.to_str().unwrap().to_string();
+
+        let batch = vec![
+            ("id_read".to_string(), "Read".to_string(), json!({ "file_path": p })),
+            ("id_edit".to_string(), "Edit".to_string(), json!({ "file_path": p })),
+        ];
+
+        let refusals = refusals_for_batch(&batch, &seen(tmp.path(), &[]), tmp.path());
+        assert!(
+            refusals.contains_key("id_edit"),
+            "the edit must be refused: a concurrent read has not landed yet"
+        );
+        assert!(
+            !refusals.contains_key("id_read"),
+            "reads are never refused"
+        );
+    }
+
+    /// Refusals are keyed by tool_use id, so one bad call in a batch cannot
+    /// suppress its siblings.
+    #[test]
+    fn refusal_is_per_call_not_per_batch() {
+        let tmp = tempfile::tempdir().unwrap();
+        let known = tmp.path().join("known.rs");
+        let unknown = tmp.path().join("unknown.rs");
+        std::fs::write(&known, "a\n").unwrap();
+        std::fs::write(&unknown, "b\n").unwrap();
+        let known_p = known.to_str().unwrap().to_string();
+
+        let batch = vec![
+            ("ok".to_string(), "Edit".to_string(), json!({ "file_path": known_p })),
+            ("bad".to_string(), "Edit".to_string(), json!({ "file_path": unknown.to_str().unwrap() })),
+        ];
+
+        let refusals = refusals_for_batch(&batch, &seen(tmp.path(), &[&known_p]), tmp.path());
+        assert_eq!(refusals.len(), 1, "only the unread target may be refused");
+        assert!(refusals.contains_key("bad"));
+    }
+
+    /// The guard must resolve a patch target to the SAME path `apply_patch.rs`
+    /// will write, or it silently fails open.
+    ///
+    /// `apply_patch.rs` strips a tab-separated timestamp and a git-style `b/`
+    /// prefix before joining against the working directory. A guard that
+    /// skipped those normalisations looked up `<wd>/b/a.rs`, found nothing,
+    /// concluded "new file, no read required", and waved through an overwrite
+    /// of an unread `<wd>/a.rs`.
+    #[test]
+    fn patch_targets_are_normalised_the_same_way_apply_patch_normalises_them() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("a.rs"), "x\n").unwrap();
+
+        for header in [
+            "+++ b/a.rs",                      // git-style prefix
+            "+++ a.rs\t2024-01-01 00:00:00",   // trailing timestamp
+            "+++ b/a.rs\t2024-01-01 00:00:00", // both
+        ] {
+            let patch = json!({ "patch": format!("--- a/a.rs\n{header}\n@@ -1 +1 @@\n-x\n+y\n") });
+            assert_eq!(
+                write_targets("ApplyPatch", &patch),
+                vec!["a.rs".to_string()],
+                "header {header:?} must resolve to the path apply_patch writes"
+            );
+            assert!(
+                read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[]), tmp.path()).is_some(),
+                "header {header:?}: guard failed open on an unread file"
+            );
+        }
+    }
+
+    /// A file the model just wrote is a file the model knows.
+    ///
+    /// Recording only reads meant `Write` could create a file and then never
+    /// touch it again: it existed on disk, was absent from the seen set, and
+    /// every later write was refused as a blind overwrite of content the model
+    /// had authored itself one turn earlier.
+    #[test]
+    fn a_successful_write_counts_as_having_seen_the_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("new.rs");
+        let ps = p.to_str().unwrap().to_string();
+
+        // Turn 1: creating it is allowed.
+        assert!(
+            read_before_edit_block("Write", &json!({ "file_path": ps }), &seen(tmp.path(), &[]), tmp.path())
+                .is_none()
+        );
+        std::fs::write(&p, "v1\n").unwrap();
+
+        // The runner records write targets the same way it records reads.
+        let mut have = seen(tmp.path(), &[]);
+        for t in write_targets("Write", &json!({ "file_path": ps })) {
+            have.insert(resolve_path(tmp.path(), &t));
+        }
+
+        // Turn 2: revising it must not be refused.
+        for tool in ["Write", "Edit", "MultiEdit"] {
+            assert!(
+                read_before_edit_block(tool, &json!({ "file_path": ps }), &have, tmp.path())
+                    .is_none(),
+                "{tool} refused a file this session created"
+            );
+        }
+    }
+
+    /// The seen-set is keyed by resolved path, so the spelling used for the
+    /// read need not match the spelling used for the write.
+    #[test]
+    fn path_spelling_does_not_decide_whether_a_file_counts_as_read() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("m.rs"), "x\n").unwrap();
+        let abs = tmp.path().join("m.rs").to_string_lossy().to_string();
+
+        // Read relative, write absolute.
+        let have = seen(tmp.path(), &["m.rs"]);
+        assert!(
+            read_before_edit_block("Edit", &json!({ "file_path": abs }), &have, tmp.path())
+                .is_none(),
+            "a relative Read must satisfy an absolute Edit of the same file"
+        );
+
+        // Read absolute, write relative — and via a redundant './'.
+        let have = seen(tmp.path(), &[&abs]);
+        for spelling in ["m.rs", "./m.rs"] {
+            assert!(
+                read_before_edit_block(
+                    "Edit",
+                    &json!({ "file_path": spelling }),
+                    &have,
+                    tmp.path()
+                )
+                .is_none(),
+                "an absolute Read must satisfy {spelling:?}"
+            );
+        }
+    }
+
+    /// F-06: the advice may not promise an intervention the runtime does not
+    /// perform. Nothing blocks a tool on repeated failure, so nothing may say
+    /// it will.
+    #[test]
+    fn repeated_failure_advice_never_claims_a_limit_it_cannot_enforce() {
+        for count in 1..=(MAX_TOOL_ERRORS_PER_TOOL + 4) {
+            let note = error_budget_note("Bash", count);
+            assert!(note.contains(&count.to_string()), "{note}");
+            assert!(
+                !note.contains("remaining") && !note.contains("left"),
+                "counting down to a limit that never binds: {note}"
+            );
+            assert!(
+                !note.contains("attempts remaining"),
+                "the removed claim came back: {note}"
+            );
+        }
+        // It does get blunter once the streak is long.
+        assert!(error_budget_note("Bash", MAX_TOOL_ERRORS_PER_TOOL).contains("different tool"));
+    }
+
+    /// F-07: error results bypassed `cap_tool_result`, so an unbounded failure
+    /// body (a compiler dump, a stack trace) landed in history in full and was
+    /// re-sent on every subsequent turn.
+    #[test]
+    fn oversized_error_results_are_capped() {
+        let huge = (0..5_000)
+            .map(|i| format!("error line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let capped = cap_tool_result(&huge);
+        assert!(
+            capped.len() < huge.len(),
+            "a 5000-line failure must not enter history whole"
+        );
+        assert!(capped.contains("lines omitted"), "{capped}");
     }
 }

@@ -8,7 +8,7 @@
 //! ```
 
 use cersei::prelude::*;
-use cersei::provider::{CompletionStream, ProviderCapabilities};
+use cersei::provider::CompletionStream;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -24,14 +24,7 @@ impl Provider for EchoProvider {
     fn context_window(&self, _: &str) -> u64 {
         4096
     }
-    fn capabilities(&self, _: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: false,
-            ..Default::default()
-        }
-    }
-    async fn complete(
+        async fn complete(
         &self,
         req: cersei::provider::CompletionRequest,
     ) -> cersei_types::Result<CompletionStream> {
@@ -47,6 +40,7 @@ impl Provider for EchoProvider {
                 .send(StreamEvent::MessageStart {
                     id: "1".into(),
                     model: "echo".into(),
+                    usage: None,
                 })
                 .await;
             let _ = tx

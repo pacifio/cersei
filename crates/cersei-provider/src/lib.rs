@@ -3,7 +3,9 @@
 //! Providers abstract over different LLM backends (Anthropic, OpenAI, local models).
 //! Each provider implements streaming completion, token counting, and capability discovery.
 
+pub mod adapt;
 pub mod anthropic;
+pub mod quirks;
 pub mod anthropic_vertex;
 pub mod gemini;
 pub mod openai;
@@ -18,12 +20,31 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 // Re-exports
+pub use adapt::{adapt_tools, SchemaDialect};
 pub use anthropic::Anthropic;
+pub use quirks::{ProviderQuirks, TemperaturePolicy, ThinkingQuirk};
 pub use anthropic_vertex::AnthropicVertex;
 pub use gemini::Gemini;
 pub use openai::OpenAi;
 pub use router::from_model_string;
 pub use stream::StreamAccumulator;
+
+/// Seconds from a `Retry-After` header, if the provider sent a usable one.
+///
+/// Only the delta-seconds form is honoured. The HTTP-date form is legal but no
+/// major provider emits it, and guessing wrong here would mean sleeping for
+/// hours, so an unparsable value is treated as absent and the caller falls back
+/// to its own backoff.
+pub fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<std::time::Duration> {
+    headers
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .map(std::time::Duration::from_secs)
+}
 
 // ─── Provider trait ──────────────────────────────────────────────────────────
 
@@ -34,9 +55,6 @@ pub trait Provider: Send + Sync {
 
     /// Context window size for the given model.
     fn context_window(&self, model: &str) -> u64;
-
-    /// Capabilities supported by the given model.
-    fn capabilities(&self, model: &str) -> ProviderCapabilities;
 
     /// Send a streaming completion request.
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream>;
@@ -62,9 +80,6 @@ impl Provider for Box<dyn Provider> {
     }
     fn context_window(&self, model: &str) -> u64 {
         (**self).context_window(model)
-    }
-    fn capabilities(&self, model: &str) -> ProviderCapabilities {
-        (**self).capabilities(model)
     }
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
         (**self).complete(request).await
@@ -181,15 +196,11 @@ pub struct CompletionResponse {
     pub stop_reason: StopReason,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ProviderCapabilities {
-    pub streaming: bool,
-    pub tool_use: bool,
-    pub vision: bool,
-    pub thinking: bool,
-    pub system_prompt: bool,
-    pub caching: bool,
-}
+// F-23: `ProviderCapabilities` is gone. It was written 40+ times in the
+// registry and read exactly once — a `Box<dyn Provider>` forwarder to
+// nothing (H6). The living per-(provider, model) surface is
+// `quirks::ProviderQuirks`, whose fields derive from the live-verified
+// gates instead of a hand-maintained table.
 
 // ─── Completion stream ───────────────────────────────────────────────────────
 

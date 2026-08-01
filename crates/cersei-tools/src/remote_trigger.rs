@@ -55,15 +55,16 @@ impl Tool for RemoteTriggerTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             target_session: String,
             event_type: String,
             payload: Option<Value>,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         let event = TriggerEvent {

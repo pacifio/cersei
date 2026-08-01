@@ -12,7 +12,7 @@ impl Tool for FileWriteTool {
         "Write"
     }
     fn description(&self) -> &str {
-        "Write content to a file, creating it if it doesn't exist."
+        "Write content to a file, creating it if it doesn't exist and replacing its content if it does. For partial changes to an existing file, prefer Edit."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::Write
@@ -34,14 +34,15 @@ impl Tool for FileWriteTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             file_path: String,
             content: String,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         let path = std::path::Path::new(&input.file_path);

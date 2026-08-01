@@ -12,7 +12,7 @@ impl Tool for GlobTool {
         "Glob"
     }
     fn description(&self) -> &str {
-        "Find files matching a glob pattern."
+        "Find files matching a glob pattern (e.g. src/**/*.rs), rooted at `path` or the working directory. Matches names/paths only — use Grep to search file contents."
     }
     fn permission_level(&self) -> PermissionLevel {
         PermissionLevel::ReadOnly
@@ -35,15 +35,16 @@ impl Tool for GlobTool {
 
     async fn execute(&self, input: Value, ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             pattern: String,
             path: Option<String>,
             limit: Option<usize>,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         let max_results = input.limit.unwrap_or(200);

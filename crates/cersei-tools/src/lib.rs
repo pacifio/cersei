@@ -33,6 +33,7 @@ pub mod tasks;
 pub mod todo_write;
 #[cfg(feature = "vms")]
 pub mod vm_tools;
+pub mod tool_feedback;
 pub mod tool_primitives;
 pub mod tool_search;
 pub mod web_fetch;
@@ -194,11 +195,12 @@ impl CostTracker {
         self.usage.lock().merge(usage);
     }
 
-    /// Add usage with cost estimation based on model pricing.
+    /// Add usage with cost estimation based on model pricing, including the
+    /// prompt-cache accounting fields (reads ~0.1x, writes ~1.25x input rate).
     pub fn add_with_model(&self, usage: &Usage, model: &str) {
         let mut u = usage.clone();
         if u.cost_usd.is_none() || u.cost_usd == Some(0.0) {
-            u.cost_usd = Some(estimate_cost(model, u.input_tokens, u.output_tokens));
+            u.cost_usd = Some(estimate_cost_usage(model, &u));
         }
         self.usage.lock().merge(&u);
     }
@@ -214,9 +216,37 @@ impl Default for CostTracker {
     }
 }
 
+/// Anthropic prompt-cache write premium for the default 5-minute-TTL
+/// `{"type": "ephemeral"}` breakpoint Cersei sends (a 1h TTL would be 2.0).
+const CACHE_WRITE_MULTIPLIER: f64 = 1.25;
+/// Anthropic prompt-cache read discount relative to the base input rate.
+const CACHE_READ_MULTIPLIER: f64 = 0.1;
+
+/// Estimate USD cost for a full [`Usage`], pricing prompt-cache writes at
+/// 1.25x and cache reads at 0.1x the model's input rate. The cache fields are
+/// populated only on the Anthropic path (OpenAI/Gemini report cached tokens
+/// inside their prompt totals, under different discounts), so for other
+/// providers this reduces to [`estimate_cost`].
+pub fn estimate_cost_usage(model: &str, usage: &Usage) -> f64 {
+    let (input_per_m, _) = model_rates(model);
+    estimate_cost(model, usage.input_tokens, usage.output_tokens)
+        + (usage.cache_creation_input_tokens as f64 / 1_000_000.0)
+            * input_per_m
+            * CACHE_WRITE_MULTIPLIER
+        + (usage.cache_read_input_tokens as f64 / 1_000_000.0) * input_per_m * CACHE_READ_MULTIPLIER
+}
+
 /// Estimate USD cost from token counts based on model pricing (per 1M tokens).
+/// Cache-unaware; prefer [`estimate_cost_usage`] when a full `Usage` is at hand.
 pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> f64 {
-    let (input_per_m, output_per_m) = match model {
+    let (input_per_m, output_per_m) = model_rates(model);
+    (input_tokens as f64 / 1_000_000.0) * input_per_m
+        + (output_tokens as f64 / 1_000_000.0) * output_per_m
+}
+
+/// (input, output) USD per 1M tokens for a model id.
+fn model_rates(model: &str) -> (f64, f64) {
+    match model {
         m if m.contains("gpt-5.3") => (2.0, 10.0),
         m if m.contains("gpt-5") => (2.0, 10.0),
         m if m.contains("gpt-4o") => (2.50, 10.0),
@@ -232,9 +262,68 @@ pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> f64 
         m if m.contains("mistral-large") => (2.0, 6.0),
         m if m.contains("llama") => (0.0, 0.0), // local/free
         _ => (2.0, 10.0),
-    };
-    (input_tokens as f64 / 1_000_000.0) * input_per_m
-        + (output_tokens as f64 / 1_000_000.0) * output_per_m
+    }
+}
+
+#[cfg(test)]
+mod cost_tests {
+    use super::*;
+
+    /// P3 #2: cache reads price at 0.1x and cache writes at 1.25x the input
+    /// rate (sonnet input rate: $3/M).
+    #[test]
+    fn cache_tokens_price_at_their_multipliers() {
+        let read_only = Usage {
+            cache_read_input_tokens: 1_000_000,
+            ..Default::default()
+        };
+        let cost = estimate_cost_usage("claude-sonnet-4-6", &read_only);
+        assert!((cost - 0.30).abs() < 1e-9, "1M cached reads = $0.30, got {cost}");
+
+        let write_only = Usage {
+            cache_creation_input_tokens: 1_000_000,
+            ..Default::default()
+        };
+        let cost = estimate_cost_usage("claude-sonnet-4-6", &write_only);
+        assert!((cost - 3.75).abs() < 1e-9, "1M cache writes = $3.75, got {cost}");
+    }
+
+    /// Without cache fields the usage-aware estimator must agree with the
+    /// legacy pair, so non-Anthropic providers price exactly as before.
+    #[test]
+    fn without_cache_fields_the_estimators_agree() {
+        let plain = Usage {
+            input_tokens: 200_000,
+            output_tokens: 50_000,
+            ..Default::default()
+        };
+        assert_eq!(
+            estimate_cost_usage("claude-sonnet-4-6", &plain),
+            estimate_cost("claude-sonnet-4-6", 200_000, 50_000),
+        );
+    }
+
+    /// Wiring: `add_with_model` must price through the cache-aware estimator
+    /// and the tracker must accumulate the cache fields themselves.
+    #[test]
+    fn cost_tracker_prices_and_accumulates_cache_fields() {
+        let tracker = CostTracker::new();
+        tracker.add_with_model(
+            &Usage {
+                input_tokens: 1_000_000,
+                cache_read_input_tokens: 1_000_000,
+                ..Default::default()
+            },
+            "claude-sonnet-4-6",
+        );
+        let current = tracker.current();
+        assert_eq!(current.cache_read_input_tokens, 1_000_000);
+        let cost = current.cost_usd.expect("cost estimated");
+        assert!(
+            (cost - 3.30).abs() < 1e-9,
+            "1M input + 1M cached reads on sonnet = $3.30, got {cost}"
+        );
+    }
 }
 
 // ─── Shell state (persisted across Bash invocations) ─────────────────────────
@@ -262,7 +351,7 @@ pub fn clear_session_shell_state(session_id: &str) {
 
 // ─── Built-in tool sets ──────────────────────────────────────────────────────
 
-/// All built-in tools (35 tools).
+/// All built-in tools.
 pub fn all() -> Vec<Box<dyn Tool>> {
     let mut tools: Vec<Box<dyn Tool>> = Vec::new();
     tools.extend(filesystem());
@@ -274,6 +363,9 @@ pub fn all() -> Vec<Box<dyn Tool>> {
     tools.push(Box::new(ask_user::AskUserQuestionTool));
     tools.push(Box::new(synthetic_output::SyntheticOutputTool));
     tools.push(Box::new(config_tool::ConfigTool));
+    // Last, so it indexes every tool registered above.
+    let search = tool_search::ToolSearchTool::new(&tools);
+    tools.push(Box::new(search));
     tools
 }
 
@@ -356,4 +448,222 @@ pub fn orchestration() -> Vec<Box<dyn Tool>> {
 /// No tools (for pure chat agents).
 pub fn none() -> Vec<Box<dyn Tool>> {
     vec![]
+}
+
+// ─── Unknown-parameter policy (F-10) ─────────────────────────────────────────
+
+/// One policy, applied to every tool: a parameter a tool does not declare is an
+/// error, never a silent drop.
+///
+/// The alternative — accepting near-miss names per tool — was rejected because
+/// partial leniency is what caused the bug. `Edit` accepted `path` as an alias
+/// for `file_path`, so a model that guessed `path` was *rewarded*, carried the
+/// hypothesis to `Grep`, and there `path` means something else entirely: the
+/// unknown key was dropped, the search silently widened to the whole working
+/// directory, and up to 250 matches from unrelated files came back as though
+/// they came from the one file the model asked about. No layer emitted an
+/// error, so nothing downstream could recover from it.
+///
+/// Rejecting is only viable because the rejection is *actionable*:
+/// [`tool_feedback`] turns serde's unknown-field error into a message that
+/// names the tool, echoes the arguments, points at the parameter the model
+/// probably meant, and prints a corrected call.
+#[cfg(test)]
+mod unknown_parameter_policy {
+    use super::*;
+    use crate::permissions::AllowAll;
+    use std::sync::Arc;
+
+    /// A key no tool declares. Deliberately unmistakable in failure output,
+    /// and deliberately *not* `__`-prefixed: that prefix is reserved for the
+    /// provider's wire markers and is skipped by the near-miss reporter.
+    const UNKNOWN_KEY: &str = "cersei_probe_bogus_param";
+
+    /// The deserializer's wording when it refuses a key it does not know.
+    ///
+    /// Asserting on this specific phrase is the point of the test. A tool that
+    /// merely *echoes* the arguments back inside some other complaint — "missing
+    /// field `pattern`" — looks like a rejection but has still silently dropped
+    /// the unknown key, which is the bug. Only a deserializer that actually
+    /// refuses the key produces this.
+    const REJECTION: &str = "unknown field";
+
+    fn ctx_in(dir: &std::path::Path) -> ToolContext {
+        ToolContext {
+            working_dir: dir.to_path_buf(),
+            session_id: "unknown-param-test".into(),
+            permissions: Arc::new(AllowAll),
+            cost_tracker: Arc::new(CostTracker::new()),
+            mcp_manager: None,
+            extensions: Extensions::default(),
+        }
+    }
+
+    fn required_params(tool: &dyn Tool) -> Vec<String> {
+        tool.input_schema()
+            .get("required")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Every tool must reject a parameter it does not declare.
+    ///
+    /// The probe sends *only* the unknown key. That is deliberate, and is what
+    /// makes running this against the real registry safe: every tool covered
+    /// here has at least one required parameter, so the call can never
+    /// deserialize into a runnable request and no tool body executes — not
+    /// `Bash`, not `Write`, not `CronCreate`. The assertion is only about which
+    /// *error* comes back.
+    ///
+    /// Before `deny_unknown_fields`, the unknown key was discarded during
+    /// deserialization and the resulting complaint named the missing required
+    /// field, never the key the model actually got wrong.
+    #[tokio::test]
+    async fn every_tool_rejects_an_unknown_parameter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = ctx_in(tmp.path());
+
+        let mut covered = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+
+        for tool in all() {
+            // A tool with no required parameter would actually run on this
+            // input, so it is not probed this way.
+            if required_params(tool.as_ref()).is_empty() {
+                continue;
+            }
+            covered += 1;
+
+            let res = tool
+                .execute(serde_json::json!({ UNKNOWN_KEY: "x" }), &ctx)
+                .await;
+
+            if !res.is_error {
+                failures.push(format!(
+                    "{}: accepted an unknown parameter (silent drop)",
+                    tool.name()
+                ));
+            } else if !res.content.contains(REJECTION) {
+                failures.push(format!(
+                    "{}: failed for some other reason, so the unknown key was still \
+                     dropped rather than refused — got: {}",
+                    tool.name(),
+                    res.content.lines().next().unwrap_or("")
+                ));
+            } else if !res.content.contains(UNKNOWN_KEY) {
+                failures.push(format!(
+                    "{}: refused a key without naming it — got: {}",
+                    tool.name(),
+                    res.content.lines().next().unwrap_or("")
+                ));
+            }
+        }
+
+        assert!(
+            covered >= 25,
+            "coverage collapsed to {covered} tools; the filter is hiding the registry"
+        );
+        assert!(
+            failures.is_empty(),
+            "{} of {} tools mishandled an unknown parameter:\n  {}",
+            failures.len(),
+            covered,
+            failures.join("\n  ")
+        );
+    }
+
+    /// F-10's exact scenario: the model reads a file with `file_path`, then
+    /// searches it with `Grep`, whose parameter is `path`.
+    ///
+    /// The dangerous outcome is not a failed search — it is a *successful* one.
+    /// With `file_path` dropped, `Grep` fell back to the working directory and
+    /// returned matches from files the model never asked about, with nothing in
+    /// the result to say the scope had changed.
+    #[tokio::test]
+    async fn grep_does_not_silently_widen_to_the_whole_working_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("target.txt"), "fn login() {}\n").unwrap();
+        std::fs::create_dir(tmp.path().join("elsewhere")).unwrap();
+        std::fs::write(
+            tmp.path().join("elsewhere/decoy.txt"),
+            "fn login_unrelated() {}\n",
+        )
+        .unwrap();
+
+        let res = grep_tool::GrepTool
+            .execute(
+                serde_json::json!({
+                    "pattern": "login",
+                    // Wrong name: Grep declares `path`, not `file_path`.
+                    "file_path": tmp.path().join("target.txt").to_str().unwrap(),
+                }),
+                &ctx_in(tmp.path()),
+            )
+            .await;
+
+        assert!(
+            res.is_error,
+            "Grep accepted `file_path` and searched somewhere else instead; it returned: {}",
+            res.content
+        );
+        assert!(
+            !res.content.contains("decoy"),
+            "result leaked matches from outside the requested file: {}",
+            res.content
+        );
+        assert!(
+            res.content.contains("file_path"),
+            "error must quote the parameter the model sent: {}",
+            res.content
+        );
+        assert!(
+            res.content.contains("path"),
+            "error must name the real parameter: {}",
+            res.content
+        );
+    }
+
+    /// The other half of F-10: `Edit` accepted `path` as an alias, which is
+    /// where the model *learned* the wrong name before carrying it to `Grep`.
+    /// One tool rewarding a guess that every other tool punishes is worse than
+    /// either policy applied consistently.
+    #[tokio::test]
+    async fn edit_no_longer_teaches_the_path_alias() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("f.rs");
+        std::fs::write(&file, "let x = 1;\n").unwrap();
+
+        let res = file_edit::FileEditTool
+            .execute(
+                serde_json::json!({
+                    "path": file.to_str().unwrap(),
+                    "old_string": "let x = 1;",
+                    "new_string": "let x = 2;",
+                }),
+                &ctx_in(tmp.path()),
+            )
+            .await;
+
+        assert!(
+            res.is_error,
+            "Edit still accepts the `path` alias, so it keeps teaching a name \
+             that Grep and Glob silently mis-handle"
+        );
+        assert!(
+            res.content.contains("file_path"),
+            "error must name the real parameter: {}",
+            res.content
+        );
+        assert_eq!(
+            std::fs::read_to_string(&file).unwrap(),
+            "let x = 1;\n",
+            "a rejected edit must not have touched the file"
+        );
+    }
 }

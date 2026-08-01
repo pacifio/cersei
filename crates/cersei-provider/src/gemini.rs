@@ -64,17 +64,6 @@ impl Provider for Gemini {
         }
     }
 
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: true,
-            vision: true,
-            thinking: false,
-            system_prompt: true,
-            caching: false,
-        }
-    }
-
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionStream> {
         let model = if request.model.is_empty() {
             self.default_model.clone()
@@ -238,10 +227,13 @@ impl Provider for Gemini {
             },
         });
 
-        // System instruction (Gemini's equivalent of system prompt)
+        // System instruction (Gemini's equivalent of system prompt). The
+        // boundary marker is a client-side cache hint; Gemini caching is
+        // automatic, so keep the literal string off the wire.
         if let Some(system) = &request.system {
+            let text = system.replace(SYSTEM_PROMPT_DYNAMIC_BOUNDARY, "");
             body["systemInstruction"] = serde_json::json!({
-                "parts": [{ "text": system }],
+                "parts": [{ "text": text }],
             });
         }
 
@@ -260,22 +252,24 @@ impl Provider for Gemini {
                 serde_json::json!({ "thinkingBudget": budget });
         }
 
-        // Tool declarations
+        // Tool declarations. B1: schemas cross the provider boundary only
+        // through `adapt_tools` — Gemini rejects `$schema`/`$ref`/
+        // `definitions`/`additionalProperties`, and the rejection kills the
+        // whole request (Exp 1/3, TOOL-CALLING-RELIABILITY.md §7.0).
         if !request.tools.is_empty() {
-            let function_declarations: Vec<serde_json::Value> = request
-                .tools
-                .iter()
-                .map(|t| {
-                    serde_json::json!({
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": t.input_schema,
-                    })
-                })
-                .collect();
+            let function_declarations =
+                crate::adapt::adapt_tools(&request.tools, crate::adapt::SchemaDialect::GeminiSubset);
             body["tools"] = serde_json::json!([{
                 "functionDeclarations": function_declarations,
             }]);
+
+            // F-08: forced tool choice, requested per-turn by the runner's
+            // no-tool-call nudge. Gemini's spelling is mode ANY.
+            if request.options.get::<String>("tool_choice").as_deref() == Some("required") {
+                body["toolConfig"] = serde_json::json!({
+                    "functionCallingConfig": { "mode": "ANY" }
+                });
+            }
         }
 
         // Safety settings: use least restrictive defaults to avoid unexpected blocks
@@ -295,8 +289,6 @@ impl Provider for Gemini {
             self.base_url, model
         );
 
-        let (tx, rx) = mpsc::channel(256);
-
         let req = self
             .client
             .post(&url)
@@ -306,228 +298,220 @@ impl Provider for Gemini {
             .build()
             .map_err(CerseiError::Http)?;
 
-        let client = self.client.clone();
+        // F-02: await the response and check its status *before* spawning, so a
+        // non-2xx returns as a typed `Err` from `complete()`. The runner's retry
+        // loop guards `provider.complete()` and nothing else — a status reported
+        // from inside the spawned reader lands below that loop, where it can only
+        // end the session.
+        let response = self.client.execute(req).await.map_err(CerseiError::Http)?;
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let retry_after = crate::parse_retry_after(response.headers());
+            let body = response.text().await.unwrap_or_default();
+            return Err(CerseiError::from_http_status(status, retry_after, body));
+        }
+
+        let (tx, rx) = mpsc::channel(256);
 
         tokio::spawn(async move {
-            match client.execute(req).await {
-                Ok(response) => {
-                    if !response.status().is_success() {
-                        let status = response.status().as_u16();
-                        let body = response.text().await.unwrap_or_default();
-                        let _ = tx
-                            .send(StreamEvent::Error {
-                                message: format!("HTTP {}: {}", status, body),
-                            })
-                            .await;
-                        return;
-                    }
+            let _ = tx
+                .send(StreamEvent::MessageStart {
+                    id: String::new(),
+                    model: String::new(),
+                    usage: None,
+                })
+                .await;
 
-                    let _ = tx
-                        .send(StreamEvent::MessageStart {
-                            id: String::new(),
-                            model: String::new(),
-                        })
-                        .await;
+            let mut stream = response.bytes_stream();
+            let mut buffer = String::new();
+            let mut block_index: usize = 0;
+            let mut total_input_tokens: u64 = 0;
+            let mut total_output_tokens: u64 = 0;
+            let mut saw_function_calls = false;
 
-                    let mut stream = response.bytes_stream();
-                    let mut buffer = String::new();
-                    let mut block_index: usize = 0;
-                    let mut total_input_tokens: u64 = 0;
-                    let mut total_output_tokens: u64 = 0;
-                    let mut saw_function_calls = false;
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(bytes) => {
+                        buffer.push_str(&String::from_utf8_lossy(&bytes));
 
-                    while let Some(chunk) = stream.next().await {
-                        match chunk {
-                            Ok(bytes) => {
-                                buffer.push_str(&String::from_utf8_lossy(&bytes));
+                        while let Some(pos) = buffer.find("\n") {
+                            let line = buffer[..pos].to_string();
+                            buffer = buffer[pos + 1..].to_string();
 
-                                while let Some(pos) = buffer.find("\n") {
-                                    let line = buffer[..pos].to_string();
-                                    buffer = buffer[pos + 1..].to_string();
+                            if let Some(data) = line.strip_prefix("data: ") {
+                                let data = data.trim();
+                                if data.is_empty() {
+                                    continue;
+                                }
 
-                                    if let Some(data) = line.strip_prefix("data: ") {
-                                        let data = data.trim();
-                                        if data.is_empty() {
-                                            continue;
-                                        }
+                                if let Ok(json) =
+                                    serde_json::from_str::<serde_json::Value>(data)
+                                {
+                                    // Extract usage metadata
+                                    if let Some(metadata) = json.get("usageMetadata") {
+                                        total_input_tokens = metadata
+                                            .get("promptTokenCount")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(total_input_tokens);
+                                        total_output_tokens = metadata
+                                            .get("candidatesTokenCount")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(total_output_tokens);
+                                    }
 
-                                        if let Ok(json) =
-                                            serde_json::from_str::<serde_json::Value>(data)
-                                        {
-                                            // Extract usage metadata
-                                            if let Some(metadata) = json.get("usageMetadata") {
-                                                total_input_tokens = metadata
-                                                    .get("promptTokenCount")
-                                                    .and_then(|v| v.as_u64())
-                                                    .unwrap_or(total_input_tokens);
-                                                total_output_tokens = metadata
-                                                    .get("candidatesTokenCount")
-                                                    .and_then(|v| v.as_u64())
-                                                    .unwrap_or(total_output_tokens);
-                                            }
-
-                                            // Process candidates
-                                            if let Some(candidates) =
-                                                json.get("candidates").and_then(|c| c.as_array())
+                                    // Process candidates
+                                    if let Some(candidates) =
+                                        json.get("candidates").and_then(|c| c.as_array())
+                                    {
+                                        for candidate in candidates {
+                                            if let Some(parts) = candidate
+                                                .get("content")
+                                                .and_then(|c| c.get("parts"))
+                                                .and_then(|p| p.as_array())
                                             {
-                                                for candidate in candidates {
-                                                    if let Some(parts) = candidate
-                                                        .get("content")
-                                                        .and_then(|c| c.get("parts"))
-                                                        .and_then(|p| p.as_array())
+                                                for part in parts {
+                                                    if let Some(text) = part
+                                                        .get("text")
+                                                        .and_then(|t| t.as_str())
                                                     {
-                                                        for part in parts {
-                                                            if let Some(text) = part
-                                                                .get("text")
-                                                                .and_then(|t| t.as_str())
-                                                            {
-                                                                let _ = tx
-                                                                    .send(StreamEvent::ContentBlockStart {
-                                                                        index: block_index,
-                                                                        block_type: "text".into(),
-                                                                        id: None,
-                                                                        name: None,
-                                                                    })
-                                                                    .await;
-                                                                let _ = tx
-                                                                    .send(StreamEvent::TextDelta {
-                                                                        index: block_index,
-                                                                        text: text.to_string(),
-                                                                    })
-                                                                    .await;
-                                                                let _ = tx
-                                                                    .send(StreamEvent::ContentBlockStop {
-                                                                        index: block_index,
-                                                                    })
-                                                                    .await;
-                                                                block_index += 1;
-                                                            }
-
-                                                            if let Some(fc) =
-                                                                part.get("functionCall")
-                                                            {
-                                                                saw_function_calls = true;
-                                                                let name = fc
-                                                                    .get("name")
-                                                                    .and_then(|n| n.as_str())
-                                                                    .unwrap_or("")
-                                                                    .to_string();
-                                                                let args = fc
-                                                                    .get("args")
-                                                                    .cloned()
-                                                                    .unwrap_or(
-                                                                        serde_json::Value::Object(
-                                                                            Default::default(),
-                                                                        ),
-                                                                    );
-                                                                // Capture thoughtSignature (sibling of functionCall at part level, Gemini 3.1+)
-                                                                let thought_sig = part
-                                                                    .get("thoughtSignature")
-                                                                    .and_then(|s| s.as_str())
-                                                                    .unwrap_or("");
-                                                                // Capture functionCall.id if present
-                                                                let fc_id = fc
-                                                                    .get("id")
-                                                                    .and_then(|s| s.as_str())
-                                                                    .unwrap_or("");
-                                                                // Encode both in tool_id for roundtrip
-                                                                let tool_id =
-                                                                    if thought_sig.is_empty() {
-                                                                        format!(
-                                                                            "gemini-tool-{}",
-                                                                            block_index
-                                                                        )
-                                                                    } else {
-                                                                        format!(
-                                                                        "gemini-tool-{}::{}::{}",
-                                                                        block_index,
-                                                                        fc_id,
-                                                                        thought_sig
-                                                                    )
-                                                                    };
-
-                                                                let _ = tx
-                                                                    .send(StreamEvent::ContentBlockStart {
-                                                                        index: block_index,
-                                                                        block_type: "tool_use".into(),
-                                                                        id: Some(tool_id),
-                                                                        name: Some(name),
-                                                                    })
-                                                                    .await;
-                                                                let _ = tx
-                                                                    .send(StreamEvent::InputJsonDelta {
-                                                                        index: block_index,
-                                                                        partial_json: serde_json::to_string(&args)
-                                                                            .unwrap_or_default(),
-                                                                    })
-                                                                    .await;
-                                                                let _ = tx
-                                                                    .send(StreamEvent::ContentBlockStop {
-                                                                        index: block_index,
-                                                                    })
-                                                                    .await;
-                                                                block_index += 1;
-                                                            }
-                                                        }
-                                                    }
-
-                                                    // Check finish reason
-                                                    let finish_reason = candidate
-                                                        .get("finishReason")
-                                                        .and_then(|r| r.as_str());
-                                                    if let Some(reason) = finish_reason {
-                                                        let stop = if saw_function_calls {
-                                                            StopReason::ToolUse
-                                                        } else {
-                                                            match reason {
-                                                                "STOP" => StopReason::EndTurn,
-                                                                "MAX_TOKENS" => {
-                                                                    StopReason::MaxTokens
-                                                                }
-                                                                "SAFETY" => StopReason::EndTurn,
-                                                                _ => StopReason::EndTurn,
-                                                            }
-                                                        };
                                                         let _ = tx
-                                                            .send(StreamEvent::MessageDelta {
-                                                                stop_reason: Some(stop),
-                                                                usage: Some(Usage {
-                                                                    input_tokens:
-                                                                        total_input_tokens,
-                                                                    output_tokens:
-                                                                        total_output_tokens,
-                                                                    ..Default::default()
-                                                                }),
+                                                            .send(StreamEvent::ContentBlockStart {
+                                                                index: block_index,
+                                                                block_type: "text".into(),
+                                                                id: None,
+                                                                name: None,
                                                             })
                                                             .await;
+                                                        let _ = tx
+                                                            .send(StreamEvent::TextDelta {
+                                                                index: block_index,
+                                                                text: text.to_string(),
+                                                            })
+                                                            .await;
+                                                        let _ = tx
+                                                            .send(StreamEvent::ContentBlockStop {
+                                                                index: block_index,
+                                                            })
+                                                            .await;
+                                                        block_index += 1;
+                                                    }
+
+                                                    if let Some(fc) =
+                                                        part.get("functionCall")
+                                                    {
+                                                        saw_function_calls = true;
+                                                        let name = fc
+                                                            .get("name")
+                                                            .and_then(|n| n.as_str())
+                                                            .unwrap_or("")
+                                                            .to_string();
+                                                        let args = fc
+                                                            .get("args")
+                                                            .cloned()
+                                                            .unwrap_or(
+                                                                serde_json::Value::Object(
+                                                                    Default::default(),
+                                                                ),
+                                                            );
+                                                        // Capture thoughtSignature (sibling of functionCall at part level, Gemini 3.1+)
+                                                        let thought_sig = part
+                                                            .get("thoughtSignature")
+                                                            .and_then(|s| s.as_str())
+                                                            .unwrap_or("");
+                                                        // Capture functionCall.id if present
+                                                        let fc_id = fc
+                                                            .get("id")
+                                                            .and_then(|s| s.as_str())
+                                                            .unwrap_or("");
+                                                        // Encode both in tool_id for roundtrip
+                                                        let tool_id =
+                                                            if thought_sig.is_empty() {
+                                                                format!(
+                                                                    "gemini-tool-{}",
+                                                                    block_index
+                                                                )
+                                                            } else {
+                                                                format!(
+                                                                "gemini-tool-{}::{}::{}",
+                                                                block_index,
+                                                                fc_id,
+                                                                thought_sig
+                                                            )
+                                                            };
+
+                                                        let _ = tx
+                                                            .send(StreamEvent::ContentBlockStart {
+                                                                index: block_index,
+                                                                block_type: "tool_use".into(),
+                                                                id: Some(tool_id),
+                                                                name: Some(name),
+                                                            })
+                                                            .await;
+                                                        let _ = tx
+                                                            .send(StreamEvent::InputJsonDelta {
+                                                                index: block_index,
+                                                                partial_json: serde_json::to_string(&args)
+                                                                    .unwrap_or_default(),
+                                                            })
+                                                            .await;
+                                                        let _ = tx
+                                                            .send(StreamEvent::ContentBlockStop {
+                                                                index: block_index,
+                                                            })
+                                                            .await;
+                                                        block_index += 1;
                                                     }
                                                 }
+                                            }
+
+                                            // Check finish reason
+                                            let finish_reason = candidate
+                                                .get("finishReason")
+                                                .and_then(|r| r.as_str());
+                                            if let Some(reason) = finish_reason {
+                                                let stop = if saw_function_calls {
+                                                    StopReason::ToolUse
+                                                } else {
+                                                    match reason {
+                                                        "STOP" => StopReason::EndTurn,
+                                                        "MAX_TOKENS" => {
+                                                            StopReason::MaxTokens
+                                                        }
+                                                        "SAFETY" => StopReason::EndTurn,
+                                                        _ => StopReason::EndTurn,
+                                                    }
+                                                };
+                                                let _ = tx
+                                                    .send(StreamEvent::MessageDelta {
+                                                        stop_reason: Some(stop),
+                                                        usage: Some(Usage {
+                                                            input_tokens:
+                                                                total_input_tokens,
+                                                            output_tokens:
+                                                                total_output_tokens,
+                                                            ..Default::default()
+                                                        }),
+                                                    })
+                                                    .await;
                                             }
                                         }
                                     }
                                 }
                             }
-                            Err(e) => {
-                                let _ = tx
-                                    .send(StreamEvent::Error {
-                                        message: e.to_string(),
-                                    })
-                                    .await;
-                                return;
-                            }
                         }
                     }
-
-                    let _ = tx.send(StreamEvent::MessageStop).await;
-                }
-                Err(e) => {
-                    let _ = tx
-                        .send(StreamEvent::Error {
-                            message: e.to_string(),
-                        })
-                        .await;
+                    Err(e) => {
+                        let _ = tx
+                            .send(StreamEvent::Error {
+                                message: e.to_string(),
+                            })
+                            .await;
+                        return;
+                    }
                 }
             }
+
+            let _ = tx.send(StreamEvent::MessageStop).await;
         });
 
         Ok(CompletionStream::new(rx))
@@ -601,6 +585,133 @@ impl GeminiBuilder {
                 .unwrap_or_else(|| "gemini-3.1-pro-preview".to_string()),
             client: reqwest::Client::new(),
         })
+    }
+}
+
+// ─── B1, live ────────────────────────────────────────────────────────────────
+//
+// The offline suite proves `complete()` sends `adapt_tools` output
+// (`tests/tool_body_shapes.rs`); these two prove the real API still agrees
+// with the Exp 1/3 measurements that output is built on. Offline suites have
+// already shipped one bug by asserting documented-but-wrong API behavior —
+// this is the drift sentinel. Requires a key, so `#[ignore]`:
+//
+//   GEMINI_API_KEY=... cargo test -p cersei-provider --lib live_ \
+//       -- --ignored --nocapture
+//
+// Override the model with CERSEI_LIVE_GEMINI_MODEL. The default is the model
+// Exp 1/3 were measured against.
+#[cfg(test)]
+mod live_dialect_tests {
+    use super::*;
+    use crate::adapt::{adapt_tools, SchemaDialect};
+
+    fn live_model() -> String {
+        std::env::var("CERSEI_LIVE_GEMINI_MODEL")
+            .unwrap_or_else(|_| "gemini-flash-lite-latest".to_string())
+    }
+
+    /// The schemars-0.8 shape Exp 1 measured being rejected: all four of the
+    /// keys Gemini 400s on.
+    fn schemars_like_tool() -> ToolDefinition {
+        ToolDefinition {
+            name: "Read".to_string(),
+            description: "Reads a file".to_string(),
+            input_schema: serde_json::json!({
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "file_path": { "type": "string" },
+                    "range": { "$ref": "#/definitions/Range" },
+                },
+                "required": ["file_path"],
+                "definitions": {
+                    "Range": {
+                        "type": "object",
+                        "properties": { "start": { "type": "integer" } },
+                    }
+                }
+            }),
+        }
+    }
+
+    /// POST one non-streaming `generateContent` request carrying `decl` as
+    /// the sole function declaration; return (status, response text). `None`
+    /// (skip, not failure) when no key is present, matching the other live
+    /// tests in this workspace.
+    async fn post_live(decl: &serde_json::Value) -> Option<(u16, String)> {
+        let key = match std::env::var("GOOGLE_API_KEY")
+            .or_else(|_| std::env::var("GEMINI_API_KEY"))
+        {
+            Ok(k) if !k.is_empty() => k,
+            _ => {
+                eprintln!("GOOGLE_API_KEY/GEMINI_API_KEY not set — skipping.");
+                return None;
+            }
+        };
+        let body = serde_json::json!({
+            "contents": [{ "role": "user", "parts": [{ "text": "Read /tmp/x with the Read tool." }] }],
+            "tools": [{ "functionDeclarations": [decl] }],
+            "generationConfig": { "maxOutputTokens": 64 },
+        });
+        let resp = reqwest::Client::new()
+            .post(format!("{}/models/{}:generateContent", GEMINI_API_BASE, live_model()))
+            .header("x-goog-api-key", key)
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .expect("request to the Gemini API failed to send");
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        Some((status, text))
+    }
+
+    /// Negative half: the RAW schemars shape must still be rejected. If this
+    /// starts returning 2xx, Gemini has widened its dialect and
+    /// `GeminiSubset` is stripping keys it no longer needs to.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and GEMINI_API_KEY set"]
+    async fn live_raw_schemars_schema_is_rejected_by_the_real_api() {
+        let t = schemars_like_tool();
+        let raw_decl = serde_json::json!({
+            "name": t.name,
+            "description": t.description,
+            "parameters": t.input_schema,
+        });
+        let Some((status, text)) = post_live(&raw_decl).await else {
+            return;
+        };
+        eprintln!("raw schemars schema → HTTP {status}");
+        assert_eq!(
+            status, 400,
+            "Exp 1 measured INVALID_ARGUMENT for this shape; if Gemini now \
+             accepts it, re-run the Exp 3 probes and revisit GeminiSubset: {text}"
+        );
+        assert!(
+            text.contains("Unknown name") || text.contains("INVALID_ARGUMENT"),
+            "rejected, but not for the measured reason: {text}"
+        );
+    }
+
+    /// Positive half: what `GeminiSubset` builds from that same tool is
+    /// accepted. If this 400s, the seam is emitting a shape the API does not
+    /// take and B1 is not fixed.
+    #[tokio::test]
+    #[ignore = "live API test; run with --ignored and GEMINI_API_KEY set"]
+    async fn live_adapted_schema_is_accepted_by_the_real_api() {
+        let adapted = adapt_tools(&[schemars_like_tool()], SchemaDialect::GeminiSubset)
+            .pop()
+            .expect("one tool in, one out");
+        let Some((status, text)) = post_live(&adapted).await else {
+            return;
+        };
+        eprintln!("adapted schema → HTTP {status}");
+        assert!(
+            (200..300).contains(&status),
+            "the declaration GeminiSubset builds was rejected with {status}: {text}"
+        );
     }
 }
 

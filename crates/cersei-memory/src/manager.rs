@@ -73,23 +73,41 @@ impl MemoryManager {
 
     /// Build the complete memory context for the system prompt.
     /// Includes MEMORY.md index + CLAUDE.md hierarchy.
+    ///
+    /// Callers that split the prompt across a cache boundary should instead
+    /// place [`claude_instruction_files`](Self::claude_instruction_files) on
+    /// the cacheable side and [`build_memory_index`](Self::build_memory_index)
+    /// on the dynamic side (F-A8): the CLAUDE.md hierarchy is stable within a
+    /// session, while the MEMORY.md index can change as memories are stored.
     pub fn build_context(&self) -> String {
         let mut parts = Vec::new();
 
         // CLAUDE.md hierarchy
-        let claude_files = claudemd::load_all_memory_files(&self.project_root);
-        let claude_prompt = claudemd::build_memory_prompt(&claude_files);
+        let claude_prompt = claudemd::build_memory_prompt(&self.claude_instruction_files());
         if !claude_prompt.is_empty() {
             parts.push(claude_prompt);
         }
 
         // MEMORY.md index
-        let memdir_content = memdir::build_memory_prompt_content(&self.memory_dir);
+        let memdir_content = self.build_memory_index();
         if !memdir_content.is_empty() {
             parts.push(memdir_content);
         }
 
         parts.join("\n\n")
+    }
+
+    /// The CLAUDE.md hierarchy (managed rules, user, project, local) with
+    /// source paths, so callers can place instruction content on the cacheable
+    /// side of the prompt and de-duplicate against other instruction loaders.
+    pub fn claude_instruction_files(&self) -> Vec<claudemd::MemoryFileInfo> {
+        claudemd::load_all_memory_files(&self.project_root)
+    }
+
+    /// The MEMORY.md index only — the part of the memory context that can
+    /// change mid-session.
+    pub fn build_memory_index(&self) -> String {
+        memdir::build_memory_prompt_content(&self.memory_dir)
     }
 
     // ─── Memory operations ───────────────────────────────────────────────

@@ -24,7 +24,7 @@ impl Tool for NotebookEditTool {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "file_path": { "type": "string", "description": "Path to .ipynb file" },
+                "file_path": { "type": "string", "description": "Absolute path to the .ipynb file" },
                 "cell_index": { "type": "integer", "description": "0-based cell index to edit" },
                 "new_source": { "type": "string", "description": "New cell source content" },
                 "cell_type": { "type": "string", "description": "Optional: 'code' or 'markdown'" }
@@ -35,6 +35,7 @@ impl Tool for NotebookEditTool {
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Input {
             file_path: String,
             cell_index: usize,
@@ -42,9 +43,9 @@ impl Tool for NotebookEditTool {
             cell_type: Option<String>,
         }
 
-        let input: Input = match serde_json::from_value(input) {
+        let input: Input = match crate::tool_feedback::parse_input(self, &input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(format!("Invalid input: {}", e)),
+            Err(e) => return e,
         };
 
         let content = match tokio::fs::read_to_string(&input.file_path).await {

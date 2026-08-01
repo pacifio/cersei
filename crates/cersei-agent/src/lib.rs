@@ -514,7 +514,7 @@ impl AgentBuilder {
 mod tests {
     use super::*;
     use cersei_provider::{
-        CompletionRequest, CompletionStream, ProviderCapabilities, Provider,
+        CompletionRequest, CompletionStream, Provider,
     };
 
     /// Minimal provider that never produces output — enough to `build()` an agent.
@@ -527,9 +527,6 @@ mod tests {
         }
         fn context_window(&self, _model: &str) -> u64 {
             1000
-        }
-        fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-            ProviderCapabilities::default()
         }
         async fn complete(&self, _request: CompletionRequest) -> cersei_types::Result<CompletionStream> {
             let (_tx, rx) = tokio::sync::mpsc::channel(1);

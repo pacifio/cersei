@@ -36,9 +36,13 @@ impl Tool for FileEditTool {
     }
 
     async fn execute(&self, input: Value, _ctx: &ToolContext) -> ToolResult {
-        let input = match coerce_input(input) {
+        let input = match coerce_input(&input) {
             Ok(i) => i,
-            Err(e) => return ToolResult::error(e),
+            // The coercion above is already alias-tolerant, so reaching here
+            // means the call is genuinely unusable. Hand the reason to the
+            // shared builder so the model gets the tool name, an echo of what
+            // it sent, and the parameter list (F-05b/F-A14).
+            Err(e) => return crate::tool_feedback::invalid_input(self, &input, e),
         };
 
         let path = std::path::Path::new(&input.file_path);
@@ -100,50 +104,51 @@ struct EditInput {
     replace_all: bool,
 }
 
-/// Coerce a loosely-shaped tool call into a valid [`EditInput`].
+/// The parameters `Edit` declares. Anything else is refused.
+const KNOWN_PARAMS: &[&str] = &["file_path", "old_string", "new_string", "replace_all"];
+
+/// Parse a tool call into a valid [`EditInput`], coercing scalar *types* but not
+/// parameter *names*.
 ///
-/// Weaker models frequently emit near-miss field names (`path`, `oldText`,
-/// `old`), stringified booleans (`"true"`), or numeric values where strings are
-/// expected. Rather than rejecting the whole edit on a strict deserialize, we
-/// accept these common variants — the cost of an unrecoverable round-trip on a
-/// slow model is far higher than a little leniency here.
-fn coerce_input(input: Value) -> std::result::Result<EditInput, String> {
+/// This used to accept `path`, `filePath`, `oldString`, `old`, `search` and
+/// friends. That leniency was removed: `Edit` was the only tool that rewarded
+/// guessing `path`, and a model that had just been rewarded carried the guess
+/// to `Grep`, where `path` is a real parameter meaning something else and the
+/// unknown key was dropped without a word — turning a naming mistake into a
+/// silent whole-directory search. Being the one lenient tool in a strict
+/// runtime taught a schema no other tool honoured.
+///
+/// Type coercion stays. A model that sends `replace_all: "true"` has the name
+/// right and only the JSON type wrong, which is unambiguous to repair and
+/// teaches nothing false.
+fn coerce_input(input: &Value) -> std::result::Result<EditInput, String> {
     let obj = input
         .as_object()
-        .ok_or_else(|| "Invalid input: expected a JSON object".to_string())?;
+        .ok_or_else(|| "the arguments must be a JSON object".to_string())?;
 
-    // Pull a string field, trying a list of accepted aliases, coercing numbers
-    // and bools to their string form.
-    let get_str = |keys: &[&str]| -> Option<String> {
-        for k in keys {
-            match obj.get(*k) {
-                Some(Value::String(s)) => return Some(s.clone()),
-                Some(Value::Number(n)) => return Some(n.to_string()),
-                Some(Value::Bool(b)) => return Some(b.to_string()),
-                _ => {}
-            }
+    crate::tool_feedback::reject_unknown_keys(input, KNOWN_PARAMS)?;
+
+    // Pull a string field, coercing numbers and bools to their string form.
+    let get_str = |key: &str| -> Option<String> {
+        match obj.get(key) {
+            Some(Value::String(s)) => Some(s.clone()),
+            Some(Value::Number(n)) => Some(n.to_string()),
+            Some(Value::Bool(b)) => Some(b.to_string()),
+            _ => None,
         }
-        None
     };
 
-    let file_path = get_str(&["file_path", "filePath", "path", "file"])
-        .ok_or_else(|| "Invalid input: missing 'file_path'".to_string())?;
+    let file_path = get_str("file_path")
+        .ok_or_else(|| "missing 'file_path' (the absolute path of the file to edit)".to_string())?;
 
-    let old_string = get_str(&["old_string", "oldString", "old_str", "old", "search"])
-        .ok_or_else(|| {
-            "Invalid input: missing 'old_string' (the exact text to replace)".to_string()
-        })?;
+    let old_string = get_str("old_string")
+        .ok_or_else(|| "missing 'old_string' (the exact existing text to replace)".to_string())?;
 
     // new_string may legitimately be an empty string (a deletion); treat a
     // missing field as empty so deletions don't fail on omission.
-    let new_string =
-        get_str(&["new_string", "newString", "new_str", "new", "replace"]).unwrap_or_default();
+    let new_string = get_str("new_string").unwrap_or_default();
 
-    let replace_all = match obj
-        .get("replace_all")
-        .or_else(|| obj.get("replaceAll"))
-        .or_else(|| obj.get("all"))
-    {
+    let replace_all = match obj.get("replace_all") {
         Some(Value::Bool(b)) => *b,
         Some(Value::String(s)) => matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes"),
         Some(Value::Number(n)) => n.as_i64().map(|v| v != 0).unwrap_or(false),
@@ -200,7 +205,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn coerces_aliased_field_names() {
+    /// Aliased names are refused rather than silently accepted.
+    ///
+    /// This test previously asserted the opposite. `Edit` was the only tool
+    /// that accepted `path`/`old`/`new`, and rewarding the guess here is what
+    /// led models to reuse `path` on `Grep` and `Glob`, where the key was
+    /// dropped and the search quietly widened to the whole working directory.
+    /// The one-tool exception cost more elsewhere than it saved here, and the
+    /// refusal is cheap to recover from because it names the real parameter.
+    async fn rejects_aliased_field_names_and_names_the_real_ones() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("f.txt");
         std::fs::write(&path, "hello world").unwrap();
@@ -218,8 +231,17 @@ mod tests {
             )
             .await;
 
-        assert!(!res.is_error, "expected success, got: {:?}", res.content);
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello there");
+        assert!(res.is_error, "expected refusal, got: {:?}", res.content);
+        assert!(
+            res.content.contains("file_path"),
+            "must name the real parameter: {}",
+            res.content
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "hello world",
+            "a refused edit must not have touched the file"
+        );
     }
 
     #[tokio::test]

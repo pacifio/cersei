@@ -42,7 +42,12 @@ pub enum ContentBlock {
     },
     Thinking {
         thinking: String,
-        #[serde(default)]
+        // `skip_serializing_if`: a signature Cersei never captured must be
+        // *omitted* when history is echoed back, not sent as `"signature": ""`
+        // — adaptive-thinking models reject the empty string with a 400
+        // (TOOL-CALLING-RELIABILITY.md §10.5 #7). A real signature captured
+        // from `signature_delta` round-trips intact.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
         signature: String,
     },
     RedactedThinking {
@@ -230,17 +235,42 @@ impl Message {
     }
 }
 
+// ─── System-prompt dynamic boundary ──────────────────────────────────────────
+
+/// Marker an agent may embed in `CompletionRequest.system` to separate the
+/// stable (cacheable) prefix from the per-turn dynamic tail (git status,
+/// date, memory index). Providers split or strip it before the request goes
+/// on the wire: Anthropic places its cache breakpoint on the stable half
+/// only, so tail changes stop invalidating the cached prefix; providers with
+/// automatic caching just remove the marker. A system string without the
+/// marker is sent as a single block, unchanged.
+///
+/// Defined here (not in `cersei-agent`, which historically owned it and now
+/// re-exports it) because the dependency direction is agent -> provider: the
+/// providers that must consume the marker cannot import the agent crate.
+pub const SYSTEM_PROMPT_DYNAMIC_BOUNDARY: &str = "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__";
+
 // ─── Usage / Cost ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Usage {
+    /// Uncached prompt tokens billed at the full input rate. The total prompt
+    /// size is `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`.
     pub input_tokens: u64,
     pub output_tokens: u64,
     #[serde(default)]
     pub total_tokens: u64,
+    /// Prompt tokens written to the provider's prompt cache this request
+    /// (Anthropic: billed at ~1.25x the input rate for the default 5m TTL).
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    /// Prompt tokens served from the provider's prompt cache this request
+    /// (Anthropic: billed at ~0.1x the input rate).
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_usd: Option<f64>,
-    /// Provider-specific usage data (e.g. cache_creation_input_tokens for Anthropic)
+    /// Provider-specific usage data not covered by the fields above.
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub provider_usage: Value,
 }
@@ -254,13 +284,38 @@ impl Usage {
         }
     }
 
+    /// Additive merge for accumulating usage ACROSS requests (session totals,
+    /// cost tracking). Do not use this to combine usage events within one
+    /// streamed message — see [`Usage::merge_cumulative`].
     pub fn merge(&mut self, other: &Usage) {
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
+        self.cache_creation_input_tokens += other.cache_creation_input_tokens;
+        self.cache_read_input_tokens += other.cache_read_input_tokens;
         self.total_tokens = self.input_tokens + self.output_tokens;
         if let (Some(a), Some(b)) = (self.cost_usd, other.cost_usd) {
             self.cost_usd = Some(a + b);
         } else if other.cost_usd.is_some() {
+            self.cost_usd = other.cost_usd;
+        }
+    }
+
+    /// Merge for usage events WITHIN one streamed message, where counters are
+    /// cumulative snapshots rather than increments: Anthropic's `message_start`
+    /// carries the input/cache side plus a small initial `output_tokens`, and
+    /// the final `message_delta` carries the cumulative output total. Adding
+    /// them would double-count, so each field takes the larger snapshot.
+    pub fn merge_cumulative(&mut self, other: &Usage) {
+        self.input_tokens = self.input_tokens.max(other.input_tokens);
+        self.output_tokens = self.output_tokens.max(other.output_tokens);
+        self.cache_creation_input_tokens = self
+            .cache_creation_input_tokens
+            .max(other.cache_creation_input_tokens);
+        self.cache_read_input_tokens = self
+            .cache_read_input_tokens
+            .max(other.cache_read_input_tokens);
+        self.total_tokens = self.input_tokens + self.output_tokens;
+        if other.cost_usd.is_some() {
             self.cost_usd = other.cost_usd;
         }
     }
@@ -294,6 +349,11 @@ pub enum StreamEvent {
     MessageStart {
         id: String,
         model: String,
+        /// Usage carried on the message-open event. Anthropic's `message_start`
+        /// is the ONLY event that reports `cache_creation_input_tokens` /
+        /// `cache_read_input_tokens`, so dropping this loses cache accounting.
+        /// None for providers that report usage only at end of stream.
+        usage: Option<Usage>,
     },
     ContentBlockStart {
         index: usize,
@@ -316,6 +376,15 @@ pub enum StreamEvent {
     ThinkingDelta {
         index: usize,
         thinking: String,
+    },
+    /// Cryptographic signature for a thinking block (Anthropic
+    /// `signature_delta`). Must be captured and echoed back verbatim in
+    /// multi-turn history — dropping it (the pre-fix behaviour) meant every
+    /// echoed thinking block carried an empty signature, which adaptive
+    /// models reject.
+    SignatureDelta {
+        index: usize,
+        signature: String,
     },
     ContentBlockStop {
         index: usize,
@@ -350,8 +419,11 @@ pub enum CerseiError {
     #[error("Permission denied: {0}")]
     Permission(String),
 
-    #[error("Rate limit exceeded")]
-    RateLimit { retry_after: Option<Duration> },
+    #[error("Rate limit exceeded: {message}")]
+    RateLimit {
+        retry_after: Option<Duration>,
+        message: String,
+    },
 
     #[error("Context overflow: {used}/{limit} tokens")]
     ContextOverflow { used: u64, limit: u64 },
@@ -379,13 +451,60 @@ pub enum CerseiError {
 }
 
 impl CerseiError {
+    /// The error for a non-2xx provider response.
+    ///
+    /// Every provider funnels its HTTP failures through here so that "which
+    /// statuses are worth retrying" is decided once, next to
+    /// [`CerseiError::is_retryable`], rather than four times in four clients.
+    pub fn from_http_status(
+        status: u16,
+        retry_after: Option<Duration>,
+        message: impl Into<String>,
+    ) -> Self {
+        match status {
+            429 => CerseiError::RateLimit {
+                retry_after,
+                message: message.into(),
+            },
+            _ => CerseiError::ProviderStatus {
+                status,
+                message: message.into(),
+            },
+        }
+    }
+
     pub fn is_retryable(&self) -> bool {
-        matches!(
-            self,
-            CerseiError::RateLimit { .. }
-                | CerseiError::ProviderStatus { status: 429, .. }
-                | CerseiError::ProviderStatus { status: 529, .. }
-        )
+        match self {
+            // A 429 is transient — unless the body says the account is out of
+            // money, in which case every retry buys the same answer and the
+            // backoff ladder just delays the inevitable by five sleeps.
+            CerseiError::RateLimit { message, .. } => !Self::quota_exhausted(message),
+            // 529 is Anthropic's "overloaded". 500/502/503/504 are standard
+            // upstream/gateway blips — Gemini in particular returns 503
+            // UNAVAILABLE under load, which used to be session-fatal.
+            CerseiError::ProviderStatus { status, .. } => {
+                matches!(status, 429 | 500 | 502 | 503 | 504 | 529)
+            }
+            // Transport-level failures that never produced a status: the
+            // connection was refused, reset, or timed out. Scoped to the two
+            // reqwest classes that are unambiguously transient; malformed-URL
+            // and builder errors stay fatal.
+            CerseiError::Http(e) => e.is_connect() || e.is_timeout(),
+            _ => false,
+        }
+    }
+
+    /// A 429 that means "no credit", not "slow down".
+    ///
+    /// OpenAI: `insufficient_quota` / "You exceeded your current quota".
+    /// Anthropic: "credit balance is too low". Matched on the body because
+    /// providers reuse HTTP 429 for both meanings; genuine rate limits
+    /// (Gemini's RESOURCE_EXHAUSTED included) stay retryable.
+    fn quota_exhausted(message: &str) -> bool {
+        let m = message.to_ascii_lowercase();
+        m.contains("insufficient_quota")
+            || m.contains("exceeded your current quota")
+            || m.contains("credit balance")
     }
 
     pub fn is_context_limit(&self) -> bool {
@@ -410,4 +529,129 @@ pub struct MemoryEntry {
     pub content: String,
     pub relevance: f32,
     pub source: String,
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::*;
+
+    /// P3 #2: the cache accounting fields are first-class and must survive
+    /// cross-request accumulation (session totals, CostTracker).
+    #[test]
+    fn merge_sums_cache_fields_across_requests() {
+        let mut total = Usage {
+            input_tokens: 100,
+            output_tokens: 10,
+            cache_creation_input_tokens: 3815,
+            cache_read_input_tokens: 0,
+            ..Default::default()
+        };
+        total.merge(&Usage {
+            input_tokens: 50,
+            output_tokens: 20,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 3815,
+            ..Default::default()
+        });
+        assert_eq!(total.input_tokens, 150);
+        assert_eq!(total.output_tokens, 30);
+        assert_eq!(total.cache_creation_input_tokens, 3815);
+        assert_eq!(total.cache_read_input_tokens, 3815);
+    }
+
+    /// Within one streamed message the usage events are cumulative snapshots
+    /// (Anthropic: message_start carries input/cache + a small initial output;
+    /// the final message_delta repeats output as a total). Each field takes
+    /// the larger snapshot — adding would double-count.
+    #[test]
+    fn merge_cumulative_takes_snapshots_not_sums() {
+        let mut msg = Usage {
+            input_tokens: 3571,
+            output_tokens: 2,
+            cache_read_input_tokens: 6656,
+            ..Default::default()
+        };
+        msg.merge_cumulative(&Usage {
+            output_tokens: 727,
+            ..Default::default()
+        });
+        assert_eq!(msg.input_tokens, 3571, "input snapshot must be kept");
+        assert_eq!(msg.output_tokens, 727, "727, not 2 + 727");
+        assert_eq!(msg.cache_read_input_tokens, 6656);
+
+        // Applying the same snapshot twice must not grow anything.
+        let before = (msg.input_tokens, msg.output_tokens);
+        msg.merge_cumulative(&Usage {
+            output_tokens: 727,
+            ..Default::default()
+        });
+        assert_eq!((msg.input_tokens, msg.output_tokens), before);
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    fn status(code: u16) -> CerseiError {
+        CerseiError::from_http_status(code, None, "upstream said no")
+    }
+
+    #[test]
+    fn transient_5xx_statuses_are_retryable() {
+        // 503 is the Gemini gap from TOOL-CALLING-RELIABILITY.md §10.5 #1:
+        // it used to be session-fatal.
+        for code in [429, 500, 502, 503, 504, 529] {
+            assert!(status(code).is_retryable(), "{code} must be retryable");
+        }
+    }
+
+    #[test]
+    fn client_errors_are_fatal() {
+        for code in [400, 401, 403, 404, 413, 422] {
+            assert!(!status(code).is_retryable(), "{code} must not be retried");
+        }
+    }
+
+    #[test]
+    fn a_genuine_rate_limit_is_retryable() {
+        let err = CerseiError::from_http_status(
+            429,
+            Some(Duration::from_secs(2)),
+            r#"{"error":{"type":"rate_limit_error","message":"Too many requests"}}"#,
+        );
+        assert!(err.is_retryable());
+    }
+
+    /// §10.5 #2: a 429 whose body says the account is out of credit is not
+    /// transient. Retrying it five times used to stall the session through the
+    /// whole backoff ladder to receive the same refusal.
+    #[test]
+    fn quota_exhaustion_is_not_retried() {
+        for body in [
+            // OpenAI's shape, verbatim fields.
+            r#"{"error":{"type":"insufficient_quota","message":"You exceeded your current quota, please check your plan and billing details."}}"#,
+            // Anthropic's shape.
+            r#"{"error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}"#,
+        ] {
+            let err = CerseiError::from_http_status(429, None, body);
+            assert!(
+                !err.is_retryable(),
+                "quota exhaustion must fail fast, retried anyway: {body}"
+            );
+        }
+    }
+
+    #[test]
+    fn quota_matching_is_case_insensitive() {
+        let err = CerseiError::from_http_status(429, None, "INSUFFICIENT_QUOTA");
+        assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn non_http_errors_stay_fatal() {
+        assert!(!CerseiError::Provider("anything".into()).is_retryable());
+        assert!(!CerseiError::Auth("bad key".into()).is_retryable());
+        assert!(!CerseiError::Cancelled.is_retryable());
+    }
 }

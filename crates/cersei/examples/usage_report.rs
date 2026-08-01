@@ -13,7 +13,7 @@
 
 use cersei::events::AgentEvent;
 use cersei::prelude::*;
-use cersei::provider::{CompletionStream, ProviderCapabilities, ProviderOptions};
+use cersei::provider::{CompletionStream, ProviderOptions};
 use cersei::reporters::{AgentMetrics, MetricsReporter, Reporter};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -75,17 +75,7 @@ impl Provider for SimulatedClaude {
     fn context_window(&self, _model: &str) -> u64 {
         200_000
     }
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: true,
-            vision: true,
-            thinking: true,
-            system_prompt: true,
-            caching: true,
-        }
-    }
-
+    
     async fn complete(&self, request: CompletionRequest) -> cersei_types::Result<CompletionStream> {
         let turn = self.turn.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let model = self.model.clone();
@@ -105,6 +95,7 @@ impl Provider for SimulatedClaude {
                 .send(StreamEvent::MessageStart {
                     id: format!("msg_{}", uuid::Uuid::new_v4()),
                     model: model.clone(),
+                    usage: None,
                 })
                 .await;
 
@@ -169,11 +160,10 @@ impl Provider for SimulatedClaude {
                                 input_tokens: base_input - cache_read,
                                 output_tokens,
                                 total_tokens: base_input + output_tokens,
+                                cache_creation_input_tokens: 800,
+                                cache_read_input_tokens: cache_read,
                                 cost_usd: Some(cost),
-                                provider_usage: serde_json::json!({
-                                    "cache_creation_input_tokens": 800,
-                                    "cache_read_input_tokens": cache_read,
-                                }),
+                                ..Default::default()
                             }),
                         })
                         .await;
@@ -221,11 +211,9 @@ impl Provider for SimulatedClaude {
                                 input_tokens: base_input - cache_read,
                                 output_tokens,
                                 total_tokens: base_input + output_tokens,
+                                cache_read_input_tokens: cache_read,
                                 cost_usd: Some(cost),
-                                provider_usage: serde_json::json!({
-                                    "cache_creation_input_tokens": 0,
-                                    "cache_read_input_tokens": cache_read,
-                                }),
+                                ..Default::default()
                             }),
                         })
                         .await;
@@ -280,11 +268,9 @@ impl Provider for SimulatedClaude {
                                 input_tokens: base_input - cache_read,
                                 output_tokens,
                                 total_tokens: base_input + output_tokens,
+                                cache_read_input_tokens: cache_read,
                                 cost_usd: Some(cost),
-                                provider_usage: serde_json::json!({
-                                    "cache_creation_input_tokens": 0,
-                                    "cache_read_input_tokens": cache_read,
-                                }),
+                                ..Default::default()
                             }),
                         })
                         .await;

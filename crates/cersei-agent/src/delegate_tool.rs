@@ -211,7 +211,7 @@ fn truncate(s: &str, n: usize) -> String {
 mod tests {
     use super::*;
     use crate::delegate::{ProviderFactory, ToolsetFactory};
-    use cersei_provider::{CompletionRequest, CompletionStream, Provider, ProviderCapabilities};
+    use cersei_provider::{CompletionRequest, CompletionStream, Provider};
     use cersei_tools::permissions::AllowAll;
     use cersei_tools::{CostTracker, Extensions};
     use cersei_types::*;
@@ -224,14 +224,11 @@ mod tests {
     impl Provider for EchoProvider {
         fn name(&self) -> &str { "echo" }
         fn context_window(&self, _: &str) -> u64 { 4096 }
-        fn capabilities(&self, _: &str) -> ProviderCapabilities {
-            ProviderCapabilities { streaming: true, tool_use: false, ..Default::default() }
-        }
         async fn complete(&self, req: CompletionRequest) -> cersei_types::Result<CompletionStream> {
             let prompt = req.messages.last().and_then(|m| m.get_text()).unwrap_or("").to_string();
             let (tx, rx) = mpsc::channel(16);
             tokio::spawn(async move {
-                let _ = tx.send(StreamEvent::MessageStart { id: "1".into(), model: "echo".into() }).await;
+                let _ = tx.send(StreamEvent::MessageStart { id: "1".into(), model: "echo".into(), usage: None }).await;
                 let _ = tx.send(StreamEvent::ContentBlockStart { index: 0, block_type: "text".into(), id: None, name: None }).await;
                 let _ = tx.send(StreamEvent::TextDelta { index: 0, text: format!("done: {prompt}") }).await;
                 let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;

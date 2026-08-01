@@ -2,9 +2,8 @@
 //!
 //! Each entry contains the provider's API base URL, env var names for auth,
 //! API format (Anthropic or OpenAI-compatible), and known models with
-//! context windows and capabilities.
+//! context windows.
 
-use crate::ProviderCapabilities;
 
 /// API format used by a provider.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -36,7 +35,6 @@ pub struct ProviderEntry {
 pub struct ModelEntry {
     pub id: &'static str,
     pub context_window: u64,
-    pub capabilities: ProviderCapabilities,
 }
 
 impl ProviderEntry {
@@ -122,35 +120,6 @@ impl ProviderEntry {
     }
 }
 
-// ─── Capabilities shorthand ────────────────────────────────────────────────
-
-const FULL: ProviderCapabilities = ProviderCapabilities {
-    streaming: true,
-    tool_use: true,
-    vision: true,
-    thinking: false,
-    system_prompt: true,
-    caching: false,
-};
-
-const FULL_THINKING: ProviderCapabilities = ProviderCapabilities {
-    streaming: true,
-    tool_use: true,
-    vision: true,
-    thinking: true,
-    system_prompt: true,
-    caching: true,
-};
-
-const BASIC: ProviderCapabilities = ProviderCapabilities {
-    streaming: true,
-    tool_use: true,
-    vision: false,
-    thinking: false,
-    system_prompt: true,
-    caching: false,
-};
-
 // ─── Provider Registry ─────────────────────────────────────────────────────
 
 pub static REGISTRY: &[ProviderEntry] = &[
@@ -165,17 +134,14 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "claude-opus-4-6",
                 context_window: 200_000,
-                capabilities: FULL_THINKING,
             },
             ModelEntry {
                 id: "claude-sonnet-4-6",
                 context_window: 200_000,
-                capabilities: FULL_THINKING,
             },
             ModelEntry {
                 id: "claude-haiku-4-5",
                 context_window: 200_000,
-                capabilities: FULL,
             },
         ],
     },
@@ -192,17 +158,14 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "claude-opus-4-8",
                 context_window: 200_000,
-                capabilities: FULL_THINKING,
             },
             ModelEntry {
                 id: "claude-sonnet-4-6",
                 context_window: 200_000,
-                capabilities: FULL_THINKING,
             },
             ModelEntry {
                 id: "claude-haiku-4-5",
                 context_window: 200_000,
-                capabilities: FULL,
             },
         ],
     },
@@ -217,52 +180,42 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "gpt-5.4-2026-03-05",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gpt-5.3-chat-latest",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gpt-5.3-chat",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gpt-5.3-codex",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gpt-5-chat",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gpt-4o",
                 context_window: 128_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gpt-4-turbo",
                 context_window: 128_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "o1",
                 context_window: 200_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "o3",
                 context_window: 200_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "o3-pro",
                 context_window: 200_000,
-                capabilities: FULL,
             },
         ],
     },
@@ -277,32 +230,26 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "gemini-3.1-pro-preview",
                 context_window: 2_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gemini-3.0-flash",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gemini-2.0-flash",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gemini-2.0-pro",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gemini-1.5-pro",
                 context_window: 2_000_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "gemini-1.5-flash",
                 context_window: 1_000_000,
-                capabilities: FULL,
             },
         ],
     },
@@ -317,12 +264,10 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "mistral-large-latest",
                 context_window: 128_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "codestral-latest",
                 context_window: 256_000,
-                capabilities: BASIC,
             },
         ],
     },
@@ -337,17 +282,14 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "llama-3.1-70b-versatile",
                 context_window: 128_000,
-                capabilities: BASIC,
             },
             ModelEntry {
                 id: "llama-3.1-8b-instant",
                 context_window: 128_000,
-                capabilities: BASIC,
             },
             ModelEntry {
                 id: "mixtral-8x7b-32768",
                 context_window: 32_768,
-                capabilities: BASIC,
             },
         ],
     },
@@ -362,17 +304,14 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "deepseek-chat",
                 context_window: 64_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "deepseek-reasoner",
                 context_window: 64_000,
-                capabilities: FULL_THINKING,
             },
             ModelEntry {
                 id: "deepseek-coder",
                 context_window: 64_000,
-                capabilities: BASIC,
             },
         ],
     },
@@ -386,7 +325,6 @@ pub static REGISTRY: &[ProviderEntry] = &[
         models: &[ModelEntry {
             id: "grok-2",
             context_window: 128_000,
-            capabilities: FULL,
         }],
     },
     ProviderEntry {
@@ -399,7 +337,6 @@ pub static REGISTRY: &[ProviderEntry] = &[
         models: &[ModelEntry {
             id: "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
             context_window: 128_000,
-            capabilities: BASIC,
         }],
     },
     ProviderEntry {
@@ -412,7 +349,6 @@ pub static REGISTRY: &[ProviderEntry] = &[
         models: &[ModelEntry {
             id: "accounts/fireworks/models/llama-v3p1-70b-instruct",
             context_window: 128_000,
-            capabilities: BASIC,
         }],
     },
     ProviderEntry {
@@ -425,7 +361,6 @@ pub static REGISTRY: &[ProviderEntry] = &[
         models: &[ModelEntry {
             id: "llama-3.1-sonar-large-128k-online",
             context_window: 128_000,
-            capabilities: BASIC,
         }],
     },
     ProviderEntry {
@@ -438,7 +373,6 @@ pub static REGISTRY: &[ProviderEntry] = &[
         models: &[ModelEntry {
             id: "llama3.1-70b",
             context_window: 128_000,
-            capabilities: BASIC,
         }],
     },
     ProviderEntry {
@@ -470,17 +404,14 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "command-r-plus",
                 context_window: 128_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "command-r",
                 context_window: 128_000,
-                capabilities: FULL,
             },
             ModelEntry {
                 id: "command-a",
                 context_window: 256_000,
-                capabilities: FULL,
             },
         ],
     },
@@ -495,12 +426,10 @@ pub static REGISTRY: &[ProviderEntry] = &[
             ModelEntry {
                 id: "Meta-Llama-3.1-70B-Instruct",
                 context_window: 128_000,
-                capabilities: BASIC,
             },
             ModelEntry {
                 id: "Meta-Llama-3.1-405B-Instruct",
                 context_window: 128_000,
-                capabilities: BASIC,
             },
         ],
     },

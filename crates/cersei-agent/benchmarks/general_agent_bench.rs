@@ -23,7 +23,7 @@ static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 use async_trait::async_trait;
 use cersei_agent::Agent;
-use cersei_provider::{CompletionRequest, CompletionStream, Provider, ProviderCapabilities};
+use cersei_provider::{CompletionRequest, CompletionStream, Provider};
 use cersei_tools::permissions::AllowAll;
 use cersei_tools::{PermissionLevel, Tool, ToolCategory, ToolContext, ToolResult};
 use cersei_types::*;
@@ -273,16 +273,6 @@ impl Provider for StubProvider {
     fn context_window(&self, _model: &str) -> u64 {
         1_000_000
     }
-    fn capabilities(&self, _model: &str) -> ProviderCapabilities {
-        ProviderCapabilities {
-            streaming: true,
-            tool_use: false,
-            vision: false,
-            thinking: false,
-            system_prompt: true,
-            caching: false,
-        }
-    }
 
     async fn complete(&self, _request: CompletionRequest) -> Result<CompletionStream> {
         let (tx, rx) = mpsc::channel(8);
@@ -291,6 +281,7 @@ impl Provider for StubProvider {
                 .send(StreamEvent::MessageStart {
                     id: "stub-1".into(),
                     model: "stub".into(),
+                    usage: None,
                 })
                 .await;
             let _ = tx
