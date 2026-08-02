@@ -284,6 +284,12 @@ Agent::builder()
 let mcp = McpManager::connect(&[
     McpServerConfig::stdio("db", "npx", &["-y", "@my/db-mcp"]),
     McpServerConfig::sse("docs", "https://mcp.example.com"),
+    // Remote Streamable HTTP MCP via a stdio bridge; no account or API key required.
+    McpServerConfig::stdio(
+        "parallel-search",
+        "npx",
+        &["-y", "mcp-remote", "https://search.parallel.ai/mcp"],
+    ),
 ]).await?;
 
 Agent::builder().tools(mcp.tool_definitions().await)
