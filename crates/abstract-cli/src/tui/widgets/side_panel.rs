@@ -315,8 +315,17 @@ pub fn refresh_content(state: &mut AppState, working_dir: &std::path::Path) {
             if line.len() < 4 {
                 return line.to_string();
             }
-            let code = &line[..2];
-            let file = line[3..].trim();
+            // Floor the 2-byte code slice to a valid UTF-8 char boundary.
+            // git status lines can be preceded by filenames containing
+            // multibyte characters in edge cases; this guards against
+            // panicking mid-character (fixes the "end byte index is not
+            // a char boundary" crash).
+            let mut limit = 2.min(line.len());
+            while limit > 0 && !line.is_char_boundary(limit) {
+                limit -= 1;
+            }
+            let code = &line[..limit];
+            let file = line.get(3..).unwrap_or("").trim();
             match code.trim() {
                 "??" => format!("  untracked  {file}"),
                 "M" | " M" => format!("  modified   {file}"),
