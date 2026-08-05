@@ -44,6 +44,8 @@ termimad = "0.30"
 # Markdown + Syntax Highlighting
 pulldown-cmark = "0.12"
 syntect = { version = "5", features = ["default-syntaxes", "default-themes"] }
+unicode-segmentation = { workspace = true }
+unicode-width = { workspace = true }
 
 # Input (legacy — kept for non-TUI fallback)
 rustyline = "15"

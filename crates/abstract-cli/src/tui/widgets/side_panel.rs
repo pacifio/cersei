@@ -315,8 +315,10 @@ pub fn refresh_content(state: &mut AppState, working_dir: &std::path::Path) {
             if line.len() < 4 {
                 return line.to_string();
             }
-            let code = &line[..2];
-            let file = line[3..].trim();
+            // `git status --short` reserves its first two ASCII bytes for the
+            // status code. `get` keeps the parsing safe for malformed output.
+            let code = line.get(..2).unwrap_or("");
+            let file = line.get(3..).unwrap_or("").trim();
             match code.trim() {
                 "??" => format!("  untracked  {file}"),
                 "M" | " M" => format!("  modified   {file}"),

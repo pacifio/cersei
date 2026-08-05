@@ -70,7 +70,7 @@ pub fn list(config: &AppConfig) -> anyhow::Result<()> {
             .unwrap_or_else(|| "unknown".into());
 
         let display_name = if name.len() > 38 {
-            format!("{}...", &name[..35])
+            format!("{}...", truncate_at_char_boundary(name, 35))
         } else {
             name.clone()
         };
@@ -80,6 +80,14 @@ pub fn list(config: &AppConfig) -> anyhow::Result<()> {
 
     println!("\n{} session(s)", entries.len());
     Ok(())
+}
+
+fn truncate_at_char_boundary(text: &str, max_bytes: usize) -> &str {
+    let mut end = max_bytes.min(text.len());
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
 }
 
 /// Show a session transcript.

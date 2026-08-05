@@ -6,6 +6,8 @@ use std::sync::OnceLock;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
 static THEME_SET: OnceLock<ThemeSet> = OnceLock::new();
@@ -163,51 +165,39 @@ pub fn render_markdown(text: &str, width: u16) -> Vec<Line<'static>> {
 
     flush_line(&mut lines, &mut current_spans);
 
-    // Wrap lines that exceed terminal width
+    // Wrap lines that exceed terminal width. UTF-8 byte length is neither a
+    // character count nor a terminal column width, so work one grapheme at a
+    // time and use its display width instead.
     if max_width > 0 {
         let mut wrapped = Vec::with_capacity(lines.len());
         for line in lines {
-            let line_width: usize = line.spans.iter().map(|s| s.content.len()).sum();
+            let line_width: usize = line.spans.iter().map(|s| s.content.width()).sum();
             if line_width <= max_width {
                 wrapped.push(line);
             } else {
-                // Split long line into multiple lines
                 let mut current_width = 0usize;
                 let mut current_spans: Vec<Span<'static>> = Vec::new();
                 for span in line.spans {
-                    let span_len = span.content.len();
-                    if current_width + span_len <= max_width {
-                        current_width += span_len;
-                        current_spans.push(span);
-                    } else {
-                        // Need to split this span
-                        let remaining = max_width.saturating_sub(current_width);
-                        if remaining > 0 {
-                            let text = span.content.to_string();
-                            let (first, rest) = text.split_at(remaining.min(text.len()));
-                            if !first.is_empty() {
-                                current_spans.push(Span::styled(first.to_string(), span.style));
+                    let mut fragment = String::new();
+                    for grapheme in span.content.graphemes(true) {
+                        let grapheme_width = grapheme.width();
+                        if current_width > 0 && current_width + grapheme_width > max_width {
+                            if !fragment.is_empty() {
+                                current_spans
+                                    .push(Span::styled(std::mem::take(&mut fragment), span.style));
                             }
                             wrapped.push(Line::from(std::mem::take(&mut current_spans)));
-                            // Continue with rest of span
-                            let mut leftover = rest.to_string();
-                            while leftover.len() > max_width {
-                                let (chunk, rem) = leftover.split_at(max_width);
-                                wrapped
-                                    .push(Line::from(Span::styled(chunk.to_string(), span.style)));
-                                leftover = rem.to_string();
-                            }
-                            if !leftover.is_empty() {
-                                current_spans.push(Span::styled(leftover, span.style));
-                                current_width = current_spans.iter().map(|s| s.content.len()).sum();
-                            } else {
-                                current_width = 0;
-                            }
-                        } else {
-                            wrapped.push(Line::from(std::mem::take(&mut current_spans)));
-                            current_spans.push(span);
-                            current_width = span_len;
+                            current_width = 0;
                         }
+
+                        // A single grapheme can be wider than the available
+                        // space (for example a wide CJK glyph in a one-column
+                        // terminal). Keep it intact and make forward progress.
+                        fragment.push_str(grapheme);
+                        current_width += grapheme_width;
+                    }
+                    if !fragment.is_empty() {
+                        current_spans.push(Span::styled(fragment, span.style));
                     }
                 }
                 if !current_spans.is_empty() {
@@ -218,6 +208,43 @@ pub fn render_markdown(text: &str, width: u16) -> Vec<Line<'static>> {
         wrapped
     } else {
         lines
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn text_of(line: &Line<'static>) -> String {
+        line.spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect()
+    }
+
+    #[test]
+    fn wraps_unicode_without_splitting_graphemes() {
+        let input = "e\u{301}漢🙂\u{200d}💻";
+        let lines = render_markdown(input, 2);
+        let rendered: String = lines.iter().map(text_of).collect();
+
+        assert_eq!(rendered, input);
+
+        let mut consumed = 0;
+        for line in lines {
+            let line_text = text_of(&line);
+            if line_text.is_empty() {
+                continue;
+            }
+            consumed += line_text.len();
+            assert!(
+                consumed == input.len()
+                    || input
+                        .grapheme_indices(true)
+                        .any(|(index, _)| index == consumed),
+                "line ends inside a grapheme cluster"
+            );
+        }
     }
 }
 
