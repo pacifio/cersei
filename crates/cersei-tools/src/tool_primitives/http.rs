@@ -151,10 +151,11 @@ pub async fn post(url: &str, body: &str, opts: HttpOptions) -> Result<HttpRespon
 }
 
 /// Fetch a URL and convert HTML to readable plain text.
-/// Non-HTML content is returned as-is. Truncated to `max_chars`.
+/// Non-HTML content is returned as-is. Truncated to at most `max_bytes`
+/// without splitting a UTF-8 character.
 pub async fn fetch_html(
     url: &str,
-    max_chars: usize,
+    max_bytes: usize,
     opts: HttpOptions,
 ) -> Result<String, HttpError> {
     let resp = get(url, opts).await?;
@@ -171,9 +172,17 @@ pub async fn fetch_html(
         resp.body
     };
 
-    if text.len() > max_chars {
-        Ok(text[..max_chars].to_string())
+    if text.len() > max_bytes {
+        Ok(text[..floor_char_boundary(&text, max_bytes)].to_string())
     } else {
         Ok(text)
     }
+}
+
+fn floor_char_boundary(text: &str, max_bytes: usize) -> usize {
+    let mut end = max_bytes.min(text.len());
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    end
 }

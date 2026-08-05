@@ -84,6 +84,7 @@ url = "2"
 
 # Text processing
 similar = "2"
+unicode-segmentation = "1"
 unicode-width = "0.2"
 
 # HTML processing

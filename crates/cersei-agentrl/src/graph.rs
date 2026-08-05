@@ -236,8 +236,16 @@ impl FailureTrace {
 pub(crate) fn summarize_input(input: &Value) -> String {
     let s = input.to_string();
     if s.len() > EXCERPT_MAX {
-        format!("{}…", &s[..EXCERPT_MAX])
+        format!("{}…", &s[..floor_char_boundary(&s, EXCERPT_MAX)])
     } else {
         s
     }
+}
+
+fn floor_char_boundary(text: &str, max_bytes: usize) -> usize {
+    let mut end = max_bytes.min(text.len());
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    end
 }
