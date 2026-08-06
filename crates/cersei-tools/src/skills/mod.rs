@@ -127,21 +127,13 @@ pub fn extract_description(content: &str) -> String {
         // Strip heading markers
         let trimmed = trimmed.trim_start_matches('#').trim();
         let desc = if trimmed.len() > 80 {
-            format!("{}...", &trimmed[..floor_char_boundary(trimmed, 77)])
+            format!("{}...", &trimmed[..trimmed.floor_char_boundary(77)])
         } else {
             trimmed.to_string()
         };
         return desc;
     }
     String::new()
-}
-
-fn floor_char_boundary(text: &str, max_bytes: usize) -> usize {
-    let mut end = max_bytes.min(text.len());
-    while end > 0 && !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    end
 }
 
 #[cfg(test)]

@@ -10,6 +10,8 @@ use crate::tui::{
     widgets::tool_call::render_tool_call,
 };
 use ratatui::prelude::*;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 pub fn render(f: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) {
     let width = area.width.saturating_sub(4);
@@ -150,21 +152,17 @@ fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
     }
     let mut result = Vec::new();
     for line in text.lines() {
-        if line.len() <= max_width {
+        if line.width() <= max_width {
             result.push(line.to_string());
         } else {
             let mut remaining = line;
-            while remaining.len() > max_width {
-                // Floor the hard limit to a char boundary so slicing never
-                // splits a multibyte UTF-8 sequence.
-                let mut limit = max_width;
-                while limit > 0 && !remaining.is_char_boundary(limit) {
-                    limit -= 1;
-                }
-                // Guarantee forward progress: if a single leading char is wider
-                // than max_width, emit that whole char rather than spinning.
+            while remaining.width() > max_width {
+                let mut limit = byte_index_at_width(remaining, max_width);
                 if limit == 0 {
-                    limit = remaining.chars().next().map_or(1, char::len_utf8);
+                    limit = remaining
+                        .graphemes(true)
+                        .next()
+                        .map_or(remaining.len(), str::len);
                 }
                 let break_at = remaining[..limit].rfind(' ').unwrap_or(limit);
                 let break_at = if break_at == 0 { limit } else { break_at };
@@ -180,4 +178,31 @@ fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
         result.push(String::new());
     }
     result
+}
+
+fn byte_index_at_width(text: &str, max_width: usize) -> usize {
+    let mut width = 0;
+    for (index, grapheme) in text.grapheme_indices(true) {
+        let next_width = width + grapheme.width();
+        if next_width > max_width {
+            return index;
+        }
+        width = next_width;
+    }
+    text.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wrap_text_preserves_ascii_behavior() {
+        assert_eq!(wrap_text("abcdefgh", 4), vec!["abcd", "efgh"]);
+    }
+
+    #[test]
+    fn wrap_text_handles_unicode_display_width() {
+        assert_eq!(wrap_text("éab🙂漢", 4), vec!["éab", "🙂漢"]);
+    }
 }

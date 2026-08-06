@@ -345,20 +345,12 @@ fn extract_snippet(result: &ExaResult) -> String {
             // Truncate long text to a reasonable snippet length
             let max_snippet = 500;
             if text.len() > max_snippet {
-                return format!("{}...", &text[..floor_char_boundary(text, max_snippet)]);
+                return format!("{}...", &text[..text.floor_char_boundary(max_snippet)]);
             }
             return text.clone();
         }
     }
     String::new()
-}
-
-fn floor_char_boundary(text: &str, max_bytes: usize) -> usize {
-    let mut end = max_bytes.min(text.len());
-    while end > 0 && !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    end
 }
 
 #[cfg(test)]

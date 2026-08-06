@@ -252,8 +252,9 @@ impl Provider for SimulatedClaude {
                         - **Key crate**: `cersei-agent` (agent builder + agentic loop)\n\
                         - **Architecture**: Provider-agnostic with trait-based extensibility\n\n\
                         The project is well-organized with clean separation of concerns.";
-                    for chunk in response.as_bytes().chunks(40) {
-                        let text = String::from_utf8_lossy(chunk).to_string();
+                    let response_chars: Vec<char> = response.chars().collect();
+                    for chunk in response_chars.chunks(40) {
+                        let text = chunk.iter().collect();
                         let _ = tx.send(StreamEvent::TextDelta { index: 1, text }).await;
                         tokio::time::sleep(Duration::from_millis(5)).await;
                     }

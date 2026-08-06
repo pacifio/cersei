@@ -89,7 +89,7 @@ impl Reporter for EventMonitor {
             AgentEvent::ToolStart { name, id, .. } => {
                 self.record(
                     "tool_start",
-                    &format!("{} ({})", name, &id[..8.min(id.len())]),
+                    &format!("{} ({})", name, &id[..id.floor_char_boundary(8)]),
                 );
                 eprint!("\x1b[33m  [{name}] \x1b[0m");
             }
@@ -112,7 +112,7 @@ impl Reporter for EventMonitor {
                     status,
                     duration.as_millis(),
                     if preview.len() > 60 {
-                        &preview[..60]
+                        &preview[..preview.floor_char_boundary(60)]
                     } else {
                         &preview
                     }
@@ -532,11 +532,12 @@ impl Provider for MockCodingProvider {
                         - Each todo has id, text, done status, and created_at timestamp\n\
                         - Formatted output with checkmarks\n\
                         - Python syntax verified successfully\n";
-                    for chunk in summary.as_bytes().chunks(50) {
+                    let summary_chars: Vec<char> = summary.chars().collect();
+                    for chunk in summary_chars.chunks(50) {
                         let _ = tx
                             .send(StreamEvent::TextDelta {
                                 index: 0,
-                                text: String::from_utf8_lossy(chunk).to_string(),
+                                text: chunk.iter().collect(),
                             })
                             .await;
                         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
