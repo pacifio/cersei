@@ -15,10 +15,15 @@ pub mod protocol;
 
 use crate::error::{Result, VmError};
 use std::path::Path;
+
+#[cfg(unix)]
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+#[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
 /// Run the envd server on a Unix socket at `socket_path` until shutdown.
+#[cfg(unix)]
 pub async fn run<P: AsRef<Path>>(socket_path: P) -> Result<()> {
     let path = socket_path.as_ref();
     if path.exists() {
@@ -44,6 +49,14 @@ pub async fn run<P: AsRef<Path>>(socket_path: P) -> Result<()> {
     }
 }
 
+#[cfg(not(unix))]
+pub async fn run<P: AsRef<Path>>(_socket_path: P) -> Result<()> {
+    Err(VmError::Transport(
+        "cersei-envd requires Unix-domain socket support".to_string(),
+    ))
+}
+
+#[cfg(unix)]
 async fn handle_conn(stream: UnixStream) -> Result<()> {
     let (read_half, mut write_half) = stream.into_split();
     let mut reader = BufReader::new(read_half).lines();
