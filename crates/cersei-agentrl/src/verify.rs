@@ -213,16 +213,8 @@ fn truncate(s: &str, n: usize) -> String {
     if s.len() <= n {
         s.to_string()
     } else {
-        format!("{}…", &s[..floor_char_boundary(s, n)])
+        format!("{}…", &s[..s.floor_char_boundary(n)])
     }
-}
-
-fn floor_char_boundary(text: &str, max_bytes: usize) -> usize {
-    let mut end = max_bytes.min(text.len());
-    while end > 0 && !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    end
 }
 
 #[cfg(test)]

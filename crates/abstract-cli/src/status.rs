@@ -27,11 +27,7 @@ impl StatusLine {
             output_tokens: 0,
             cost_usd: 0.0,
             context_pct: 0.0,
-            session_id: if session_id.len() > 8 {
-                session_id[..8].to_string()
-            } else {
-                session_id.to_string()
-            },
+            session_id: session_id[..session_id.floor_char_boundary(8)].to_string(),
             enabled,
         }
     }

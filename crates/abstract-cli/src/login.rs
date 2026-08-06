@@ -934,10 +934,13 @@ fn read_line_trimmed() -> anyhow::Result<String> {
 }
 
 fn mask_key(key: &str) -> String {
-    if key.len() <= 8 {
+    let chars: Vec<char> = key.chars().collect();
+    if chars.len() <= 8 {
         "****".into()
     } else {
-        format!("{}...{}", &key[..4], &key[key.len() - 4..])
+        let head: String = chars[..4].iter().collect();
+        let tail: String = chars[chars.len() - 4..].iter().collect();
+        format!("{head}...{tail}")
     }
 }
 
@@ -946,5 +949,31 @@ fn capitalize(s: &str) -> String {
     match c.next() {
         None => String::new(),
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mask_key_masks_short_keys() {
+        assert_eq!(mask_key("abc"), "****");
+        assert_eq!(mask_key("12345678"), "****");
+    }
+
+    #[test]
+    fn mask_key_keeps_ascii_ends() {
+        assert_eq!(mask_key("sk-ant-abcdefghijklmnop"), "sk-a...mnop");
+    }
+
+    #[test]
+    fn mask_key_never_panics_on_multibyte() {
+        // The old byte-slicing version panicked mid-character on this key.
+        let key = "éééééééééééééééééééé";
+        let masked = mask_key(key);
+        assert_eq!(masked.chars().count(), 4 + 3 + 4);
+        assert!(masked.starts_with("éééé"));
+        assert!(masked.ends_with("éééé"));
     }
 }

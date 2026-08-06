@@ -173,16 +173,8 @@ pub async fn fetch_html(
     };
 
     if text.len() > max_bytes {
-        Ok(text[..floor_char_boundary(&text, max_bytes)].to_string())
+        Ok(text[..text.floor_char_boundary(max_bytes)].to_string())
     } else {
         Ok(text)
     }
-}
-
-fn floor_char_boundary(text: &str, max_bytes: usize) -> usize {
-    let mut end = max_bytes.min(text.len());
-    while end > 0 && !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    end
 }

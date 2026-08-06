@@ -359,7 +359,7 @@ async fn run_agent_streaming(
                 if !json_mode {
                     eprintln!(
                         "\x1b[90m  Resumed session {} ({} messages)\x1b[0m",
-                        &session_id[..8.min(session_id.len())],
+                        &session_id[..session_id.floor_char_boundary(8)],
                         message_count
                     );
                 }
@@ -371,7 +371,7 @@ async fn run_agent_streaming(
                     let preview: String = prompt.chars().take(60).collect();
                     eprintln!(
                         "\x1b[90m  Sub-agent {}: {preview}...\x1b[0m",
-                        &agent_id[..8.min(agent_id.len())]
+                        &agent_id[..agent_id.floor_char_boundary(8)]
                     );
                 }
             }

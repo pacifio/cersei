@@ -237,7 +237,7 @@ pub fn load_memory_index(memory_dir: &Path) -> Option<MemoryIndex> {
     let output = if truncated {
         let mut result: String = lines[..MAX_INDEX_LINES.min(total_lines)].join("\n");
         if result.len() > MAX_INDEX_BYTES {
-            result.truncate(floor_char_boundary(&result, MAX_INDEX_BYTES));
+            result.truncate(result.floor_char_boundary(MAX_INDEX_BYTES));
         }
         result.push_str(&format!(
             "\n\n<!-- MEMORY.md truncated: {} total lines, showing {} -->",
@@ -254,14 +254,6 @@ pub fn load_memory_index(memory_dir: &Path) -> Option<MemoryIndex> {
         truncated,
         total_lines,
     })
-}
-
-fn floor_char_boundary(text: &str, max_bytes: usize) -> usize {
-    let mut end = max_bytes.min(text.len());
-    while end > 0 && !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    end
 }
 
 /// Build the complete memory prompt content for the system prompt.

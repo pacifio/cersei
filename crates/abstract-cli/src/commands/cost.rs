@@ -1,9 +1,5 @@
 pub fn run(session_id: &str) -> anyhow::Result<()> {
-    let short_id = if session_id.len() > 8 {
-        &session_id[..8]
-    } else {
-        session_id
-    };
+    let short_id = &session_id[..session_id.floor_char_boundary(8)];
     eprintln!("\x1b[90mSession: {short_id}\x1b[0m");
     eprintln!("\x1b[90mCost tracking is displayed in the status line during agent runs.\x1b[0m");
     // Full cost tracking would require access to the agent's CostTracker.

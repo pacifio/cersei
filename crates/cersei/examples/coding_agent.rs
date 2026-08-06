@@ -89,7 +89,7 @@ impl Reporter for EventMonitor {
             AgentEvent::ToolStart { name, id, .. } => {
                 self.record(
                     "tool_start",
-                    &format!("{} ({})", name, &id[..8.min(id.len())]),
+                    &format!("{} ({})", name, &id[..id.floor_char_boundary(8)]),
                 );
                 eprint!("\x1b[33m  [{name}] \x1b[0m");
             }
@@ -112,7 +112,7 @@ impl Reporter for EventMonitor {
                     status,
                     duration.as_millis(),
                     if preview.len() > 60 {
-                        &preview[..60]
+                        &preview[..preview.floor_char_boundary(60)]
                     } else {
                         &preview
                     }

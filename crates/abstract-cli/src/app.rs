@@ -318,11 +318,7 @@ fn build_memory_manager(config: &AppConfig) -> anyhow::Result<MemoryManager> {
 }
 
 fn print_banner(config: &AppConfig, session_id: &str, effort: &EffortLevel) {
-    let short_id = if session_id.len() > 8 {
-        &session_id[..8]
-    } else {
-        session_id
-    };
+    let short_id = &session_id[..session_id.floor_char_boundary(8)];
 
     eprintln!(
         "\x1b[36;1mabstract\x1b[0m \x1b[90mv{} | {} | {:?} effort | session {}\x1b[0m",

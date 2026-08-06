@@ -209,11 +209,7 @@ impl AppState {
             virtual_list: crate::tui::virtual_list::VirtualList::new(),
             messages_dirty: true,
             model: model.to_string(),
-            session_id: if session_id.len() > 8 {
-                session_id[..8].to_string()
-            } else {
-                session_id.to_string()
-            },
+            session_id: session_id[..session_id.floor_char_boundary(8)].to_string(),
             effort: effort.to_string(),
             input_tokens: 0,
             output_tokens: 0,
