@@ -54,7 +54,7 @@ impl Provider for EchoProvider {
             let _ = tx
                 .send(StreamEvent::TextDelta {
                     index: 0,
-                    text: format!("[Echo] {}", &prompt[..prompt.len().min(100)]),
+                    text: format!("[Echo] {}", &prompt[..prompt.floor_char_boundary(100)]),
                 })
                 .await;
             let _ = tx.send(StreamEvent::ContentBlockStop { index: 0 }).await;

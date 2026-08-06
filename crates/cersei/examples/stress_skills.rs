@@ -366,7 +366,7 @@ Build durable AI agents that survive restarts.
                     println!(
                         "    {} — {} [{:?}]",
                         s.name,
-                        &s.description[..s.description.len().min(50)],
+                        &s.description[..s.description.floor_char_boundary(50)],
                         s.format
                     );
                 }

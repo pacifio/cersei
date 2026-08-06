@@ -2,6 +2,8 @@
 
 use crate::tui::{app::AppState, theme::Theme};
 use ratatui::{prelude::*, widgets::Paragraph};
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 pub fn render(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     let prompt = if state.is_streaming { "  " } else { "> " };
@@ -71,18 +73,13 @@ fn visual_lines(input: &str, prompt: &str, usable_width: usize) -> Vec<String> {
         while !rem.is_empty() {
             let p = if first { pfx } else { "  " };
             let cap = usable_width;
-            if rem.len() <= cap {
+            if rem.width() <= cap {
                 out.push(format!("{p}{rem}"));
                 break;
             }
-            // Floor the wrap column to a char boundary so we never slice
-            // through a multibyte UTF-8 sequence.
-            let mut limit = cap.min(rem.len());
-            while limit > 0 && !rem.is_char_boundary(limit) {
-                limit -= 1;
-            }
+            let mut limit = byte_index_at_width(rem, cap);
             if limit == 0 {
-                limit = rem.chars().next().map_or(1, char::len_utf8);
+                limit = rem.graphemes(true).next().map_or(rem.len(), str::len);
             }
             let brk = rem[..limit].rfind(' ').map(|i| i + 1).unwrap_or(limit);
             let brk = if brk == 0 { limit } else { brk };
@@ -116,7 +113,7 @@ fn cursor_visual_pos(
 
         if is_last {
             // Cursor is somewhere in this segment
-            let len = seg.len();
+            let len = seg.width();
             if usable_width == 0 {
                 return (row, pfx_len);
             }
@@ -127,7 +124,7 @@ fn cursor_visual_pos(
         }
 
         // Not the last — count full visual rows this segment occupies
-        let len = seg.len();
+        let len = seg.width();
         if len == 0 {
             row += 1;
         } else if usable_width > 0 {
@@ -140,4 +137,36 @@ fn cursor_visual_pos(
     // Cursor is right after a trailing newline
     let pfx_len = if logical.is_empty() { prompt.len() } else { 2 };
     (row, pfx_len)
+}
+
+fn byte_index_at_width(text: &str, max_width: usize) -> usize {
+    let mut width = 0;
+    for (index, grapheme) in text.grapheme_indices(true) {
+        let next_width = width + grapheme.width();
+        if next_width > max_width {
+            return index;
+        }
+        width = next_width;
+    }
+    text.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visual_lines_preserve_ascii_behavior() {
+        assert_eq!(visual_lines("abcdefgh", "> ", 4), vec!["> abcd", "  efgh"]);
+    }
+
+    #[test]
+    fn visual_lines_handle_unicode_display_width() {
+        assert_eq!(visual_lines("éab🙂漢", "> ", 4), vec!["> éab", "  🙂漢"]);
+    }
+
+    #[test]
+    fn cursor_uses_terminal_columns_for_unicode() {
+        assert_eq!(cursor_visual_pos("é漢🙂", "é漢🙂".len(), "> ", 4), (1, 3));
+    }
 }

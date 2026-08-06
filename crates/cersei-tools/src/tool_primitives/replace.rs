@@ -185,7 +185,13 @@ fn indentation_flexible_replacer(content: &str, find: &str) -> Vec<String> {
             .unwrap_or(0);
         lines
             .iter()
-            .map(|l| if l.len() >= min_indent { &l[min_indent..] } else { l.trim_start() })
+            .map(|l| {
+                if l.len() >= min_indent {
+                    &l[l.floor_char_boundary(min_indent)..]
+                } else {
+                    l.trim_start()
+                }
+            })
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -356,6 +362,15 @@ mod tests {
         let new = "if cond {\n  do_other();\n}";
         let out = replace(content, old, new, false).unwrap();
         assert!(out.contains("do_other();"));
+    }
+
+    #[test]
+    fn indentation_flexible_does_not_split_unicode_whitespace() {
+        let block = "  alpha\n\u{3000}beta\n  🙂";
+        assert_eq!(
+            indentation_flexible_replacer(block, block),
+            vec![block.to_string()]
+        );
     }
 
     #[test]
