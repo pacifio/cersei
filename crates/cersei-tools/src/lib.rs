@@ -23,6 +23,7 @@ pub mod notebook_edit;
 pub mod permissions;
 pub mod plan_mode;
 pub mod powershell;
+pub mod pricing;
 pub mod remote_trigger;
 pub mod send_message;
 pub mod skill_tool;
@@ -31,11 +32,11 @@ pub mod sleep;
 pub mod synthetic_output;
 pub mod tasks;
 pub mod todo_write;
-#[cfg(feature = "vms")]
-pub mod vm_tools;
 pub mod tool_feedback;
 pub mod tool_primitives;
 pub mod tool_search;
+#[cfg(feature = "vms")]
+pub mod vm_tools;
 pub mod web_fetch;
 pub mod web_search;
 pub mod worktree;
@@ -186,8 +187,23 @@ pub struct CostTracker {
 
 impl CostTracker {
     pub fn new() -> Self {
+        let usage = Usage {
+            cost_usd: Some(0.0),
+            ..Default::default()
+        };
         Self {
-            usage: parking_lot::Mutex::new(Usage::default()),
+            usage: parking_lot::Mutex::new(usage),
+        }
+    }
+
+    /// Restore a session tracker when Abstract rebuilds an agent after a
+    /// provider/model switch.
+    pub fn with_usage(mut usage: Usage) -> Self {
+        if usage.total() == 0 && usage.cost_usd.is_none() {
+            usage.cost_usd = Some(0.0);
+        }
+        Self {
+            usage: parking_lot::Mutex::new(usage),
         }
     }
 
@@ -195,14 +211,21 @@ impl CostTracker {
         self.usage.lock().merge(usage);
     }
 
-    /// Add usage with cost estimation based on model pricing, including the
-    /// prompt-cache accounting fields (reads ~0.1x, writes ~1.25x input rate).
-    pub fn add_with_model(&self, usage: &Usage, model: &str) {
-        let mut u = usage.clone();
-        if u.cost_usd.is_none() || u.cost_usd == Some(0.0) {
-            u.cost_usd = Some(estimate_cost_usage(model, &u));
-        }
-        self.usage.lock().merge(&u);
+    /// Add provider usage and price this turn exclusively from the local
+    /// Portkey rate for the canonical `provider/model` identity.
+    ///
+    /// Once a turn is unpriced, the cumulative price remains unavailable: a
+    /// known subtotal is not the cost of the complete session.
+    pub fn add_with_model(&self, usage: &Usage, identity: &str) -> Option<f64> {
+        let turn_cost = estimate_cost_usage(identity, usage);
+        let mut total = self.usage.lock();
+        let prior_cost = total.cost_usd;
+        total.merge(usage);
+        total.cost_usd = match (prior_cost, turn_cost) {
+            (Some(prior), Some(turn)) => Some(prior + turn),
+            _ => None,
+        };
+        turn_cost
     }
 
     pub fn current(&self) -> Usage {
@@ -216,113 +239,154 @@ impl Default for CostTracker {
     }
 }
 
-/// Anthropic prompt-cache write premium for the default 5-minute-TTL
-/// `{"type": "ephemeral"}` breakpoint Cersei sends (a 1h TTL would be 2.0).
-const CACHE_WRITE_MULTIPLIER: f64 = 1.25;
-/// Anthropic prompt-cache read discount relative to the base input rate.
-const CACHE_READ_MULTIPLIER: f64 = 0.1;
-
-/// Estimate USD cost for a full [`Usage`], pricing prompt-cache writes at
-/// 1.25x and cache reads at 0.1x the model's input rate. The cache fields are
-/// populated only on the Anthropic path (OpenAI/Gemini report cached tokens
-/// inside their prompt totals, under different discounts), so for other
-/// providers this reduces to [`estimate_cost`].
-pub fn estimate_cost_usage(model: &str, usage: &Usage) -> f64 {
-    let (input_per_m, _) = model_rates(model);
-    estimate_cost(model, usage.input_tokens, usage.output_tokens)
-        + (usage.cache_creation_input_tokens as f64 / 1_000_000.0)
-            * input_per_m
-            * CACHE_WRITE_MULTIPLIER
-        + (usage.cache_read_input_tokens as f64 / 1_000_000.0) * input_per_m * CACHE_READ_MULTIPLIER
+/// Calculate a usage snapshot from Portkey, or return `None` when the exact
+/// provider/model or a required cache rate is unavailable.
+pub fn estimate_cost_usage(identity: &str, usage: &Usage) -> Option<f64> {
+    pricing::resolve_identity(identity)?.cost(usage)
 }
 
-/// Estimate USD cost from token counts based on model pricing (per 1M tokens).
-/// Cache-unaware; prefer [`estimate_cost_usage`] when a full `Usage` is at hand.
-pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> f64 {
-    let (input_per_m, output_per_m) = model_rates(model);
-    (input_tokens as f64 / 1_000_000.0) * input_per_m
-        + (output_tokens as f64 / 1_000_000.0) * output_per_m
-}
-
-/// (input, output) USD per 1M tokens for a model id.
-fn model_rates(model: &str) -> (f64, f64) {
-    match model {
-        m if m.contains("gpt-5.3") => (2.0, 10.0),
-        m if m.contains("gpt-5") => (2.0, 10.0),
-        m if m.contains("gpt-4o") => (2.50, 10.0),
-        m if m.contains("gpt-4-turbo") => (10.0, 30.0),
-        m if m.starts_with("o1") => (15.0, 60.0),
-        m if m.starts_with("o3") => (10.0, 40.0),
-        m if m.contains("opus") => (15.0, 75.0),
-        m if m.contains("sonnet") => (3.0, 15.0),
-        m if m.contains("haiku") => (0.25, 1.25),
-        m if m.contains("gemini-2.0-flash") => (0.075, 0.30),
-        m if m.contains("gemini") => (1.25, 5.0),
-        m if m.contains("deepseek") => (0.27, 1.10),
-        m if m.contains("mistral-large") => (2.0, 6.0),
-        m if m.contains("llama") => (0.0, 0.0), // local/free
-        _ => (2.0, 10.0),
-    }
+pub fn estimate_cost(identity: &str, input_tokens: u64, output_tokens: u64) -> Option<f64> {
+    estimate_cost_usage(
+        identity,
+        &Usage {
+            input_tokens,
+            output_tokens,
+            ..Default::default()
+        },
+    )
 }
 
 #[cfg(test)]
-mod cost_tests {
+mod portkey_cost_tests {
     use super::*;
 
-    /// P3 #2: cache reads price at 0.1x and cache writes at 1.25x the input
-    /// rate (sonnet input rate: $3/M).
+    fn assert_close(actual: Option<f64>, expected: f64) {
+        let actual = actual.expect("price should be available");
+        assert!(
+            (actual - expected).abs() < 1e-12,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    fn cache_from_fixture(provider: &str, fixture: &str) -> crate::pricing::PricingCache {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(fixture);
+        let json = std::fs::read_to_string(path).unwrap();
+        let catalog = crate::pricing::parse_catalog(&json).unwrap();
+        let mut cache = crate::pricing::PricingCache::default();
+        cache.providers.insert(provider.to_string(), catalog);
+        cache
+    }
+
     #[test]
-    fn cache_tokens_price_at_their_multipliers() {
-        let read_only = Usage {
+    fn portkey_drives_cost_and_accumulates_all_counters() {
+        let _guard = crate::pricing::_lock_global_cache_for_tests();
+        crate::pricing::_set_global_cache_for_tests(cache_from_fixture(
+            "deepseek",
+            "portkey_deepseek.json",
+        ));
+        let tracker = CostTracker::new();
+        let usage = Usage {
+            input_tokens: 1_000_000,
+            output_tokens: 1_000_000,
             cache_read_input_tokens: 1_000_000,
             ..Default::default()
         };
-        let cost = estimate_cost_usage("claude-sonnet-4-6", &read_only);
-        assert!((cost - 0.30).abs() < 1e-9, "1M cached reads = $0.30, got {cost}");
 
-        let write_only = Usage {
-            cache_creation_input_tokens: 1_000_000,
-            ..Default::default()
-        };
-        let cost = estimate_cost_usage("claude-sonnet-4-6", &write_only);
-        assert!((cost - 3.75).abs() < 1e-9, "1M cache writes = $3.75, got {cost}");
+        assert_close(
+            tracker.add_with_model(&usage, "deepseek/deepseek-chat"),
+            0.4228,
+        );
+        assert_close(tracker.current().cost_usd, 0.4228);
+        assert_eq!(tracker.current().cache_read_input_tokens, 1_000_000);
     }
 
-    /// Without cache fields the usage-aware estimator must agree with the
-    /// legacy pair, so non-Anthropic providers price exactly as before.
     #[test]
-    fn without_cache_fields_the_estimators_agree() {
-        let plain = Usage {
-            input_tokens: 200_000,
-            output_tokens: 50_000,
+    fn deepseek_identity_never_uses_openai_pricing() {
+        let _guard = crate::pricing::_lock_global_cache_for_tests();
+        let mut cache = cache_from_fixture("deepseek", "portkey_deepseek.json");
+        cache
+            .providers
+            .extend(cache_from_fixture("openai", "portkey_openai.json").providers);
+        crate::pricing::_set_global_cache_for_tests(cache);
+        let usage = Usage {
+            input_tokens: 1_000_000,
+            output_tokens: 1_000_000,
             ..Default::default()
         };
-        assert_eq!(
-            estimate_cost_usage("claude-sonnet-4-6", &plain),
-            estimate_cost("claude-sonnet-4-6", 200_000, 50_000),
+
+        assert_close(estimate_cost_usage("deepseek/deepseek-chat", &usage), 0.42);
+        assert_close(estimate_cost_usage("openai/gpt-4o", &usage), 12.5);
+        assert_eq!(estimate_cost_usage("deepseek-chat", &usage), None);
+    }
+
+    #[test]
+    fn deepseek_cache_hit_and_miss_use_distinct_portkey_rates() {
+        let _guard = crate::pricing::_lock_global_cache_for_tests();
+        crate::pricing::_set_global_cache_for_tests(cache_from_fixture(
+            "deepseek",
+            "portkey_deepseek.json",
+        ));
+        let usage = Usage {
+            // DeepSeek prompt_cache_miss_tokens: $0.14/M.
+            input_tokens: 1_000_000,
+            // DeepSeek prompt_cache_hit_tokens: $0.0028/M.
+            cache_read_input_tokens: 1_000_000,
+            ..Default::default()
+        };
+
+        assert_close(
+            estimate_cost_usage("deepseek/deepseek-chat", &usage),
+            0.1428,
         );
     }
 
-    /// Wiring: `add_with_model` must price through the cache-aware estimator
-    /// and the tracker must accumulate the cache fields themselves.
     #[test]
-    fn cost_tracker_prices_and_accumulates_cache_fields() {
+    fn unknown_price_stays_unknown_for_the_complete_session() {
+        let _guard = crate::pricing::_lock_global_cache_for_tests();
+        crate::pricing::_set_global_cache_for_tests(crate::pricing::PricingCache::default());
         let tracker = CostTracker::new();
+        let usage = Usage {
+            input_tokens: 100,
+            ..Default::default()
+        };
+
+        assert_eq!(tracker.add_with_model(&usage, "unknown/model"), None);
+        assert_eq!(tracker.current().cost_usd, None);
+
+        crate::pricing::_set_global_cache_for_tests(cache_from_fixture(
+            "deepseek",
+            "portkey_deepseek.json",
+        ));
+        assert!(tracker
+            .add_with_model(&usage, "deepseek/deepseek-chat")
+            .is_some());
+        assert_eq!(tracker.current().cost_usd, None);
+    }
+
+    #[test]
+    fn restored_tracker_keeps_known_cost_across_repl_switch() {
+        let _guard = crate::pricing::_lock_global_cache_for_tests();
+        crate::pricing::_set_global_cache_for_tests(cache_from_fixture(
+            "deepseek",
+            "portkey_deepseek.json",
+        ));
+        let tracker = CostTracker::with_usage(Usage {
+            input_tokens: 1_000_000,
+            cost_usd: Some(1.0),
+            ..Default::default()
+        });
         tracker.add_with_model(
             &Usage {
                 input_tokens: 1_000_000,
-                cache_read_input_tokens: 1_000_000,
+                output_tokens: 1_000_000,
                 ..Default::default()
             },
-            "claude-sonnet-4-6",
+            "deepseek/deepseek-chat",
         );
-        let current = tracker.current();
-        assert_eq!(current.cache_read_input_tokens, 1_000_000);
-        let cost = current.cost_usd.expect("cost estimated");
-        assert!(
-            (cost - 3.30).abs() < 1e-9,
-            "1M input + 1M cached reads on sonnet = $3.30, got {cost}"
-        );
+
+        assert_close(tracker.current().cost_usd, 1.42);
     }
 }
 

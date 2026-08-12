@@ -71,6 +71,10 @@ pub struct Agent {
     system_prompt: Option<String>,
     append_system_prompt: Option<String>,
     model: Option<String>,
+    /// Canonical `provider/model` identity used only for pricing and display.
+    /// The request model remains separate because provider APIs expect the
+    /// provider prefix to be stripped.
+    pricing_model: Option<String>,
     max_turns: u32,
     max_tokens: u32,
     temperature: Option<f32>,
@@ -213,6 +217,7 @@ pub struct AgentBuilder {
     system_prompt: Option<String>,
     append_system_prompt: Option<String>,
     model: Option<String>,
+    pricing_model: Option<String>,
     max_turns: u32,
     max_tokens: u32,
     temperature: Option<f32>,
@@ -247,6 +252,7 @@ impl Default for AgentBuilder {
             system_prompt: None,
             append_system_prompt: None,
             model: None,
+            pricing_model: None,
             max_turns: 10,
             max_tokens: 16384,
             temperature: None,
@@ -316,6 +322,12 @@ impl AgentBuilder {
 
     pub fn max_turns(mut self, n: u32) -> Self {
         self.max_turns = n;
+        self
+    }
+
+    /// Preserve the real billing identity independently from the API parser.
+    pub fn pricing_model(mut self, model: impl Into<String>) -> Self {
+        self.pricing_model = Some(model.into());
         self
     }
 
@@ -460,12 +472,15 @@ impl AgentBuilder {
             tx
         });
 
+        let seed_usage = self.seed_usage.unwrap_or_default();
+
         Ok(Agent {
             provider,
             tools: self.tools,
             system_prompt: self.system_prompt,
             append_system_prompt: self.append_system_prompt,
             model: self.model,
+            pricing_model: self.pricing_model,
             max_turns: self.max_turns,
             max_tokens: self.max_tokens,
             temperature: self.temperature,
@@ -480,7 +495,7 @@ impl AgentBuilder {
             broadcast_tx,
             reporters: self.reporters,
             event_filter: self.event_filter,
-            cost_tracker: Arc::new(CostTracker::new()),
+            cost_tracker: Arc::new(CostTracker::with_usage(seed_usage.clone())),
             auto_compact: self.auto_compact,
             compact_threshold: self.compact_threshold,
             tool_result_budget: self.tool_result_budget,
@@ -494,9 +509,7 @@ impl AgentBuilder {
             messages: Arc::new(parking_lot::Mutex::new(
                 self.initial_messages.unwrap_or_default(),
             )),
-            cumulative_usage: Arc::new(parking_lot::Mutex::new(
-                self.seed_usage.unwrap_or_default(),
-            )),
+            cumulative_usage: Arc::new(parking_lot::Mutex::new(seed_usage)),
             cancel_token: self
                 .cancel_token
                 .unwrap_or_else(tokio_util::sync::CancellationToken::new),
@@ -513,9 +526,7 @@ impl AgentBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cersei_provider::{
-        CompletionRequest, CompletionStream, Provider,
-    };
+    use cersei_provider::{CompletionRequest, CompletionStream, Provider};
 
     /// Minimal provider that never produces output — enough to `build()` an agent.
     struct StubProvider;
@@ -528,7 +539,10 @@ mod tests {
         fn context_window(&self, _model: &str) -> u64 {
             1000
         }
-        async fn complete(&self, _request: CompletionRequest) -> cersei_types::Result<CompletionStream> {
+        async fn complete(
+            &self,
+            _request: CompletionRequest,
+        ) -> cersei_types::Result<CompletionStream> {
             let (_tx, rx) = tokio::sync::mpsc::channel(1);
             Ok(CompletionStream::new(rx))
         }

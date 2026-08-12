@@ -248,10 +248,13 @@ pub fn print_json_event(event: &cersei_agent::events::AgentEvent) {
         cersei_agent::events::AgentEvent::CostUpdate {
             turn_cost,
             cumulative_cost,
+            cost_available,
             input_tokens,
             output_tokens,
+            cache_read_input_tokens,
+            cache_creation_input_tokens,
         } => {
-            serde_json::json!({"type": "cost_update", "turn_cost": turn_cost, "cumulative_cost": cumulative_cost, "input_tokens": input_tokens, "output_tokens": output_tokens})
+            serde_json::json!({"type": "cost_update", "turn_cost": turn_cost, "cumulative_cost": cumulative_cost, "cost_available": cost_available, "input_tokens": input_tokens, "output_tokens": output_tokens, "cache_read_input_tokens": cache_read_input_tokens, "cache_creation_input_tokens": cache_creation_input_tokens})
         }
         cersei_agent::events::AgentEvent::Error(msg) => {
             serde_json::json!({"type": "error", "message": msg})

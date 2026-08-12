@@ -62,30 +62,9 @@ fn visual_lines(input: &str, prompt: &str, usable_width: usize) -> Vec<String> {
     for (i, seg) in logical.iter().enumerate() {
         let pfx = if i == 0 { prompt } else { "  " };
 
-        if seg.is_empty() {
-            out.push(pfx.to_string());
-            continue;
-        }
-
-        // Word-wrap this segment
-        let mut rem = *seg;
-        let mut first = true;
-        while !rem.is_empty() {
-            let p = if first { pfx } else { "  " };
-            let cap = usable_width;
-            if rem.width() <= cap {
-                out.push(format!("{p}{rem}"));
-                break;
-            }
-            let mut limit = byte_index_at_width(rem, cap);
-            if limit == 0 {
-                limit = rem.graphemes(true).next().map_or(rem.len(), str::len);
-            }
-            let brk = rem[..limit].rfind(' ').map(|i| i + 1).unwrap_or(limit);
-            let brk = if brk == 0 { limit } else { brk };
-            out.push(format!("{p}{}", &rem[..brk]));
-            rem = &rem[brk..];
-            first = false;
+        for (line_index, (start, end)) in wrap_ranges(seg, usable_width).into_iter().enumerate() {
+            let p = if line_index == 0 { pfx } else { "  " };
+            out.push(format!("{p}{}", &seg[start..end]));
         }
     }
 
@@ -102,41 +81,70 @@ fn cursor_visual_pos(
     prompt: &str,
     usable_width: usize,
 ) -> (usize, usize) {
-    let before = &input[..cursor_pos.min(input.len())];
-    let logical: Vec<&str> = before.split('\n').collect();
-
+    let cursor_pos = cursor_pos.min(input.len());
     let mut row: usize = 0;
+    let mut segment_start = 0;
 
-    for (i, seg) in logical.iter().enumerate() {
-        let is_last = i == logical.len() - 1;
-        let pfx_len = if i == 0 { prompt.len() } else { 2 };
+    for (segment_index, seg) in input.split('\n').enumerate() {
+        let segment_end = segment_start + seg.len();
+        let ranges = wrap_ranges(seg, usable_width);
 
-        if is_last {
-            // Cursor is somewhere in this segment
-            let len = seg.width();
-            if usable_width == 0 {
-                return (row, pfx_len);
+        if cursor_pos <= segment_end {
+            let cursor_in_segment = cursor_pos.saturating_sub(segment_start);
+            for (line_index, (start, end)) in ranges.iter().copied().enumerate() {
+                let is_last_line = line_index + 1 == ranges.len();
+                if cursor_in_segment < end || is_last_line {
+                    let prefix_width = if segment_index == 0 && line_index == 0 {
+                        prompt.width()
+                    } else {
+                        2
+                    };
+                    let column = seg[start..cursor_in_segment].width();
+                    return (row + line_index, prefix_width + column);
+                }
             }
-            let wrapped_full_rows = len / usable_width;
-            let col_in_last = len % usable_width;
-            row += wrapped_full_rows;
-            return (row, pfx_len + col_in_last);
         }
 
-        // Not the last — count full visual rows this segment occupies
-        let len = seg.width();
-        if len == 0 {
-            row += 1;
-        } else if usable_width > 0 {
-            row += (len / usable_width) + 1;
-        } else {
-            row += 1;
-        }
+        row += ranges.len();
+        segment_start = segment_end.saturating_add(1);
     }
 
-    // Cursor is right after a trailing newline
-    let pfx_len = if logical.is_empty() { prompt.len() } else { 2 };
-    (row, pfx_len)
+    (row, 2)
+}
+
+/// Return the byte ranges of the visual rows used to render one logical line.
+fn wrap_ranges(text: &str, max_width: usize) -> Vec<(usize, usize)> {
+    if text.is_empty() {
+        return vec![(0, 0)];
+    }
+
+    let mut ranges = Vec::new();
+    let mut start = 0;
+
+    while start < text.len() {
+        let remaining = &text[start..];
+        if remaining.width() <= max_width {
+            ranges.push((start, text.len()));
+            break;
+        }
+
+        let mut limit = byte_index_at_width(remaining, max_width);
+        if limit == 0 {
+            limit = remaining
+                .graphemes(true)
+                .next()
+                .map_or(remaining.len(), str::len);
+        }
+        let line_end = remaining[..limit]
+            .rfind(' ')
+            .map(|index| index + 1)
+            .unwrap_or(limit);
+        let line_end = if line_end == 0 { limit } else { line_end };
+        ranges.push((start, start + line_end));
+        start += line_end;
+    }
+
+    ranges
 }
 
 fn byte_index_at_width(text: &str, max_width: usize) -> usize {
@@ -167,6 +175,16 @@ mod tests {
 
     #[test]
     fn cursor_uses_terminal_columns_for_unicode() {
-        assert_eq!(cursor_visual_pos("é漢🙂", "é漢🙂".len(), "> ", 4), (1, 3));
+        assert_eq!(cursor_visual_pos("é漢🙂", "é漢🙂".len(), "> ", 4), (1, 4));
+    }
+
+    #[test]
+    fn cursor_after_full_width_unicode_line_and_newline_is_not_skipped() {
+        assert_eq!(cursor_visual_pos("é漢a\n", "é漢a\n".len(), "> ", 4), (1, 2));
+    }
+
+    #[test]
+    fn cursor_follows_the_same_word_wrap_as_rendering() {
+        assert_eq!(cursor_visual_pos("ab cd ef", 5, "> ", 5), (1, 4));
     }
 }

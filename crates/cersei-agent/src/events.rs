@@ -87,8 +87,16 @@ pub enum AgentEvent {
     CostUpdate {
         turn_cost: f64,
         cumulative_cost: f64,
+        /// Distinguishes a real zero-dollar price from unavailable pricing.
+        cost_available: bool,
         input_tokens: u64,
         output_tokens: u64,
+        /// Session-cumulative prompt tokens served from the provider's prompt
+        /// cache. Lets the UI show the KV-cache hit ratio of the session.
+        cache_read_input_tokens: u64,
+        /// Session-cumulative prompt tokens written to the provider's prompt
+        /// cache, when the provider reports that counter.
+        cache_creation_input_tokens: u64,
     },
 
     // Agent coordination (multi-agent)

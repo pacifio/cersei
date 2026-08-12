@@ -5,10 +5,10 @@
 
 pub mod adapt;
 pub mod anthropic;
-pub mod quirks;
 pub mod anthropic_vertex;
 pub mod gemini;
 pub mod openai;
+pub mod quirks;
 pub mod registry;
 pub mod router;
 mod stream;
@@ -22,11 +22,11 @@ use tokio::sync::mpsc;
 // Re-exports
 pub use adapt::{adapt_tools, SchemaDialect};
 pub use anthropic::Anthropic;
-pub use quirks::{ProviderQuirks, TemperaturePolicy, ThinkingQuirk};
 pub use anthropic_vertex::AnthropicVertex;
 pub use gemini::Gemini;
 pub use openai::OpenAi;
-pub use router::from_model_string;
+pub use quirks::{ProviderQuirks, TemperaturePolicy, ThinkingQuirk};
+pub use router::{from_model_string, from_model_string_with_identity};
 pub use stream::StreamAccumulator;
 
 /// Seconds from a `Retry-After` header, if the provider sent a usable one.

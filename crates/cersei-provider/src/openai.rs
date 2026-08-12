@@ -339,10 +339,10 @@ impl Provider for OpenAi {
             // order (a HashMap made live event order nondeterministic).
             let mut tool_calls: std::collections::BTreeMap<usize, (String, String, String)> =
                 std::collections::BTreeMap::new(); // slot -> (id, name, args_json)
-            // F-A2: servers that omit `tool_calls[].index` (llama.cpp, some
-            // Ollama builds, LiteLLM proxies) get synthetic slots correlated
-            // by call id, instead of every parallel call collapsing onto slot
-            // 0 and its argument bodies concatenating into invalid JSON.
+                                                   // F-A2: servers that omit `tool_calls[].index` (llama.cpp, some
+                                                   // Ollama builds, LiteLLM proxies) get synthetic slots correlated
+                                                   // by call id, instead of every parallel call collapsing onto slot
+                                                   // 0 and its argument bodies concatenating into invalid JSON.
             let mut slot_for_id: std::collections::HashMap<String, usize> =
                 std::collections::HashMap::new();
             let mut last_slot: Option<usize> = None;
@@ -370,9 +370,7 @@ impl Provider for OpenAi {
                                     break 'read;
                                 }
 
-                                if let Ok(json) =
-                                    serde_json::from_str::<serde_json::Value>(data)
-                                {
+                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
                                     let delta = &json["choices"][0]["delta"];
                                     let finish_reason =
                                         json["choices"][0]["finish_reason"].as_str();
@@ -382,15 +380,11 @@ impl Provider for OpenAi {
                                     // `usage`, and the finalize MessageDelta
                                     // would overwrite it regardless.
                                     match finish_reason {
-                                        Some("stop") => {
-                                            final_stop = Some(StopReason::EndTurn)
-                                        }
+                                        Some("stop") => final_stop = Some(StopReason::EndTurn),
                                         Some("tool_calls") => {
                                             final_stop = Some(StopReason::ToolUse)
                                         }
-                                        Some("length") => {
-                                            final_stop = Some(StopReason::MaxTokens)
-                                        }
+                                        Some("length") => final_stop = Some(StopReason::MaxTokens),
                                         _ => {}
                                     }
 
@@ -418,8 +412,7 @@ impl Provider for OpenAi {
                                     // Tool calls (accumulated across chunks)
                                     if let Some(tc_array) = delta["tool_calls"].as_array() {
                                         for tc in tc_array {
-                                            let tc_id =
-                                                tc["id"].as_str().filter(|s| !s.is_empty());
+                                            let tc_id = tc["id"].as_str().filter(|s| !s.is_empty());
                                             // F-A2: only an explicit `index` is
                                             // trusted. Without one, correlate by
                                             // call id so parallel calls land in
@@ -429,9 +422,8 @@ impl Provider for OpenAi {
                                             let idx = match tc["index"].as_u64() {
                                                 Some(i) => i as usize,
                                                 None => match tc_id
-                                                    .and_then(|id| {
-                                                        slot_for_id.get(id).copied()
-                                                    }) {
+                                                    .and_then(|id| slot_for_id.get(id).copied())
+                                                {
                                                     Some(slot) => slot,
                                                     None if tc_id.is_some() => tool_calls
                                                         .keys()
@@ -445,14 +437,9 @@ impl Provider for OpenAi {
                                                 slot_for_id.insert(id.to_string(), idx);
                                             }
                                             last_slot = Some(idx);
-                                            let entry = tool_calls
-                                                .entry(idx)
-                                                .or_insert_with(|| {
-                                                    (
-                                                        String::new(),
-                                                        String::new(),
-                                                        String::new(),
-                                                    )
+                                            let entry =
+                                                tool_calls.entry(idx).or_insert_with(|| {
+                                                    (String::new(), String::new(), String::new())
                                                 });
 
                                             // First chunk has id and function.name.
@@ -468,8 +455,7 @@ impl Provider for OpenAi {
                                                 entry.1 = name.to_string();
                                             }
                                             // Arguments accumulate across chunks
-                                            if let Some(args) =
-                                                tc["function"]["arguments"].as_str()
+                                            if let Some(args) = tc["function"]["arguments"].as_str()
                                             {
                                                 entry.2.push_str(args);
                                             }
@@ -478,31 +464,25 @@ impl Provider for OpenAi {
 
                                     // Usage from the final chunk
                                     if let Some(usage) = json["usage"].as_object() {
-                                        let input_tokens = usage
-                                            .get("prompt_tokens")
-                                            .and_then(|v| v.as_u64())
-                                            .unwrap_or(0);
                                         let output_tokens = usage
                                             .get("completion_tokens")
                                             .and_then(|v| v.as_u64())
                                             .unwrap_or(0);
+                                        let (input_tokens, cache_read, cache_write) =
+                                            usage_prompt_breakdown(usage);
                                         let _ = tx
                                             .send(StreamEvent::MessageDelta {
-                                                stop_reason: finish_reason.and_then(|r| {
-                                                    match r {
-                                                        "stop" => Some(StopReason::EndTurn),
-                                                        "tool_calls" => {
-                                                            Some(StopReason::ToolUse)
-                                                        }
-                                                        "length" => {
-                                                            Some(StopReason::MaxTokens)
-                                                        }
-                                                        _ => None,
-                                                    }
+                                                stop_reason: finish_reason.and_then(|r| match r {
+                                                    "stop" => Some(StopReason::EndTurn),
+                                                    "tool_calls" => Some(StopReason::ToolUse),
+                                                    "length" => Some(StopReason::MaxTokens),
+                                                    _ => None,
                                                 }),
                                                 usage: Some(Usage {
                                                     input_tokens,
                                                     output_tokens,
+                                                    cache_read_input_tokens: cache_read,
+                                                    cache_creation_input_tokens: cache_write,
                                                     ..Default::default()
                                                 }),
                                             })
@@ -570,8 +550,7 @@ impl Provider for OpenAi {
                 // Mirror stream.rs's ContentBlockStop parse exactly: empty
                 // arguments are a no-argument call (`{}`); anything that
                 // deserializes is usable; only a parse failure is not.
-                if args.trim().is_empty()
-                    || serde_json::from_str::<serde_json::Value>(args).is_ok()
+                if args.trim().is_empty() || serde_json::from_str::<serde_json::Value>(args).is_ok()
                 {
                     executable += 1;
                 }
@@ -673,8 +652,7 @@ impl Provider for OpenAi {
                 // this the accumulator reports a confident, empty EndTurn.
                 let _ = tx
                     .send(StreamEvent::Error {
-                        message: "stream ended without [DONE] and produced no content"
-                            .into(),
+                        message: "stream ended without [DONE] and produced no content".into(),
                     })
                     .await;
             }
@@ -791,6 +769,65 @@ impl OpenAiBuilder {
     }
 }
 
+/// Split an OpenAI-compatible `usage` object into (uncached input, cache read,
+/// cache write). `prompt_tokens` counts the whole prompt, so each cache
+/// breakdown must be removed before the remainder is treated as uncached.
+///
+/// Two dialects are recognized, matching the endpoints this struct actually
+/// talks to:
+/// - OpenAI (`/v1/chat/completions`):
+///   `prompt_tokens_details.cached_tokens` and `cache_write_tokens`;
+/// - DeepSeek (`api.deepseek.com/chat/completions`): the explicit
+///   `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` pair, which is
+///   authoritative when present.
+///
+/// When neither is present the prompt is treated as fully uncached (0 reads),
+/// preserving the pre-cache behavior for providers that expose no cache info.
+fn usage_prompt_breakdown(usage: &serde_json::Map<String, serde_json::Value>) -> (u64, u64, u64) {
+    let prompt = usage
+        .get("prompt_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+
+    // DeepSeek reports the split explicitly.
+    if let (Some(hit), Some(miss)) = (
+        usage
+            .get("prompt_cache_hit_tokens")
+            .and_then(|v| v.as_u64()),
+        usage
+            .get("prompt_cache_miss_tokens")
+            .and_then(|v| v.as_u64()),
+    ) {
+        return (miss, hit, 0);
+    }
+
+    // OpenAI reports cache reads/writes as a breakdown of the total prompt.
+    if let Some(details) = usage
+        .get("prompt_tokens_details")
+        .and_then(|details| details.as_object())
+    {
+        let cache_read = details
+            .get("cached_tokens")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0)
+            .min(prompt);
+        let cache_write = details
+            .get("cache_write_tokens")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0)
+            .min(prompt.saturating_sub(cache_read));
+        return (
+            prompt
+                .saturating_sub(cache_read)
+                .saturating_sub(cache_write),
+            cache_read,
+            cache_write,
+        );
+    }
+
+    (prompt, 0, 0)
+}
+
 #[cfg(test)]
 mod multimodal_tests {
     use super::*;
@@ -813,7 +850,10 @@ mod multimodal_tests {
         let ContentBlock::Image { source } = block else {
             panic!("expected image");
         };
-        assert_eq!(openai_image_url(&source).as_deref(), Some("https://x/y.jpg"));
+        assert_eq!(
+            openai_image_url(&source).as_deref(),
+            Some("https://x/y.jpg")
+        );
     }
 
     #[test]
@@ -833,7 +873,10 @@ mod multimodal_tests {
         };
         let part = openai_file_part(&source).unwrap();
         assert_eq!(part["type"], "file");
-        assert_eq!(part["file"]["file_data"], "data:application/pdf;base64,UERG");
+        assert_eq!(
+            part["file"]["file_data"],
+            "data:application/pdf;base64,UERG"
+        );
     }
 
     #[test]
@@ -842,11 +885,102 @@ mod multimodal_tests {
         opts.set("reasoning_effort", "high");
 
         // Reasoning models map the option through...
-        assert_eq!(reasoning_effort_for("gpt-5.3", &opts).as_deref(), Some("high"));
-        assert_eq!(reasoning_effort_for("o3-mini", &opts).as_deref(), Some("high"));
+        assert_eq!(
+            reasoning_effort_for("gpt-5.3", &opts).as_deref(),
+            Some("high")
+        );
+        assert_eq!(
+            reasoning_effort_for("o3-mini", &opts).as_deref(),
+            Some("high")
+        );
         // ...non-reasoning models omit it...
         assert_eq!(reasoning_effort_for("gpt-4o", &opts), None);
         // ...and an unset option omits it even on reasoning models.
-        assert_eq!(reasoning_effort_for("gpt-5.3", &ProviderOptions::default()), None);
+        assert_eq!(
+            reasoning_effort_for("gpt-5.3", &ProviderOptions::default()),
+            None
+        );
+    }
+
+    // ─── Usage prompt breakdown (cache) ────────────────────────────────────
+
+    fn usage_json(v: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+        v.as_object().expect("usage object").clone()
+    }
+
+    /// OpenAI: `prompt_tokens` includes cached tokens; `cached_tokens` must be
+    /// split out into cache reads and subtracted from the billable input.
+    #[test]
+    fn openai_cached_tokens_are_split_out() {
+        let usage = usage_json(serde_json::json!({
+            "prompt_tokens": 100_000,
+            "completion_tokens": 2_000,
+            "prompt_tokens_details": { "cached_tokens": 75_000 }
+        }));
+        let (input, cache_read, cache_write) = usage_prompt_breakdown(&usage);
+        assert_eq!((input, cache_read, cache_write), (25_000, 75_000, 0));
+    }
+
+    #[test]
+    fn openai_cache_reads_and_writes_are_each_split_once() {
+        let usage = usage_json(serde_json::json!({
+            "prompt_tokens": 100_000,
+            "completion_tokens": 2_000,
+            "prompt_tokens_details": {
+                "cached_tokens": 60_000,
+                "cache_write_tokens": 15_000
+            }
+        }));
+        assert_eq!(usage_prompt_breakdown(&usage), (25_000, 60_000, 15_000));
+    }
+
+    /// DeepSeek: the hit/miss pair is authoritative — `prompt_tokens` is not
+    /// even needed for the split.
+    #[test]
+    fn deepseek_cache_hit_miss_pair() {
+        let usage = usage_json(serde_json::json!({
+            "prompt_tokens": 100_000,
+            "completion_tokens": 2_000,
+            "prompt_cache_hit_tokens": 60_000,
+            "prompt_cache_miss_tokens": 40_000
+        }));
+        let (input, cache_read, cache_write) = usage_prompt_breakdown(&usage);
+        assert_eq!((input, cache_read, cache_write), (40_000, 60_000, 0));
+    }
+
+    /// Provider without cache info: everything stays uncached input, no
+    /// cache reads invented.
+    #[test]
+    fn no_cache_fields_keeps_prompt_uncached() {
+        let usage = usage_json(serde_json::json!({
+            "prompt_tokens": 50_000,
+            "completion_tokens": 1_000
+        }));
+        let (input, cache_read, cache_write) = usage_prompt_breakdown(&usage);
+        assert_eq!((input, cache_read, cache_write), (50_000, 0, 0));
+    }
+
+    /// A malformed cached count must neither underflow input nor inflate the
+    /// total prompt beyond the provider's authoritative `prompt_tokens`.
+    #[test]
+    fn cached_count_larger_than_prompt_saturates() {
+        let usage = usage_json(serde_json::json!({
+            "prompt_tokens": 10,
+            "prompt_tokens_details": { "cached_tokens": 100 }
+        }));
+        let (input, cache_read, cache_write) = usage_prompt_breakdown(&usage);
+        assert_eq!((input, cache_read, cache_write), (0, 10, 0));
+    }
+
+    #[test]
+    fn malformed_cache_breakdown_never_underflows_or_inflates_prompt() {
+        let usage = usage_json(serde_json::json!({
+            "prompt_tokens": 10,
+            "prompt_tokens_details": {
+                "cached_tokens": 8,
+                "cache_write_tokens": 8
+            }
+        }));
+        assert_eq!(usage_prompt_breakdown(&usage), (0, 8, 2));
     }
 }

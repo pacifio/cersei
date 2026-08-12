@@ -11,6 +11,19 @@ use tokio::sync::mpsc;
 
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
 
+/// Normalize Gemini's `usageMetadata`. Google documents
+/// `promptTokenCount` as the total effective prompt (cached content included),
+/// while `cachedContentTokenCount` is the cached subset.
+fn normalize_usage_metadata(prompt: u64, output: u64, cached: u64) -> Usage {
+    let cached = cached.min(prompt);
+    Usage {
+        input_tokens: prompt - cached,
+        output_tokens: output,
+        cache_read_input_tokens: cached,
+        ..Default::default()
+    }
+}
+
 // ─── Gemini provider ────────────────────────────────────────────────────────
 
 pub struct Gemini {
@@ -257,8 +270,10 @@ impl Provider for Gemini {
         // `definitions`/`additionalProperties`, and the rejection kills the
         // whole request (Exp 1/3, TOOL-CALLING-RELIABILITY.md §7.0).
         if !request.tools.is_empty() {
-            let function_declarations =
-                crate::adapt::adapt_tools(&request.tools, crate::adapt::SchemaDialect::GeminiSubset);
+            let function_declarations = crate::adapt::adapt_tools(
+                &request.tools,
+                crate::adapt::SchemaDialect::GeminiSubset,
+            );
             body["tools"] = serde_json::json!([{
                 "functionDeclarations": function_declarations,
             }]);
@@ -327,6 +342,7 @@ impl Provider for Gemini {
             let mut block_index: usize = 0;
             let mut total_input_tokens: u64 = 0;
             let mut total_output_tokens: u64 = 0;
+            let mut cached_content_tokens: u64 = 0;
             let mut saw_function_calls = false;
 
             while let Some(chunk) = stream.next().await {
@@ -344,9 +360,7 @@ impl Provider for Gemini {
                                     continue;
                                 }
 
-                                if let Ok(json) =
-                                    serde_json::from_str::<serde_json::Value>(data)
-                                {
+                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
                                     // Extract usage metadata
                                     if let Some(metadata) = json.get("usageMetadata") {
                                         total_input_tokens = metadata
@@ -357,6 +371,14 @@ impl Provider for Gemini {
                                             .get("candidatesTokenCount")
                                             .and_then(|v| v.as_u64())
                                             .unwrap_or(total_output_tokens);
+                                        // `promptTokenCount` includes the
+                                        // tokens served from cached content;
+                                        // they are billed at the cache-read
+                                        // rate, not the full input rate.
+                                        cached_content_tokens = metadata
+                                            .get("cachedContentTokenCount")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(cached_content_tokens);
                                     }
 
                                     // Process candidates
@@ -370,9 +392,8 @@ impl Provider for Gemini {
                                                 .and_then(|p| p.as_array())
                                             {
                                                 for part in parts {
-                                                    if let Some(text) = part
-                                                        .get("text")
-                                                        .and_then(|t| t.as_str())
+                                                    if let Some(text) =
+                                                        part.get("text").and_then(|t| t.as_str())
                                                     {
                                                         let _ = tx
                                                             .send(StreamEvent::ContentBlockStart {
@@ -396,9 +417,7 @@ impl Provider for Gemini {
                                                         block_index += 1;
                                                     }
 
-                                                    if let Some(fc) =
-                                                        part.get("functionCall")
-                                                    {
+                                                    if let Some(fc) = part.get("functionCall") {
                                                         saw_function_calls = true;
                                                         let name = fc
                                                             .get("name")
@@ -408,11 +427,9 @@ impl Provider for Gemini {
                                                         let args = fc
                                                             .get("args")
                                                             .cloned()
-                                                            .unwrap_or(
-                                                                serde_json::Value::Object(
-                                                                    Default::default(),
-                                                                ),
-                                                            );
+                                                            .unwrap_or(serde_json::Value::Object(
+                                                                Default::default(),
+                                                            ));
                                                         // Capture thoughtSignature (sibling of functionCall at part level, Gemini 3.1+)
                                                         let thought_sig = part
                                                             .get("thoughtSignature")
@@ -424,20 +441,14 @@ impl Provider for Gemini {
                                                             .and_then(|s| s.as_str())
                                                             .unwrap_or("");
                                                         // Encode both in tool_id for roundtrip
-                                                        let tool_id =
-                                                            if thought_sig.is_empty() {
-                                                                format!(
-                                                                    "gemini-tool-{}",
-                                                                    block_index
-                                                                )
-                                                            } else {
-                                                                format!(
+                                                        let tool_id = if thought_sig.is_empty() {
+                                                            format!("gemini-tool-{}", block_index)
+                                                        } else {
+                                                            format!(
                                                                 "gemini-tool-{}::{}::{}",
-                                                                block_index,
-                                                                fc_id,
-                                                                thought_sig
+                                                                block_index, fc_id, thought_sig
                                                             )
-                                                            };
+                                                        };
 
                                                         let _ = tx
                                                             .send(StreamEvent::ContentBlockStart {
@@ -450,8 +461,9 @@ impl Provider for Gemini {
                                                         let _ = tx
                                                             .send(StreamEvent::InputJsonDelta {
                                                                 index: block_index,
-                                                                partial_json: serde_json::to_string(&args)
-                                                                    .unwrap_or_default(),
+                                                                partial_json:
+                                                                    serde_json::to_string(&args)
+                                                                        .unwrap_or_default(),
                                                             })
                                                             .await;
                                                         let _ = tx
@@ -474,9 +486,7 @@ impl Provider for Gemini {
                                                 } else {
                                                     match reason {
                                                         "STOP" => StopReason::EndTurn,
-                                                        "MAX_TOKENS" => {
-                                                            StopReason::MaxTokens
-                                                        }
+                                                        "MAX_TOKENS" => StopReason::MaxTokens,
                                                         "SAFETY" => StopReason::EndTurn,
                                                         _ => StopReason::EndTurn,
                                                     }
@@ -484,13 +494,11 @@ impl Provider for Gemini {
                                                 let _ = tx
                                                     .send(StreamEvent::MessageDelta {
                                                         stop_reason: Some(stop),
-                                                        usage: Some(Usage {
-                                                            input_tokens:
-                                                                total_input_tokens,
-                                                            output_tokens:
-                                                                total_output_tokens,
-                                                            ..Default::default()
-                                                        }),
+                                                        usage: Some(normalize_usage_metadata(
+                                                            total_input_tokens,
+                                                            total_output_tokens,
+                                                            cached_content_tokens,
+                                                        )),
                                                     })
                                                     .await;
                                             }
@@ -515,6 +523,35 @@ impl Provider for Gemini {
         });
 
         Ok(CompletionStream::new(rx))
+    }
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::normalize_usage_metadata;
+
+    #[test]
+    fn cached_content_is_split_from_total_prompt() {
+        let usage = normalize_usage_metadata(100_000, 2_000, 75_000);
+        assert_eq!(usage.input_tokens, 25_000);
+        assert_eq!(usage.cache_read_input_tokens, 75_000);
+        assert_eq!(usage.output_tokens, 2_000);
+        assert_eq!(usage.prompt_tokens(), 100_000);
+    }
+
+    #[test]
+    fn absent_cache_keeps_the_prompt_uncached() {
+        let usage = normalize_usage_metadata(50_000, 1_000, 0);
+        assert_eq!(usage.input_tokens, 50_000);
+        assert_eq!(usage.cache_read_input_tokens, 0);
+    }
+
+    #[test]
+    fn malformed_cache_count_is_clamped_to_prompt() {
+        let usage = normalize_usage_metadata(10, 1, 100);
+        assert_eq!(usage.input_tokens, 0);
+        assert_eq!(usage.cache_read_input_tokens, 10);
+        assert_eq!(usage.prompt_tokens(), 10);
     }
 }
 
@@ -641,8 +678,7 @@ mod live_dialect_tests {
     /// (skip, not failure) when no key is present, matching the other live
     /// tests in this workspace.
     async fn post_live(decl: &serde_json::Value) -> Option<(u16, String)> {
-        let key = match std::env::var("GOOGLE_API_KEY")
-            .or_else(|_| std::env::var("GEMINI_API_KEY"))
+        let key = match std::env::var("GOOGLE_API_KEY").or_else(|_| std::env::var("GEMINI_API_KEY"))
         {
             Ok(k) if !k.is_empty() => k,
             _ => {
@@ -656,7 +692,11 @@ mod live_dialect_tests {
             "generationConfig": { "maxOutputTokens": 64 },
         });
         let resp = reqwest::Client::new()
-            .post(format!("{}/models/{}:generateContent", GEMINI_API_BASE, live_model()))
+            .post(format!(
+                "{}/models/{}:generateContent",
+                GEMINI_API_BASE,
+                live_model()
+            ))
             .header("x-goog-api-key", key)
             .header("content-type", "application/json")
             .json(&body)

@@ -54,17 +54,23 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
     // Build the initial agent with shared permission mode and TUI permission channel
     let shared_mode = crate::permissions::new_shared_mode();
     let (perm_tx, perm_rx) = crate::permissions::permission_channel();
-    let (agent, resolved_model) = build_agent(
+    let (agent, resolved_model, pricing_model) = build_agent(
         &config.model,
         &config,
         &memory_manager,
         &session_id,
         cancel_token.clone(),
         None,
+        None,
         Some(shared_mode.clone()),
         Some(perm_tx),
     )?;
     config.model = resolved_model;
+
+    // Resolve once before the first turn, outside rendering and outside the
+    // provider request itself. Refresh failure is non-fatal and leaves the
+    // last valid cache in place, so it can never prevent an LLM call.
+    cersei_tools::pricing::refresh_for_identity(&pricing_model).await;
 
     // Show startup banner
     let effort = EffortLevel::from_str(&config.effort);
@@ -109,6 +115,7 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
         crate::tui::run(
             agent,
             &config,
+            &pricing_model,
             &memory_manager,
             &session_id,
             cancel_token,
@@ -186,11 +193,12 @@ pub fn build_agent(
     session_id: &str,
     cancel_token: CancellationToken,
     existing_messages: Option<Vec<Message>>,
+    existing_usage: Option<cersei_types::Usage>,
     shared_mode: Option<crate::permissions::SharedPermissionMode>,
     perm_tx: Option<tokio::sync::mpsc::Sender<crate::permissions::TuiPermissionRequest>>,
-) -> anyhow::Result<(cersei::Agent, String)> {
+) -> anyhow::Result<(cersei::Agent, String, String)> {
     // Check for proxy (VibeProxy or compatible) before resolving provider
-    let (provider, resolved_model) = if let Some(proxy_url) = detect_proxy(config) {
+    let (provider, resolved_model, pricing_model) = if let Some(proxy_url) = detect_proxy(config) {
         let model = if model_string == "auto" {
             "claude-sonnet-4-6"
         } else {
@@ -205,9 +213,14 @@ pub fn build_agent(
         (
             Box::new(provider) as Box<dyn cersei_provider::Provider>,
             format!("{model} via proxy"),
+            model.to_string(),
         )
     } else {
-        cersei_provider::from_model_string(model_string).map_err(|e| anyhow::anyhow!("{e}"))?
+        let (provider, resolved, provider_id) =
+            cersei_provider::from_model_string_with_identity(model_string)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let pricing_model = format!("{provider_id}/{resolved}");
+        (provider, resolved, pricing_model)
     };
 
     let system_prompt = prompt::build_cli_system_prompt(config, memory_manager, &resolved_model);
@@ -259,6 +272,7 @@ pub fn build_agent(
         .tools(tools)
         .system_prompt(system_prompt)
         .model(&resolved_model)
+        .pricing_model(&pricing_model)
         .max_turns(config.max_turns)
         .max_tokens(config.max_tokens)
         .auto_compact(config.auto_compact)
@@ -295,9 +309,12 @@ pub fn build_agent(
     if let Some(msgs) = existing_messages {
         builder = builder.with_messages(msgs);
     }
+    if let Some(usage) = existing_usage {
+        builder = builder.with_cumulative_usage(usage);
+    }
 
     let agent = builder.build()?;
-    Ok((agent, resolved_model))
+    Ok((agent, resolved_model, pricing_model))
 }
 
 fn build_memory_manager(config: &AppConfig) -> anyhow::Result<MemoryManager> {
