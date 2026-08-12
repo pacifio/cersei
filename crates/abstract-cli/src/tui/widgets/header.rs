@@ -1,28 +1,26 @@
 //! Header bar: model | mode | tokens | cost | session
 
 use crate::tui::{app::AppState, theme::Theme};
-use ratatui::{prelude::*, widgets::Paragraph};
+use ratatui::{
+    prelude::*,
+    widgets::{Clear, Paragraph},
+};
+use unicode_width::UnicodeWidthStr;
+
+const UNKNOWN_PRICE_TOOLTIP: &str = "no price for this provider";
 
 pub fn render(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
-    // Estimate cost from tokens if provider didn't report it
-    let estimated_cost = if state.cost_usd > 0.0 {
-        state.cost_usd
-    } else {
-        estimate_cost(&state.model, state.input_tokens, state.output_tokens)
-    };
-
-    let cost_str = if estimated_cost > 0.0 {
-        format!("${:.4}", estimated_cost)
-    } else {
-        "$0".into()
-    };
+    let cost_span = cost_label(
+        state.cost_usd,
+        state.cost_available,
+        state.cache_hit_ratio(),
+    );
 
     let tokens_str = format!(
         "{}in/{}out",
         format_tokens(state.input_tokens),
         format_tokens(state.output_tokens),
     );
-
     let mode_str = state.permission_mode.label();
 
     let text = Line::from(vec![
@@ -39,13 +37,55 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
         Span::styled(" | ", Style::default().fg(theme.dim)),
         Span::styled(&tokens_str, Style::default().fg(theme.dim)),
         Span::styled(" | ", Style::default().fg(theme.dim)),
-        Span::styled(&cost_str, Style::default().fg(theme.fg)),
+        Span::styled(&cost_span, Style::default().fg(theme.fg)),
         Span::styled(" | ", Style::default().fg(theme.dim)),
         Span::styled(&state.session_id, Style::default().fg(theme.dim)),
     ]);
 
-    let header = Paragraph::new(text).style(theme.header_style());
-    f.render_widget(header, area);
+    f.render_widget(Paragraph::new(text).style(theme.header_style()), area);
+
+    let hitbox = cost_hitbox(area, &state.model, mode_str, &tokens_str);
+    if !state.cost_available
+        && state
+            .mouse_position
+            .is_some_and(|position| hitbox.contains(position.into()))
+    {
+        render_unknown_price_tooltip(f, hitbox, theme);
+    }
+}
+
+fn cost_hitbox(area: Rect, model: &str, mode: &str, tokens: &str) -> Rect {
+    let prefix = format!(" abstract | {model} | {mode} | {tokens} | ");
+    let offset = u16::try_from(prefix.width()).unwrap_or(u16::MAX);
+    Rect::new(area.x.saturating_add(offset), area.y, 2, 1).intersection(area)
+}
+
+fn cost_label(cost_usd: f64, available: bool, cache_ratio: Option<f64>) -> String {
+    let cost = if available {
+        format!("${cost_usd:.4}")
+    } else {
+        "??".to_string()
+    };
+    match cache_ratio {
+        Some(ratio) => format!("{cost} ({:.0}%)", ratio * 100.0),
+        None => cost,
+    }
+}
+
+fn render_unknown_price_tooltip(f: &mut Frame, anchor: Rect, theme: &Theme) {
+    let frame = f.area();
+    if frame.height <= anchor.y.saturating_add(1) {
+        return;
+    }
+
+    let width = u16::try_from(UNKNOWN_PRICE_TOOLTIP.width()).unwrap_or(frame.width);
+    let max_x = frame.right().saturating_sub(width);
+    let area = Rect::new(anchor.x.min(max_x), anchor.y + 1, width, 1);
+    f.render_widget(Clear, area);
+    f.render_widget(
+        Paragraph::new(UNKNOWN_PRICE_TOOLTIP).style(Style::default().fg(theme.fg).bg(theme.bg)),
+        area,
+    );
 }
 
 fn mode_style(mode: crate::tui::app::PermissionMode, theme: &Theme) -> Style {
@@ -71,25 +111,35 @@ fn format_tokens(n: u64) -> String {
     }
 }
 
-/// Estimate USD cost from token counts based on model pricing.
-fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> f64 {
-    // Pricing per 1M tokens (input, output)
-    let (input_per_m, output_per_m) = match model {
-        m if m.contains("gpt-5.3") => (2.0, 10.0),
-        m if m.contains("gpt-5") => (2.0, 10.0),
-        m if m.contains("gpt-4o") => (2.50, 10.0),
-        m if m.contains("gpt-4-turbo") => (10.0, 30.0),
-        m if m.starts_with("o1") => (15.0, 60.0),
-        m if m.starts_with("o3") => (10.0, 40.0),
-        m if m.contains("opus") => (15.0, 75.0),
-        m if m.contains("sonnet") => (3.0, 15.0),
-        m if m.contains("haiku") => (0.25, 1.25),
-        m if m.contains("gemini-2.0-flash") => (0.075, 0.30),
-        m if m.contains("gemini") => (1.25, 5.0),
-        _ => (2.0, 10.0), // default estimate
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let input_cost = (input_tokens as f64 / 1_000_000.0) * input_per_m;
-    let output_cost = (output_tokens as f64 / 1_000_000.0) * output_per_m;
-    input_cost + output_cost
+    #[test]
+    fn unknown_price_hitbox_covers_only_the_question_marks() {
+        let area = Rect::new(0, 0, 100, 1);
+        let hitbox = cost_hitbox(area, "deepseek-chat", "auto", "12in/3out");
+        assert_eq!(hitbox.width, 2);
+        assert!(hitbox.contains((hitbox.x, 0).into()));
+        assert!(hitbox.contains((hitbox.x + 1, 0).into()));
+        assert!(!hitbox.contains((hitbox.x.saturating_sub(1), 0).into()));
+    }
+
+    #[test]
+    fn hitbox_is_empty_when_cost_is_clipped() {
+        let hitbox = cost_hitbox(
+            Rect::new(0, 0, 10, 1),
+            "very-long-model",
+            "auto",
+            "0in/0out",
+        );
+        assert!(hitbox.is_empty());
+    }
+
+    #[test]
+    fn cost_and_cache_ratio_are_adjacent_for_known_and_unknown_prices() {
+        assert_eq!(cost_label(0.4281, true, Some(0.78)), "$0.4281 (78%)");
+        assert_eq!(cost_label(0.0, false, Some(0.78)), "?? (78%)");
+        assert_eq!(UNKNOWN_PRICE_TOOLTIP, "no price for this provider");
+    }
 }

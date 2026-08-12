@@ -20,6 +20,17 @@ use cersei_types::*;
 ///
 /// Returns `(provider, model_name)` where `model_name` has the provider prefix stripped.
 pub fn from_model_string(model: &str) -> Result<(Box<dyn Provider>, String)> {
+    let (provider, resolved_model, _) = from_model_string_with_identity(model)?;
+    Ok((provider, resolved_model))
+}
+
+/// Parse a model string while preserving the provider that owns billing.
+/// The third tuple item is the registry provider id and is deliberately
+/// independent from the provider's wire format (for example, DeepSeek uses
+/// `OpenAiCompatible` but its billing provider remains `deepseek`).
+pub fn from_model_string_with_identity(
+    model: &str,
+) -> Result<(Box<dyn Provider>, String, &'static str)> {
     // "auto" — pick the first available *keyed* provider's default model.
     //
     // Local providers (Ollama, etc.) are skipped here on purpose: they need
@@ -43,7 +54,7 @@ pub fn from_model_string(model: &str) -> Result<(Box<dyn Provider>, String)> {
             })?;
         let model_name = entry.default_model;
         let provider = build_provider(entry, model_name)?;
-        return Ok((provider, model_name.to_string()));
+        return Ok((provider, model_name.to_string(), entry.id));
     }
 
     if let Some((provider_id, model_name)) = model.split_once('/') {
@@ -57,12 +68,12 @@ pub fn from_model_string(model: &str) -> Result<(Box<dyn Provider>, String)> {
             ))
         })?;
         let provider = build_provider(entry, model_name)?;
-        Ok((provider, model_name.to_string()))
+        Ok((provider, model_name.to_string(), entry.id))
     } else {
         // Auto-detect: "gpt-4o" → openai
         let (entry, resolved) = auto_detect(model)?;
         let provider = build_provider(entry, resolved)?;
-        Ok((provider, resolved.to_string()))
+        Ok((provider, resolved.to_string(), entry.id))
     }
 }
 
@@ -312,6 +323,22 @@ mod tests {
     fn test_ollama_no_key_required() {
         let entry = registry::lookup("ollama").unwrap();
         assert!(!entry.requires_key());
+    }
+
+    #[test]
+    fn billing_identity_is_separate_from_openai_compatible_parser() {
+        let (provider, model, billing_provider) =
+            from_model_string_with_identity("ollama/qwen2.5-coder:7b").expect("routes");
+        assert_eq!(provider.name(), "openai");
+        assert_eq!(model, "qwen2.5-coder:7b");
+        assert_eq!(billing_provider, "ollama");
+    }
+
+    #[test]
+    fn deepseek_registry_identity_survives_openai_compatible_format() {
+        let entry = registry::lookup("deepseek").expect("DeepSeek registered");
+        assert_eq!(entry.id, "deepseek");
+        assert_eq!(entry.api_format, ApiFormat::OpenAiCompatible);
     }
 
     #[test]

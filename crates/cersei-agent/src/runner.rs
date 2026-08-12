@@ -436,6 +436,7 @@ pub async fn run_agent_streaming(
             .model
             .clone()
             .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
+        let pricing_model = agent.pricing_model.clone().unwrap_or_else(|| model.clone());
 
         let mut options = ProviderOptions::default();
         if let Some(budget) = agent.thinking_budget {
@@ -590,7 +591,7 @@ pub async fn run_agent_streaming(
         let _ = event_tx
             .send(AgentEvent::ModelResponseStart {
                 turn,
-                model: model.clone(),
+                model: pricing_model.clone(),
             })
             .await;
 
@@ -634,23 +635,37 @@ pub async fn run_agent_streaming(
 
         // Update cumulative usage
         agent.cumulative_usage.lock().merge(&response.usage);
-        agent.cost_tracker.add_with_model(&response.usage, &model);
+        let turn_cost = agent
+            .cost_tracker
+            .add_with_model(&response.usage, &pricing_model);
 
         // Emit cost update
-        let cumulative = agent.cumulative_usage.lock().clone();
+        let tracked = agent.cost_tracker.current();
+        let cumulative = {
+            let mut usage = agent.cumulative_usage.lock();
+            usage.cost_usd = tracked.cost_usd;
+            usage.clone()
+        };
+        let cost_available = cumulative.cost_usd.is_some();
         let _ = event_tx
             .send(AgentEvent::CostUpdate {
-                turn_cost: response.usage.cost_usd.unwrap_or(0.0),
+                turn_cost: turn_cost.unwrap_or(0.0),
                 cumulative_cost: cumulative.cost_usd.unwrap_or(0.0),
+                cost_available,
                 input_tokens: cumulative.input_tokens,
                 output_tokens: cumulative.output_tokens,
+                cache_read_input_tokens: cumulative.cache_read_input_tokens,
+                cache_creation_input_tokens: cumulative.cache_creation_input_tokens,
             })
             .await;
         agent.emit(AgentEvent::CostUpdate {
-            turn_cost: response.usage.cost_usd.unwrap_or(0.0),
+            turn_cost: turn_cost.unwrap_or(0.0),
             cumulative_cost: cumulative.cost_usd.unwrap_or(0.0),
+            cost_available,
             input_tokens: cumulative.input_tokens,
             output_tokens: cumulative.output_tokens,
+            cache_read_input_tokens: cumulative.cache_read_input_tokens,
+            cache_creation_input_tokens: cumulative.cache_creation_input_tokens,
         });
 
         // Add assistant message to history
@@ -827,7 +842,7 @@ pub async fn run_agent_streaming(
                         "[system] You answered without using any tools. Claims about \
                          the codebase must be verified with tools before answering. \
                          Gather evidence first (Read, Grep, Glob, Bash, ...), then \
-                         give your final answer grounded in what the tools returned."
+                         give your final answer grounded in what the tools returned.",
                     ));
                     let _ = event_tx
                         .send(AgentEvent::Status(
@@ -1021,8 +1036,11 @@ pub async fn run_agent_streaming(
                     if result.is_error {
                         let count = tool_error_counts.entry(tool_name.clone()).or_insert(0);
                         *count += 1;
-                        result.content =
-                            format!("{}\n\n{}", result.content, error_budget_note(&tool_name, *count));
+                        result.content = format!(
+                            "{}\n\n{}",
+                            result.content,
+                            error_budget_note(&tool_name, *count)
+                        );
                     } else {
                         tool_error_counts.remove(&tool_name);
                     }
@@ -1423,8 +1441,13 @@ mod guard_tests {
 
         for tool in ["Edit", "Write", "MultiEdit", "NotebookEdit"] {
             assert!(
-                read_before_edit_block(tool, &json!({ "file_path": p }), &seen(tmp.path(), &[p]), tmp.path())
-                    .is_none(),
+                read_before_edit_block(
+                    tool,
+                    &json!({ "file_path": p }),
+                    &seen(tmp.path(), &[p]),
+                    tmp.path()
+                )
+                .is_none(),
                 "{tool} must run once the file has been read"
             );
         }
@@ -1473,14 +1496,19 @@ mod guard_tests {
             "patch": "--- a/a.rs\n+++ a.rs\n@@ -1 +1 @@\n-x\n+y\n"
         });
 
-        assert_eq!(write_targets("ApplyPatch", &patch), vec!["a.rs".to_string()]);
+        assert_eq!(
+            write_targets("ApplyPatch", &patch),
+            vec!["a.rs".to_string()]
+        );
         assert!(
-            read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[]), tmp.path()).is_some(),
+            read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[]), tmp.path())
+                .is_some(),
             "an unread patched file must be refused"
         );
         let abs = tmp.path().join("a.rs").to_string_lossy().to_string();
         assert!(
-            read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[&abs]), tmp.path()).is_none(),
+            read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[&abs]), tmp.path())
+                .is_none(),
             "reading the absolute path must satisfy a relative patch target"
         );
     }
@@ -1500,8 +1528,16 @@ mod guard_tests {
         let p = f.to_str().unwrap().to_string();
 
         let batch = vec![
-            ("id_read".to_string(), "Read".to_string(), json!({ "file_path": p })),
-            ("id_edit".to_string(), "Edit".to_string(), json!({ "file_path": p })),
+            (
+                "id_read".to_string(),
+                "Read".to_string(),
+                json!({ "file_path": p }),
+            ),
+            (
+                "id_edit".to_string(),
+                "Edit".to_string(),
+                json!({ "file_path": p }),
+            ),
         ];
 
         let refusals = refusals_for_batch(&batch, &seen(tmp.path(), &[]), tmp.path());
@@ -1509,10 +1545,7 @@ mod guard_tests {
             refusals.contains_key("id_edit"),
             "the edit must be refused: a concurrent read has not landed yet"
         );
-        assert!(
-            !refusals.contains_key("id_read"),
-            "reads are never refused"
-        );
+        assert!(!refusals.contains_key("id_read"), "reads are never refused");
     }
 
     /// Refusals are keyed by tool_use id, so one bad call in a batch cannot
@@ -1527,8 +1560,16 @@ mod guard_tests {
         let known_p = known.to_str().unwrap().to_string();
 
         let batch = vec![
-            ("ok".to_string(), "Edit".to_string(), json!({ "file_path": known_p })),
-            ("bad".to_string(), "Edit".to_string(), json!({ "file_path": unknown.to_str().unwrap() })),
+            (
+                "ok".to_string(),
+                "Edit".to_string(),
+                json!({ "file_path": known_p }),
+            ),
+            (
+                "bad".to_string(),
+                "Edit".to_string(),
+                json!({ "file_path": unknown.to_str().unwrap() }),
+            ),
         ];
 
         let refusals = refusals_for_batch(&batch, &seen(tmp.path(), &[&known_p]), tmp.path());
@@ -1561,7 +1602,8 @@ mod guard_tests {
                 "header {header:?} must resolve to the path apply_patch writes"
             );
             assert!(
-                read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[]), tmp.path()).is_some(),
+                read_before_edit_block("ApplyPatch", &patch, &seen(tmp.path(), &[]), tmp.path())
+                    .is_some(),
                 "header {header:?}: guard failed open on an unread file"
             );
         }
@@ -1580,10 +1622,13 @@ mod guard_tests {
         let ps = p.to_str().unwrap().to_string();
 
         // Turn 1: creating it is allowed.
-        assert!(
-            read_before_edit_block("Write", &json!({ "file_path": ps }), &seen(tmp.path(), &[]), tmp.path())
-                .is_none()
-        );
+        assert!(read_before_edit_block(
+            "Write",
+            &json!({ "file_path": ps }),
+            &seen(tmp.path(), &[]),
+            tmp.path()
+        )
+        .is_none());
         std::fs::write(&p, "v1\n").unwrap();
 
         // The runner records write targets the same way it records reads.

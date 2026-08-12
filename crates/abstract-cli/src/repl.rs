@@ -203,6 +203,7 @@ pub async fn run_repl(
                             Recovery::Switch(new_model) => {
                                 // Snapshot messages, pop the last user msg (runner already added it)
                                 let mut msgs = agent.messages();
+                                let usage = agent.usage();
                                 if msgs.last().map(|m| m.role == Role::User).unwrap_or(false) {
                                     msgs.pop();
                                 }
@@ -214,19 +215,18 @@ pub async fn run_repl(
                                     session_id,
                                     cancel_token.clone(),
                                     Some(msgs),
+                                    Some(usage),
                                     None,
                                     None,
                                 ) {
-                                    Ok((new_agent, resolved)) => {
+                                    Ok((new_agent, resolved, pricing_model)) => {
                                         agent = Arc::new(new_agent);
-                                        current_model = format!(
-                                            "{}/{}",
-                                            new_model.split('/').next().unwrap_or(""),
-                                            &resolved
-                                        );
-                                        if current_model.starts_with('/') {
-                                            current_model = resolved.clone();
-                                        }
+                                        current_model = pricing_model.clone();
+                                        // Resolve pricing before retrying the new provider so
+                                        // an absent model gets its required forced refresh.
+                                        // Failure remains non-fatal and the LLM retry proceeds.
+                                        cersei_tools::pricing::refresh_for_identity(&pricing_model)
+                                            .await;
                                         renderer.model_switched(&resolved);
                                         should_retry = true;
                                     }
@@ -328,10 +328,12 @@ async fn run_agent_streaming(
             } => {
                 status.update_cost(input_tokens, output_tokens, cumulative_cost);
             }
-            AgentEvent::TurnComplete { usage, .. } => {
-                if let Some(cost) = usage.cost_usd {
-                    status.update_cost(usage.input_tokens, usage.output_tokens, cost);
-                }
+            AgentEvent::TurnComplete { .. } => {
+                // No cost handling here: `TurnComplete` carries the usage of
+                // the *last turn only*, while the status line shows
+                // session-cumulative totals. Those come from `CostUpdate`,
+                // emitted right before with the accumulated session usage —
+                // overwriting here would drop the total back to one turn.
             }
             AgentEvent::TokenWarning { pct_used, .. } => {
                 status.update_context(pct_used);

@@ -11,7 +11,9 @@ use crate::tui::{
 use cersei::events::{AgentEvent, AgentStream};
 use cersei::Agent;
 use cersei_memory::manager::MemoryManager;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind,
+};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
@@ -22,6 +24,7 @@ pub async fn run(
     terminal: &mut Terminal,
     agent: Arc<Agent>,
     config: &AppConfig,
+    pricing_model: &str,
     _memory_manager: &MemoryManager,
     session_id: &str,
     cancel_token: CancellationToken,
@@ -29,7 +32,8 @@ pub async fn run(
     mut permission_rx: tokio::sync::mpsc::Receiver<crate::permissions::TuiPermissionRequest>,
 ) -> anyhow::Result<()> {
     let theme = Theme::from_name(&config.theme);
-    let mut state = AppState::new(&config.model, session_id, &config.effort);
+    let mut state = AppState::new(pricing_model, session_id, &config.effort);
+    state.cost_available = cersei_tools::pricing::resolve_identity(pricing_model).is_some();
     state.set_shared_mode(shared_mode);
     let mut agent_stream: Option<AgentStream> = None;
 
@@ -78,6 +82,9 @@ pub async fn run(
                     event_count += 1;
                     match event::read()? {
                         Event::Key(key) => {
+                            if !is_actionable_key(&key) {
+                                continue;
+                            }
                             if let Some(prompt) = handle_key(&mut state, key, config, &cancel_token) {
                                 state.push_user(&prompt);
                                 state.is_streaming = true;
@@ -87,8 +94,11 @@ pub async fn run(
                             }
                             state.dirty = true;
                         }
-                        Event::Mouse(_) => {
-                            // Mouse capture disabled to allow native text selection
+                        Event::Mouse(mouse) => {
+                            if matches!(mouse.kind, MouseEventKind::Moved) {
+                                state.mouse_position = Some((mouse.column, mouse.row));
+                                state.dirty = true;
+                            }
                         }
                         Event::Paste(text) => {
                             if !state.is_streaming {
@@ -98,14 +108,12 @@ pub async fn run(
                             }
                         }
                         Event::Resize(_, _) => {
-                            // Re-push keyboard enhancement after resize
-                            // (some terminals drop the protocol on resize)
-                            let _ = crossterm::execute!(
-                                std::io::stdout(),
-                                crossterm::event::PushKeyboardEnhancementFlags(
-                                    crossterm::event::KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
-                                )
-                            );
+                            // No keyboard-protocol re-push here. The flags are
+                            // applied exactly once in `setup_terminal` (and
+                            // only when the terminal supports them); re-pushing
+                            // without popping is a no-op on Windows and, on
+                            // terminals that do support the protocol, is the
+                            // known cause of doubled keystrokes.
                             state.dirty = true;
                         }
                         _ => {}
@@ -129,6 +137,13 @@ async fn poll_agent_stream(stream: &mut Option<AgentStream>) -> Option<AgentEven
         Some(ref mut s) => s.next().await,
         None => std::future::pending().await,
     }
+}
+
+/// Windows terminals may emit both Press and Release for one physical key.
+/// Release must never be interpreted as a second character; Repeat remains
+/// actionable so holding a key keeps the normal terminal behavior.
+fn is_actionable_key(key: &KeyEvent) -> bool {
+    key.kind != KeyEventKind::Release
 }
 
 fn draw(terminal: &mut Terminal, state: &mut AppState, theme: &Theme) -> anyhow::Result<()> {
@@ -427,7 +442,7 @@ fn handle_key(
     None
 }
 
-fn handle_agent_event(state: &mut AppState, event: AgentEvent) {
+pub(crate) fn handle_agent_event(state: &mut AppState, event: AgentEvent) {
     match event {
         AgentEvent::TextDelta(text) => {
             state.streaming_text.push_str(&text);
@@ -467,27 +482,33 @@ fn handle_agent_event(state: &mut AppState, event: AgentEvent) {
                 tool.output_preview = Some(result.chars().take(200).collect());
             }
         }
+        AgentEvent::ModelResponseStart { model, .. } => {
+            state.apply_model_response_start(&model);
+        }
         AgentEvent::CostUpdate {
             cumulative_cost,
+            cost_available,
             input_tokens,
             output_tokens,
+            cache_read_input_tokens,
+            cache_creation_input_tokens,
             ..
         } => {
-            state.input_tokens = input_tokens;
-            state.output_tokens = output_tokens;
-            // Use reported cost or estimate from model pricing
-            state.cost_usd = if cumulative_cost > 0.0 {
-                cumulative_cost
-            } else {
-                cersei_tools::estimate_cost(&state.model, input_tokens, output_tokens)
-            };
+            state.apply_cost_update(
+                cumulative_cost,
+                cost_available,
+                input_tokens,
+                output_tokens,
+                cache_read_input_tokens,
+                cache_creation_input_tokens,
+            );
         }
-        AgentEvent::TurnComplete { usage, .. } => {
-            state.input_tokens = usage.input_tokens;
-            state.output_tokens = usage.output_tokens;
-            state.cost_usd = usage.cost_usd.filter(|c| *c > 0.0).unwrap_or_else(|| {
-                cersei_tools::estimate_cost(&state.model, usage.input_tokens, usage.output_tokens)
-            });
+        AgentEvent::TurnComplete { .. } => {
+            // No cost handling here: `TurnComplete` carries the usage of the
+            // *last turn only*, while the header shows session-cumulative
+            // totals. Those come from `CostUpdate`, which the runner emits
+            // right before `TurnComplete` with the accumulated session usage.
+            // Overwriting here would drop the session back to a single turn.
         }
         AgentEvent::TokenWarning { pct_used, .. } => {
             state.context_pct = pct_used;
@@ -713,18 +734,20 @@ fn handle_slash_command(state: &mut AppState, input: &str, config: &AppConfig) {
             });
         }
         "cost" => {
-            // Estimate cost if provider didn't report it
-            let cost = if state.cost_usd > 0.0 {
-                state.cost_usd
+            let cost = if state.cost_available {
+                format!("${:.4}", state.cost_usd)
             } else {
-                cersei_tools::estimate_cost(&state.model, state.input_tokens, state.output_tokens)
+                "??".to_string()
             };
             state.turns.push(crate::tui::app::Turn {
                 role: crate::tui::app::TurnRole::System,
                 content: format!(
-                    "Session cost: ${:.4}\nInput: {} tokens | Output: {} tokens\nTurns: {} | Tools: {}",
-                    cost, state.input_tokens, state.output_tokens,
-                    state.turn_count, state.tool_count
+                    "Session cost: {}\nInput: {} tokens | Output: {} tokens\nTurns: {} | Tools: {}",
+                    cost,
+                    state.input_tokens,
+                    state.output_tokens,
+                    state.turn_count,
+                    state.tool_count
                 ),
                 tools: Vec::new(),
                 thinking: None,
@@ -836,5 +859,118 @@ fn truncate(s: &str, max: usize) -> String {
     } else {
         let head: String = s.chars().take(max).collect();
         format!("{head}...")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cersei_types::{StopReason, Usage};
+
+    #[test]
+    fn key_release_is_ignored_but_press_and_repeat_remain_actionable() {
+        let press =
+            KeyEvent::new_with_kind(KeyCode::Char('a'), KeyModifiers::NONE, KeyEventKind::Press);
+        let repeat =
+            KeyEvent::new_with_kind(KeyCode::Char('a'), KeyModifiers::NONE, KeyEventKind::Repeat);
+        let release = KeyEvent::new_with_kind(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+            KeyEventKind::Release,
+        );
+
+        assert!(is_actionable_key(&press));
+        assert!(is_actionable_key(&repeat));
+        assert!(!is_actionable_key(&release));
+    }
+
+    fn cost_update(
+        turn_cost: f64,
+        cumulative_cost: f64,
+        input: u64,
+        output: u64,
+        cache_read: u64,
+        cache_creation: u64,
+    ) -> AgentEvent {
+        AgentEvent::CostUpdate {
+            turn_cost,
+            cumulative_cost,
+            cost_available: true,
+            input_tokens: input,
+            output_tokens: output,
+            cache_read_input_tokens: cache_read,
+            cache_creation_input_tokens: cache_creation,
+        }
+    }
+
+    /// Test 6: `CostUpdate` carries the session-cumulative totals; the
+    /// `TurnComplete` that follows it carries only the last turn's usage and
+    /// must never overwrite the cumulative totals.
+    #[test]
+    fn turn_complete_does_not_clobber_cumulative_totals() {
+        let mut state = AppState::new("claude-sonnet-4-6", "session-12345678", "auto");
+
+        // Turn 1: cumulative = turn 1.
+        handle_agent_event(
+            &mut state,
+            cost_update(0.40, 0.40, 25_000, 20_000, 75_000, 0),
+        );
+        handle_agent_event(
+            &mut state,
+            AgentEvent::TurnComplete {
+                turn: 0,
+                stop_reason: StopReason::EndTurn,
+                usage: Usage {
+                    input_tokens: 25_000,
+                    output_tokens: 20_000,
+                    cache_read_input_tokens: 75_000,
+                    ..Default::default()
+                },
+            },
+        );
+        assert_eq!(state.input_tokens, 25_000);
+        assert!((state.cost_usd - 0.40).abs() < 1e-9);
+
+        // Turn 2: cumulative totals grow; the trailing per-turn snapshot must
+        // not shrink them back to the last turn's values.
+        handle_agent_event(
+            &mut state,
+            cost_update(0.45, 0.85, 50_000, 40_000, 150_000, 5_000),
+        );
+        handle_agent_event(
+            &mut state,
+            AgentEvent::TurnComplete {
+                turn: 1,
+                stop_reason: StopReason::EndTurn,
+                usage: Usage {
+                    input_tokens: 25_000,
+                    output_tokens: 20_000,
+                    cache_read_input_tokens: 75_000,
+                    ..Default::default()
+                },
+            },
+        );
+
+        assert_eq!(state.input_tokens, 50_000);
+        assert_eq!(state.output_tokens, 40_000);
+        assert_eq!(state.cache_read_tokens, 150_000);
+        assert_eq!(state.cache_creation_tokens, 5_000);
+        assert!((state.cost_usd - 0.85).abs() < 1e-9);
+    }
+
+    /// Test 7 (TUI side): the model actually displayed/priced is the one the
+    /// runner reports per response (`deepseek/deepseek-chat`), not whatever
+    /// OpenAI-compatible parser served the wire format.
+    #[test]
+    fn model_response_start_updates_display_model() {
+        let mut state = AppState::new("openai/gpt-5-chat", "session-12345678", "auto");
+        handle_agent_event(
+            &mut state,
+            AgentEvent::ModelResponseStart {
+                turn: 0,
+                model: "deepseek/deepseek-chat".into(),
+            },
+        );
+        assert_eq!(state.model, "deepseek/deepseek-chat");
     }
 }

@@ -254,8 +254,10 @@ pub const SYSTEM_PROMPT_DYNAMIC_BOUNDARY: &str = "__SYSTEM_PROMPT_DYNAMIC_BOUNDA
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Usage {
-    /// Uncached prompt tokens billed at the full input rate. The total prompt
-    /// size is `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`.
+    /// Prompt tokens billed at the full input rate. After DeepSeek
+    /// normalization this is specifically `prompt_cache_miss_tokens`. The
+    /// total prompt size is `input_tokens + cache_creation_input_tokens +
+    /// cache_read_input_tokens`.
     pub input_tokens: u64,
     pub output_tokens: u64,
     #[serde(default)]
@@ -264,8 +266,9 @@ pub struct Usage {
     /// (Anthropic: billed at ~1.25x the input rate for the default 5m TTL).
     #[serde(default)]
     pub cache_creation_input_tokens: u64,
-    /// Prompt tokens served from the provider's prompt cache this request
-    /// (Anthropic: billed at ~0.1x the input rate).
+    /// Prompt tokens served from the provider's prompt cache this request.
+    /// After DeepSeek normalization this is `prompt_cache_hit_tokens` and is
+    /// billed with Portkey's distinct cache-read rate.
     #[serde(default)]
     pub cache_read_input_tokens: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -276,11 +279,20 @@ pub struct Usage {
 }
 
 impl Usage {
+    /// Total prompt size after provider-specific cache counters have been
+    /// normalized. Anthropic reports the three parts separately; OpenAI and
+    /// Gemini are normalized into uncached input plus cache reads.
+    pub fn prompt_tokens(&self) -> u64 {
+        self.input_tokens
+            .saturating_add(self.cache_creation_input_tokens)
+            .saturating_add(self.cache_read_input_tokens)
+    }
+
     pub fn total(&self) -> u64 {
         if self.total_tokens > 0 {
             self.total_tokens
         } else {
-            self.input_tokens + self.output_tokens
+            self.prompt_tokens().saturating_add(self.output_tokens)
         }
     }
 
@@ -292,7 +304,7 @@ impl Usage {
         self.output_tokens += other.output_tokens;
         self.cache_creation_input_tokens += other.cache_creation_input_tokens;
         self.cache_read_input_tokens += other.cache_read_input_tokens;
-        self.total_tokens = self.input_tokens + self.output_tokens;
+        self.total_tokens = self.prompt_tokens().saturating_add(self.output_tokens);
         if let (Some(a), Some(b)) = (self.cost_usd, other.cost_usd) {
             self.cost_usd = Some(a + b);
         } else if other.cost_usd.is_some() {
@@ -314,7 +326,7 @@ impl Usage {
         self.cache_read_input_tokens = self
             .cache_read_input_tokens
             .max(other.cache_read_input_tokens);
-        self.total_tokens = self.input_tokens + self.output_tokens;
+        self.total_tokens = self.prompt_tokens().saturating_add(self.output_tokens);
         if other.cost_usd.is_some() {
             self.cost_usd = other.cost_usd;
         }
@@ -557,6 +569,8 @@ mod usage_tests {
         assert_eq!(total.output_tokens, 30);
         assert_eq!(total.cache_creation_input_tokens, 3815);
         assert_eq!(total.cache_read_input_tokens, 3815);
+        assert_eq!(total.prompt_tokens(), 7780);
+        assert_eq!(total.total(), 7810);
     }
 
     /// Within one streamed message the usage events are cumulative snapshots
@@ -578,6 +592,8 @@ mod usage_tests {
         assert_eq!(msg.input_tokens, 3571, "input snapshot must be kept");
         assert_eq!(msg.output_tokens, 727, "727, not 2 + 727");
         assert_eq!(msg.cache_read_input_tokens, 6656);
+        assert_eq!(msg.prompt_tokens(), 10_227);
+        assert_eq!(msg.total(), 10_954);
 
         // Applying the same snapshot twice must not grow anything.
         let before = (msg.input_tokens, msg.output_tokens);
