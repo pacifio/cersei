@@ -337,7 +337,9 @@ async fn injected_message_reaches_the_provider_on_the_next_turn() {
         recorded.len()
     );
     assert!(
-        recorded[1..].iter().any(|b| b.contains("INJECTED_SENTINEL")),
+        recorded[1..]
+            .iter()
+            .any(|b| b.contains("INJECTED_SENTINEL")),
         "the injected message never reached the provider — the control channel \
          swallowed it. Bodies after turn 1: {:?}",
         &recorded[1..]
@@ -669,7 +671,11 @@ async fn collect_returns_the_full_output_despite_drop_cancellation() {
         .await
         .expect("collect should return the completed output");
 
-    assert!(out.turns >= 2, "expected a multi-turn run, got {}", out.turns);
+    assert!(
+        out.turns >= 2,
+        "expected a multi-turn run, got {}",
+        out.turns
+    );
     assert!(
         out.tool_calls.iter().any(|c| c.name == "Read"),
         "the tool call is missing from the collected output"
