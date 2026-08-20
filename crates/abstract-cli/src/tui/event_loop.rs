@@ -42,6 +42,14 @@ pub async fn run(
         }
 
         tokio::select! {
+            // ── Process-level shutdown (SIGTERM, signals::install) ───────
+            // Per-run cancellation goes through the AgentStream instead; this
+            // token is one-shot, so using it for Ctrl+C left the agent unable
+            // to start another run.
+            _ = cancel_token.cancelled() => {
+                state.should_quit = true;
+            }
+
             // ── Permission requests from agent ──────────────────────────
             Some(perm_req) = permission_rx.recv() => {
                 state.overlay = Overlay::Permission(crate::tui::app::PermissionOverlay {
@@ -78,7 +86,7 @@ pub async fn run(
                     event_count += 1;
                     match event::read()? {
                         Event::Key(key) => {
-                            if let Some(prompt) = handle_key(&mut state, key, config, &cancel_token) {
+                            if let Some(prompt) = handle_key(&mut state, key, config, &mut agent_stream) {
                                 state.push_user(&prompt);
                                 state.is_streaming = true;
                                 state.stream_start = Some(Instant::now());
@@ -124,6 +132,19 @@ pub async fn run(
     Ok(())
 }
 
+/// Cancel the in-flight run and drop its handle.
+///
+/// Taking the stream out is what stops it: `AgentStream` cancels on drop, and
+/// leaving a cancelled handle in place would keep `poll_agent_stream` selecting
+/// on a dead channel.
+fn cancel_run(agent_stream: &mut Option<AgentStream>, state: &mut AppState) {
+    if let Some(stream) = agent_stream.take() {
+        stream.cancel();
+    }
+    state.is_streaming = false;
+    state.commit_turn();
+}
+
 async fn poll_agent_stream(stream: &mut Option<AgentStream>) -> Option<AgentEvent> {
     match stream {
         Some(ref mut s) => s.next().await,
@@ -164,11 +185,16 @@ fn draw(terminal: &mut Terminal, state: &mut AppState, theme: &Theme) -> anyhow:
 }
 
 /// Handle a key event. Returns Some(prompt) if the user submitted input.
+///
+/// Ctrl+C cancels the *run* via its `AgentStream`, not the process-wide
+/// `CancellationToken`: that token is one-shot, so cancelling it used to brick
+/// the agent — every later `run_stream` returned `Cancelled` without reaching
+/// the provider.
 fn handle_key(
     state: &mut AppState,
     key: KeyEvent,
     config: &AppConfig,
-    cancel_token: &CancellationToken,
+    agent_stream: &mut Option<AgentStream>,
 ) -> Option<String> {
     // Handle overlay-specific keys first
     if state.overlay != Overlay::None {
@@ -220,9 +246,7 @@ fn handle_key(
                     }
                     (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
                         if state.is_streaming {
-                            cancel_token.cancel();
-                            state.is_streaming = false;
-                            state.commit_turn();
+                            cancel_run(agent_stream, state);
                         }
                     }
                     _ => {}
@@ -241,9 +265,7 @@ fn handle_key(
         // Ctrl+C — cancel or quit
         (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
             if state.is_streaming {
-                cancel_token.cancel();
-                state.is_streaming = false;
-                state.commit_turn();
+                cancel_run(agent_stream, state);
             } else if state.input.is_empty() {
                 state.should_quit = true;
             } else {

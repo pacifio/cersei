@@ -48,8 +48,10 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
     let cancel_token = CancellationToken::new();
     let running = Arc::new(AtomicBool::new(false));
 
-    // Install signal handlers
-    crate::signals::install(cancel_token.clone(), running.clone())?;
+    // Install signal handlers. Ctrl+C cancels the active run (registered by
+    // the REPL paths below); the shutdown token is only fired on exit.
+    let active_agent = crate::signals::new_active_agent();
+    crate::signals::install(active_agent.clone(), cancel_token.clone(), running.clone())?;
 
     // Build the initial agent with shared permission mode and TUI permission channel
     let shared_mode = crate::permissions::new_shared_mode();
@@ -88,7 +90,7 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
             &memory_manager,
             json_mode,
             running,
-            cancel_token,
+            active_agent,
         )
         .await
     } else if json_mode {
@@ -101,7 +103,7 @@ pub async fn run(cli: Cli, mut config: AppConfig) -> anyhow::Result<()> {
             &memory_manager,
             json_mode,
             running,
-            cancel_token.clone(),
+            active_agent,
         )
         .await
     } else {

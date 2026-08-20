@@ -129,8 +129,11 @@ pub async fn run_repl(
     memory_manager: &MemoryManager,
     json_mode: bool,
     running: Arc<AtomicBool>,
-    cancel_token: CancellationToken,
+    active_agent: crate::signals::ActiveAgent,
 ) -> anyhow::Result<()> {
+    // The agent this session's Ctrl+C should cancel. Re-registered below on a
+    // provider switch, which replaces the agent.
+    let cancel_token = CancellationToken::new();
     let mut input_reader = InputReader::new()?;
     let mut renderer = StreamRenderer::new(theme, json_mode);
     let mut status = StatusLine::new(theme, &config.model, session_id, !json_mode);
@@ -138,6 +141,7 @@ pub async fn run_repl(
     let mut is_first_turn = true;
     let mut current_model = config.model.clone();
     let mut agent = Arc::new(agent);
+    *active_agent.lock() = Some(Arc::clone(&agent));
 
     loop {
         let prompt_str = "\x1b[36m> \x1b[0m";
@@ -219,6 +223,7 @@ pub async fn run_repl(
                                 ) {
                                     Ok((new_agent, resolved)) => {
                                         agent = Arc::new(new_agent);
+                                        *active_agent.lock() = Some(Arc::clone(&agent));
                                         current_model = format!(
                                             "{}/{}",
                                             new_model.split('/').next().unwrap_or(""),
@@ -262,11 +267,12 @@ pub async fn run_single_shot(
     memory_manager: &MemoryManager,
     json_mode: bool,
     running: Arc<AtomicBool>,
-    _cancel_token: CancellationToken,
+    active_agent: crate::signals::ActiveAgent,
 ) -> anyhow::Result<()> {
     let mut renderer = StreamRenderer::new(theme, json_mode);
     let mut status = StatusLine::new(theme, &config.model, session_id, false);
     let agent = Arc::new(agent);
+    *active_agent.lock() = Some(Arc::clone(&agent));
 
     running.store(true, Ordering::Relaxed);
     let result =
@@ -319,7 +325,17 @@ async fn run_agent_streaming(
             } => {
                 renderer.tool_end(&name, &result, is_error, duration);
             }
-            AgentEvent::PermissionRequired(_request) => {}
+            AgentEvent::PermissionRequired(request) => {
+                // The REPL drives its own permission policies (see app.rs), so
+                // this only fires if someone wires a stream-deferred one. Answer
+                // rather than ignore: an unanswered request parks the run.
+                stream.respond_permission(
+                    request.id,
+                    cersei_tools::permissions::PermissionDecision::Deny(
+                        "the REPL cannot prompt for stream-deferred permissions".into(),
+                    ),
+                );
+            }
             AgentEvent::CostUpdate {
                 cumulative_cost,
                 input_tokens,
