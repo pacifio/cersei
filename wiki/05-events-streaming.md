@@ -61,6 +61,12 @@ Listeners that fall behind receive a `Lagged` error — the channel is lossy by 
 
 `agent.run_stream()` returns an `AgentStream` — an async iterator with bidirectional control.
 
+`run_stream` takes `&Arc<Agent>`. For a single streamed run there are two shorthands that skip the wrapping: `AgentBuilder::stream_with(prompt)` (build and stream in one call) and `Agent::into_stream(prompt)` (from an owned agent). To stream several turns against one agent, build it with `AgentBuilder::build_shared()`.
+
+**Lifecycle.** Dropping the stream cancels the run behind it — the run is driven by a spawned task that would otherwise keep calling the provider with nobody listening. Call `stream.detach()` to let a run outlive its handle deliberately.
+
+**Cancellation ends the run, not the agent.** `stream.cancel()` and `agent.cancel()` both stop the run in flight; the next `run`/`run_stream` mints a fresh token and proceeds normally. A token supplied through `AgentBuilder::cancel_token` is a *process-shutdown* signal: every run's token is a child of it, so firing it stops the current run and every later one. Use `stream.cancel()` for per-run cancellation.
+
 ```rust
 let mut stream = agent.run_stream("Deploy to staging");
 
@@ -101,10 +107,15 @@ impl AgentStream {
     fn respond_permission(&self, request_id: String, decision: PermissionDecision);
     fn cancel(&self);
     fn inject_message(&self, message: String);
+    fn detach(self);                                  // opt out of drop-cancel
     async fn collect(self) -> Result<AgentOutput>;
     async fn collect_text(self) -> Result<String>;
 }
 ```
+
+`inject_message` joins the conversation at the next turn boundary, where history is quiescent.
+
+`PermissionRequired` is only emitted for a policy that opts into stream deferral (`InteractivePolicy::via_stream()` / `StreamDeferredPolicy`). The run waits for the matching `respond_permission`, so a loop that ignores the event — including `collect()` and `collect_text()`, which cannot answer — will park until the run is cancelled. Under any other policy the event never fires.
 
 ## Reporters
 

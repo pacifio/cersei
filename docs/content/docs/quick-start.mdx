@@ -50,13 +50,12 @@ use cersei::prelude::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let agent = Agent::builder()
+    let mut stream = Agent::builder()
         .provider(Anthropic::from_env()?)
         .tools(cersei::tools::coding())
         .permission_policy(AllowAll)
-        .build()?;
+        .stream_with("Fix the failing tests")?;
 
-    let mut stream = agent.run_stream("Fix the failing tests");
     while let Some(event) = stream.next().await {
         match event {
             AgentEvent::TextDelta(t) => print!("{t}"),
