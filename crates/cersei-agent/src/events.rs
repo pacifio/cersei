@@ -5,6 +5,7 @@ use cersei_tools::PermissionLevel;
 use cersei_types::*;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::AgentOutput;
 
@@ -136,17 +137,30 @@ pub enum CompactReason {
 
 /// Returned by `agent.run_stream()`. Provides async iteration over events
 /// and bidirectional control (permissions, cancellation, message injection).
+///
+/// Dropping the stream cancels the run behind it. The run is driven by a
+/// spawned task that owns an `Arc<Agent>`, so without drop-cancel a dropped
+/// handle left the agent calling the provider — and spending — with nobody
+/// listening. Use [`AgentStream::detach`] to opt out deliberately.
 pub struct AgentStream {
     rx: mpsc::Receiver<AgentEvent>,
     control_tx: mpsc::Sender<AgentControl>,
+    /// The run's cancellation token. `None` once [`AgentStream::detach`] has
+    /// disarmed drop-cancellation.
+    cancel_token: Option<CancellationToken>,
 }
 
 impl AgentStream {
     pub(crate) fn new(
         rx: mpsc::Receiver<AgentEvent>,
         control_tx: mpsc::Sender<AgentControl>,
+        cancel_token: CancellationToken,
     ) -> Self {
-        Self { rx, control_tx }
+        Self {
+            rx,
+            control_tx,
+            cancel_token: Some(cancel_token),
+        }
     }
 
     /// Respond to a PermissionRequired event.
@@ -157,16 +171,33 @@ impl AgentStream {
         });
     }
 
-    /// Send a cancellation signal.
+    /// Cancel the run.
+    ///
+    /// Cancels the run's token directly rather than relying on the control
+    /// channel alone: cancellation has to land even if the control buffer is
+    /// full or the pump task has not been scheduled yet.
     pub fn cancel(&self) {
+        if let Some(token) = &self.cancel_token {
+            token.cancel();
+        }
         let _ = self.control_tx.try_send(AgentControl::Cancel);
     }
 
-    /// Inject a user message mid-stream.
+    /// Inject a user message mid-stream. It joins the conversation at the next
+    /// turn boundary, where history is quiescent.
     pub fn inject_message(&self, message: String) {
         let _ = self
             .control_tx
             .try_send(AgentControl::InjectMessage(message));
+    }
+
+    /// Let the run outlive this handle: disarms drop-cancellation and discards
+    /// the stream.
+    ///
+    /// Events still reach the agent's own listeners (`on_event`, reporters,
+    /// broadcast subscribers); only this handle goes away.
+    pub fn detach(mut self) {
+        self.cancel_token = None;
     }
 
     /// Receive the next event.
@@ -201,16 +232,22 @@ impl AgentStream {
     }
 }
 
+impl Drop for AgentStream {
+    fn drop(&mut self) {
+        if let Some(token) = self.cancel_token.take() {
+            token.cancel();
+        }
+    }
+}
+
 // ─── Control messages ────────────────────────────────────────────────────────
 
 #[derive(Debug)]
 pub(crate) enum AgentControl {
-    #[allow(dead_code)]
     PermissionResponse {
         request_id: String,
         decision: PermissionDecision,
     },
     Cancel,
-    #[allow(dead_code)]
     InjectMessage(String),
 }

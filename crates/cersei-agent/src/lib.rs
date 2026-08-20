@@ -25,14 +25,13 @@ use cersei_provider::Provider;
 use cersei_tools::permissions::{AllowAll, PermissionPolicy};
 use cersei_tools::{CostTracker, Tool};
 use cersei_types::*;
-use events::AgentEvent;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, mpsc};
 
 // Re-exports
-pub use events::{AgentStream, CompactReason, WarningState};
+pub use events::{AgentEvent, AgentStream, CompactReason, WarningState};
 pub use reporters::Reporter;
 
 // ─── Agent output ────────────────────────────────────────────────────────────
@@ -97,7 +96,19 @@ pub struct Agent {
     pub benchmark_mode: bool,
     messages: Arc<parking_lot::Mutex<Vec<Message>>>,
     cumulative_usage: Arc<parking_lot::Mutex<Usage>>,
-    cancel_token: tokio_util::sync::CancellationToken,
+    /// Process-level shutdown signal from `AgentBuilder::cancel_token`, if one
+    /// was supplied. Every run's token is a child of it, so cancelling it stops
+    /// the current run and any run started afterwards.
+    external_cancel: Option<tokio_util::sync::CancellationToken>,
+    /// The cancellation token for the *current* run, replaced at the start of
+    /// each run by `begin_run`.
+    ///
+    /// A `CancellationToken` is one-shot: it never un-cancels. Holding a single
+    /// one for the agent's whole lifetime meant one `cancel()` bricked the
+    /// agent — the runner re-checks the token at the top of every turn, so
+    /// every later `run`/`run_stream` returned `Cancelled` without ever
+    /// reaching the provider.
+    cancel_token: Arc<parking_lot::Mutex<tokio_util::sync::CancellationToken>>,
     /// Type-map injected into every `ToolContext` this agent builds. Used by
     /// orchestration layers (e.g. cersei-agentrl) to hand tools a dynamic tool
     /// registry, a sandbox handle, a Mailbox/KvStore, etc. at runtime.
@@ -116,27 +127,61 @@ impl Agent {
 
     /// Run with streaming — returns a stream of AgentEvents.
     /// Takes `Arc<Self>` so the agent can safely outlive the caller in the spawned task.
+    ///
+    /// The returned [`AgentStream`] cancels the run when it is dropped; call
+    /// [`AgentStream::detach`] to let the run outlive its handle on purpose.
+    ///
+    /// For callers holding an owned `Agent` rather than an `Arc`, see
+    /// [`Agent::into_stream`] and [`AgentBuilder::stream_with`].
     pub fn run_stream(self: &Arc<Self>, prompt: &str) -> AgentStream {
         let (event_tx, event_rx) = mpsc::channel(512);
         let (control_tx, control_rx) = mpsc::channel(64);
 
+        // Claimed here, synchronously, rather than inside the spawned task: the
+        // stream needs the very token this run will observe in order to cancel
+        // it on drop, and claiming it in the task would race that.
+        let cancel_token = self.begin_run();
+
         let prompt = prompt.to_string();
         let agent = Arc::clone(self);
+        let run_token = cancel_token.clone();
 
         tokio::spawn(async move {
-            let result =
-                runner::run_agent_streaming(&agent, &prompt, event_tx.clone(), control_rx).await;
+            let result = runner::run_agent_streaming(
+                &agent,
+                &prompt,
+                event_tx.clone(),
+                control_rx,
+                run_token,
+            )
+            .await;
+            // Terminal events go to the stream *and* to the agent's own
+            // listeners, matching `run()`. Without the `emit`, `on_event`
+            // handlers, reporters and broadcast subscribers saw every event of
+            // a streamed run except the one saying it had ended.
             match result {
                 Ok(output) => {
+                    agent.emit(AgentEvent::Complete(output.clone()));
                     let _ = event_tx.send(AgentEvent::Complete(output)).await;
                 }
                 Err(e) => {
+                    agent.emit(AgentEvent::Error(e.to_string()));
                     let _ = event_tx.send(AgentEvent::Error(e.to_string())).await;
                 }
             }
         });
 
-        AgentStream::new(event_rx, control_tx)
+        AgentStream::new(event_rx, control_tx, cancel_token)
+    }
+
+    /// Start a streaming run from an owned `Agent`, without the `Arc::new`
+    /// dance [`Agent::run_stream`] requires.
+    ///
+    /// The agent is moved into the stream, so this is the single-run form. To
+    /// stream several turns against one agent, use
+    /// [`AgentBuilder::build_shared`] and [`Agent::run_stream`].
+    pub fn into_stream(self, prompt: &str) -> AgentStream {
+        Arc::new(self).run_stream(prompt)
     }
 
     /// Multi-turn: send a follow-up message in the same conversation.
@@ -154,9 +199,41 @@ impl Agent {
         self.cumulative_usage.lock().clone()
     }
 
-    /// Cancel a running agent.
+    /// Cancel the run currently in flight.
+    ///
+    /// This ends the current run only. The next `run`/`run_stream` claims a
+    /// fresh token and proceeds normally — cancelling does not retire the
+    /// agent.
     pub fn cancel(&self) {
-        self.cancel_token.cancel();
+        self.cancel_token.lock().cancel();
+    }
+
+    /// The cancellation token governing the current (or most recent) run.
+    ///
+    /// Useful for observing cancellation from outside; to *cause* it, prefer
+    /// [`Agent::cancel`] or [`AgentStream::cancel`], which always act on the
+    /// live token.
+    pub fn cancel_token(&self) -> tokio_util::sync::CancellationToken {
+        self.cancel_token.lock().clone()
+    }
+
+    /// Mint the token for a run that is about to start.
+    ///
+    /// Always a *new* token, never the previous run's: an `AgentStream` cancels
+    /// its token on drop, so a shared token would let a stale handle kill a run
+    /// started after it. Cancelling one run therefore cannot affect another,
+    /// and cannot retire the agent.
+    ///
+    /// When the builder supplied a shutdown token, each run's token is a child
+    /// of it — cancelling the parent stops this run and every later one, while
+    /// cancelling a run leaves the parent (and its other children) alone.
+    pub(crate) fn begin_run(&self) -> tokio_util::sync::CancellationToken {
+        let fresh = match &self.external_cancel {
+            Some(external) => external.child_token(),
+            None => tokio_util::sync::CancellationToken::new(),
+        };
+        *self.cancel_token.lock() = fresh.clone();
+        fresh
     }
 
     /// Get the current tool-output compression level.
@@ -391,6 +468,12 @@ impl AgentBuilder {
         self
     }
 
+    /// Supply a process-level shutdown token.
+    ///
+    /// Every run's cancellation token becomes a child of it, so cancelling this
+    /// token stops the run in flight *and* every run started afterwards — which
+    /// is what shutdown should mean. For per-run cancellation, which leaves the
+    /// agent usable, use [`Agent::cancel`] or [`AgentStream::cancel`] instead.
     pub fn cancel_token(mut self, token: tokio_util::sync::CancellationToken) -> Self {
         self.cancel_token = Some(token);
         self
@@ -497,16 +580,42 @@ impl AgentBuilder {
             cumulative_usage: Arc::new(parking_lot::Mutex::new(
                 self.seed_usage.unwrap_or_default(),
             )),
-            cancel_token: self
-                .cancel_token
-                .unwrap_or_else(tokio_util::sync::CancellationToken::new),
+            cancel_token: Arc::new(parking_lot::Mutex::new(
+                match &self.cancel_token {
+                    Some(external) => external.child_token(),
+                    None => tokio_util::sync::CancellationToken::new(),
+                },
+            )),
+            external_cancel: self.cancel_token,
             extensions: self.extensions,
         })
+    }
+
+    /// Build the agent behind an `Arc`, ready for [`Agent::run_stream`] across
+    /// several turns.
+    pub fn build_shared(self) -> cersei_types::Result<Arc<Agent>> {
+        self.build().map(Arc::new)
     }
 
     /// Build + run in one shot.
     pub async fn run_with(self, prompt: &str) -> cersei_types::Result<AgentOutput> {
         self.build()?.run(prompt).await
+    }
+
+    /// Build + start streaming in one shot — the streaming twin of
+    /// [`AgentBuilder::run_with`].
+    ///
+    /// ```no_run
+    /// # async fn f(builder: cersei_agent::AgentBuilder) -> cersei_types::Result<()> {
+    /// let mut stream = builder.stream_with("Summarise the repo")?;
+    /// while let Some(event) = stream.next().await {
+    ///     // ...
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn stream_with(self, prompt: &str) -> cersei_types::Result<AgentStream> {
+        Ok(self.build()?.into_stream(prompt))
     }
 }
 

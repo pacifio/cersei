@@ -10,7 +10,7 @@ use cersei_tools::{ToolContext, ToolResult};
 use cersei_types::*;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 // ─── Retry jitter ────────────────────────────────────────────────────────────
 
@@ -302,15 +302,98 @@ pub fn apply_tool_result_budget(messages: &mut [Message], budget_chars: usize) {
     }
 }
 
+// ─── Control channel state ───────────────────────────────────────────────────
+
+/// What the control-channel pump feeds back into the agentic loop.
+#[derive(Default)]
+struct ControlState {
+    /// Messages from `AgentStream::inject_message`, drained at turn boundaries.
+    injected: parking_lot::Mutex<Vec<String>>,
+    /// One slot per outstanding permission question, keyed by request id.
+    ///
+    /// A oneshot per question rather than a shared map plus a `Notify`: the
+    /// slot is registered *before* the question goes out, so a decision that
+    /// arrives immediately has somewhere to land. A notification-based design
+    /// can lose the wake in the window between checking for an answer and
+    /// registering as a waiter.
+    pending_permissions:
+        parking_lot::Mutex<std::collections::HashMap<String, oneshot::Sender<PermissionDecision>>>,
+}
+
+impl ControlState {
+    /// Ask the stream to decide a permission request, and wait for the answer.
+    ///
+    /// Returns `None` if the question could not be delivered or answered — no
+    /// stream is consuming events (the plain `run()` path), the handle was
+    /// dropped, or the run was cancelled while waiting. Callers fall back to
+    /// the policy's own decision.
+    async fn ask_stream(
+        &self,
+        event_tx: &mpsc::Sender<AgentEvent>,
+        request: &PermissionRequest,
+        cancel_token: &tokio_util::sync::CancellationToken,
+    ) -> Option<PermissionDecision> {
+        let (tx, rx) = oneshot::channel();
+        self.pending_permissions
+            .lock()
+            .insert(request.id.clone(), tx);
+
+        if event_tx
+            .send(AgentEvent::PermissionRequired(request.clone()))
+            .await
+            .is_err()
+        {
+            self.pending_permissions.lock().remove(&request.id);
+            return None;
+        }
+
+        let answer = tokio::select! {
+            answer = rx => answer.ok(),
+            _ = cancel_token.cancelled() => None,
+        };
+        if answer.is_none() {
+            self.pending_permissions.lock().remove(&request.id);
+        }
+        answer
+    }
+
+    /// Route a decision from the control channel to whoever is waiting on it.
+    /// Unsolicited or late responses have no slot and are dropped.
+    fn resolve_permission(&self, request_id: &str, decision: PermissionDecision) {
+        if let Some(tx) = self.pending_permissions.lock().remove(request_id) {
+            let _ = tx.send(decision);
+        } else {
+            tracing::debug!(
+                request_id,
+                "permission response with no outstanding request — ignoring"
+            );
+        }
+    }
+}
+
 /// Run the agent without streaming (blocking until complete).
 pub async fn run_agent(agent: &Agent, prompt: &str) -> Result<AgentOutput> {
-    let (event_tx, _event_rx) = mpsc::channel(512);
-    let (_control_tx, control_rx) = mpsc::channel(64);
+    // The receiver is dropped immediately, on purpose. Nothing consumes events
+    // on this path — `agent.emit` is what feeds listeners — so closing the
+    // channel makes every `let _ = event_tx.send(..)` a cheap no-op.
+    //
+    // It used to be bound as `_event_rx`, which is a *binding* (unlike a bare
+    // `_`) and so lived to the end of the function: the channel stayed open,
+    // nobody drained its 512 slots, and `send().await` blocked forever once it
+    // filled. Any `run()` emitting more than 512 events — a few hundred text
+    // deltas — deadlocked.
+    let (event_tx, event_rx) = mpsc::channel(512);
+    drop(event_rx);
+    // Likewise for control: no `AgentStream` exists here to send on it, and the
+    // sender must drop so the pump's `recv()` completes instead of parking.
+    let (control_tx, control_rx) = mpsc::channel(64);
+    drop(control_tx);
 
     let prompt = prompt.to_string();
+    let cancel_token = agent.begin_run();
 
     // Run in a background task and collect events
-    let result = run_agent_streaming(agent, &prompt, event_tx, control_rx).await;
+    let result = run_agent_streaming(agent, &prompt, event_tx, control_rx, cancel_token).await;
 
     match result {
         Ok(output) => {
@@ -324,13 +407,60 @@ pub async fn run_agent(agent: &Agent, prompt: &str) -> Result<AgentOutput> {
     }
 }
 
+/// Abort a spawned task when this guard goes out of scope.
+///
+/// `run_agent_streaming` returns from a dozen places; a guard is what makes the
+/// control pump's lifetime match the run's without threading a shutdown through
+/// every one of them.
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
 /// Core agentic loop with streaming events.
+///
+/// `cancel_token` is the token for *this* run, claimed by the caller via
+/// `Agent::begin_run`. It is passed in rather than read off the agent so the
+/// stream handle and the loop provably observe the same token.
 pub async fn run_agent_streaming(
     agent: &Agent,
     prompt: &str,
     event_tx: mpsc::Sender<AgentEvent>,
-    _control_rx: mpsc::Receiver<AgentControl>,
+    control_rx: mpsc::Receiver<AgentControl>,
+    cancel_token: tokio_util::sync::CancellationToken,
 ) -> Result<AgentOutput> {
+    // ── Control channel pump ──
+    // Everything an `AgentStream` sends arrives here. Until this existed the
+    // receiver was bound as `_control_rx` and never read, so `cancel()`,
+    // `inject_message()` and `respond_permission()` — all three documented in
+    // wiki/05-events-streaming.md — died in an undrained buffer.
+    let control = Arc::new(ControlState::default());
+    let _pump = AbortOnDrop(tokio::spawn({
+        let control = Arc::clone(&control);
+        let cancel_token = cancel_token.clone();
+        let mut control_rx = control_rx;
+        async move {
+            while let Some(msg) = control_rx.recv().await {
+                match msg {
+                    AgentControl::Cancel => {
+                        cancel_token.cancel();
+                        return;
+                    }
+                    AgentControl::InjectMessage(text) => {
+                        control.injected.lock().push(text);
+                    }
+                    AgentControl::PermissionResponse {
+                        request_id,
+                        decision,
+                    } => control.resolve_permission(&request_id, decision),
+                }
+            }
+        }
+    }));
+
     // Load session history (skip if messages were pre-populated via with_messages)
     if agent.messages.lock().is_empty() {
         if let (Some(memory), Some(session_id)) = (&agent.memory, &agent.session_id) {
@@ -414,8 +544,16 @@ pub async fn run_agent_streaming(
         }
 
         // Check cancellation
-        if agent.cancel_token.is_cancelled() {
+        if cancel_token.is_cancelled() {
             return Err(CerseiError::Cancelled);
+        }
+
+        // ── Messages injected through `AgentStream::inject_message` ──
+        // A turn boundary is the one place history is quiescent: the previous
+        // turn's tool results are all in, and the next request has not been
+        // built yet.
+        for text in std::mem::take(&mut *control.injected.lock()) {
+            agent.messages.lock().push(Message::user(&text));
         }
 
         let _ = event_tx.send(AgentEvent::TurnStart { turn }).await;
@@ -541,7 +679,7 @@ pub async fn run_agent_streaming(
             // accepts the connection and then goes quiet.
             let outcome = tokio::select! {
                 result = agent.provider.complete(req_clone) => result,
-                _ = agent.cancel_token.cancelled() => return Err(CerseiError::Cancelled),
+                _ = cancel_token.cancelled() => return Err(CerseiError::Cancelled),
             };
             match outcome {
                 Ok(stream) => {
@@ -579,7 +717,7 @@ pub async fn run_agent_streaming(
                     // ~31s of it.
                     tokio::select! {
                         _ = tokio::time::sleep(std::time::Duration::from_millis(actual_delay)) => {}
-                        _ = agent.cancel_token.cancelled() => return Err(CerseiError::Cancelled),
+                        _ = cancel_token.cancelled() => return Err(CerseiError::Cancelled),
                     }
                     continue;
                 }
@@ -621,7 +759,7 @@ pub async fn run_agent_streaming(
                         None => break, // Stream ended
                     }
                 }
-                _ = agent.cancel_token.cancelled() => {
+                _ = cancel_token.cancelled() => {
                     return Err(CerseiError::Cancelled);
                 }
             }
@@ -899,12 +1037,48 @@ pub async fn run_agent_streaming(
                 let refusals =
                     refusals_for_batch(&tool_use_blocks, &files_read, &tool_ctx.working_dir);
 
+                // ── Stream-deferred permissions, also decided BEFORE dispatch ──
+                // Asking inside the parallel batch would interleave prompts
+                // from concurrent tool calls, so the questions are put to the
+                // caller here, sequentially and in call order. Refused calls
+                // are skipped: they never run, so there is nothing to permit.
+                let mut stream_decisions: std::collections::HashMap<String, PermissionDecision> =
+                    std::collections::HashMap::new();
+                if agent.permission_policy.defers_to_stream() {
+                    for (tool_id, tool_name, tool_input) in &tool_use_blocks {
+                        if refusals.contains_key(tool_id) {
+                            continue;
+                        }
+                        let Some(tool) = agent.tools.iter().find(|t| t.name() == tool_name.as_str())
+                        else {
+                            continue;
+                        };
+                        let request = PermissionRequest {
+                            tool_name: (*tool_name).clone(),
+                            tool_input: (*tool_input).clone(),
+                            permission_level: tool.permission_level(),
+                            description: format!("Execute tool '{}'", tool_name),
+                            id: (*tool_id).clone(),
+                        };
+                        if let Some(decision) = control
+                            .ask_stream(&event_tx, &request, &cancel_token)
+                            .await
+                        {
+                            stream_decisions.insert((*tool_id).clone(), decision);
+                        }
+                        // No answer means nobody is consuming the stream (or
+                        // the run was cancelled); the policy's own `check`
+                        // decides below, preserving pre-existing behaviour.
+                    }
+                }
+
                 let exec_futures: Vec<_> = tool_use_blocks
                     .iter()
                     .map(|(tool_id, tool_name, tool_input)| {
                         let tool_name = tool_name.clone();
                         let registered_tool_names = registered_tool_names.clone();
                         let refusal = refusals.get(tool_id).cloned();
+                        let stream_decision = stream_decisions.remove(tool_id);
                         let tool_id = tool_id.clone();
                         let tool_input = tool_input.clone();
                         let tool_ctx = tool_ctx.clone();
@@ -933,7 +1107,12 @@ pub async fn run_agent_streaming(
                                     id: tool_id.clone(),
                                 };
 
-                                let decision = permission_policy.check(&perm_req).await;
+                                // A decision the caller already gave over the
+                                // stream wins; otherwise ask the policy.
+                                let decision = match stream_decision {
+                                    Some(d) => d,
+                                    None => permission_policy.check(&perm_req).await,
+                                };
 
                                 match decision {
                                     PermissionDecision::Allow

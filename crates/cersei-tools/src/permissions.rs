@@ -9,6 +9,15 @@ use serde::{Deserialize, Serialize};
 #[async_trait]
 pub trait PermissionPolicy: Send + Sync {
     async fn check(&self, request: &PermissionRequest) -> PermissionDecision;
+
+    /// Whether the agent loop should put this decision to the caller as an
+    /// `AgentEvent::PermissionRequired` before falling back to [`Self::check`].
+    ///
+    /// Defaults to `false`, so existing policies are unaffected. Only
+    /// [`StreamDeferredPolicy`] opts in.
+    fn defers_to_stream(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -139,14 +148,27 @@ impl PermissionPolicy for InteractivePolicy {
     }
 }
 
-/// Placeholder policy that emits PermissionRequired events via the agent stream.
+/// Policy that puts each decision to the caller over the agent stream.
+///
+/// The agent loop sees [`PermissionPolicy::defers_to_stream`], emits
+/// `AgentEvent::PermissionRequired`, and waits for
+/// `AgentStream::respond_permission`. [`Self::check`] is only reached when no
+/// stream can answer — the non-streaming `run()` path — where it falls back to
+/// allowing, matching the behaviour of the other headless policies.
 pub struct StreamDeferredPolicy;
 
 #[async_trait]
 impl PermissionPolicy for StreamDeferredPolicy {
-    async fn check(&self, _request: &PermissionRequest) -> PermissionDecision {
-        // In practice, the agent loop intercepts this and emits
-        // AgentEvent::PermissionRequired, then waits for a response.
+    async fn check(&self, request: &PermissionRequest) -> PermissionDecision {
+        tracing::warn!(
+            tool = %request.tool_name,
+            "StreamDeferredPolicy has no stream to ask — allowing. Use run_stream(), \
+             or pick an explicit policy for headless runs."
+        );
         PermissionDecision::Allow
+    }
+
+    fn defers_to_stream(&self) -> bool {
+        true
     }
 }
