@@ -115,7 +115,9 @@ impl AgentStream {
 
 `inject_message` joins the conversation at the next turn boundary, where history is quiescent.
 
-`PermissionRequired` is only emitted for a policy that opts into stream deferral (`InteractivePolicy::via_stream()` / `StreamDeferredPolicy`). The run waits for the matching `respond_permission`, so a loop that ignores the event — including `collect()` and `collect_text()`, which cannot answer — will park until the run is cancelled. Under any other policy the event never fires.
+`PermissionRequired` is only emitted for a policy that opts into stream deferral (`InteractivePolicy::via_stream()` / `StreamDeferredPolicy`); under any other policy the event never fires.
+
+The run waits for the matching `respond_permission`, so an event loop that raises it must answer it. `collect()` and `collect_text()` have no one to ask, so they answer with a denial rather than parking the run — approve interactively by iterating with `next()`. Cancelling with a prompt outstanding ends the run without executing the tool.
 
 ## Reporters
 

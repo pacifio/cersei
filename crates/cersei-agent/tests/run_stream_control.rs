@@ -6,9 +6,9 @@
 //! provider at all, whether a cancelled stream terminates, what the next
 //! request body carries, and what a registered listener saw.
 //!
-//! The four defects under test all shared a shape: a documented control
-//! surface (`wiki/05-events-streaming.md`) whose messages went into a channel
-//! nobody read, or a one-shot token nobody could reset.
+//! The defects under test share a shape: a documented control surface
+//! (`wiki/05-events-streaming.md`) whose messages went into a channel nobody
+//! read, a one-shot token nobody could reset, or a wait nobody could end.
 
 use cersei_agent::{Agent, AgentEvent};
 use cersei_provider::OpenAi;
@@ -411,6 +411,110 @@ async fn stream_deferred_permission_denial_actually_blocks_the_tool() {
     assert!(
         result.contains("Permission denied") && result.contains("nope"),
         "the stream's denial did not reach the tool result: {result}"
+    );
+}
+
+/// Cancelling while a permission prompt is outstanding must not run the tool.
+///
+/// The trap: "cancelled" and "nobody could answer" both ended the wait, and if
+/// the caller treats them the same the batch falls through to the policy's own
+/// `check` — which, for a stream-deferred policy, allows. Cancelling out of a
+/// prompt would then execute the very tool it was cancelling, side effects and
+/// all.
+///
+/// The load-bearing assertion is the bytes on disk: asserting only that the
+/// run ended in `Cancelled` would pass even with the write already done.
+#[tokio::test]
+async fn cancelling_during_a_permission_prompt_does_not_run_the_tool() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let target = dir.path().join("guarded.txt");
+    std::fs::write(&target, "ORIGINAL").expect("seed file");
+
+    let (url, _bodies) = serve_recording(vec![
+        Canned::sse_tool_call(
+            "call_1",
+            "Write",
+            &json!({ "file_path": target.to_string_lossy(), "content": "CLOBBERED" }),
+        ),
+        Canned::sse_text("done"),
+        Canned::sse_text("done"),
+    ]);
+
+    let agent = Arc::new(
+        Agent::builder()
+            .provider(provider_against(&url, "gpt-4o"))
+            .tools(cersei_tools::coding())
+            .permission_policy(cersei_tools::permissions::StreamDeferredPolicy)
+            .working_dir(dir.path())
+            .model("gpt-4o")
+            .max_turns(4)
+            .max_tokens(64)
+            .build()
+            .expect("build agent"),
+    );
+
+    let mut stream = agent.run_stream("overwrite the file");
+    while let Some(event) = stream.next().await {
+        match event {
+            // Never answer — cancel instead, as a user hitting Ctrl+C at the
+            // prompt would.
+            AgentEvent::PermissionRequired(_) => {
+                stream.cancel();
+            }
+            AgentEvent::Complete(_) | AgentEvent::Error(_) => break,
+            _ => {}
+        }
+    }
+
+    let on_disk = std::fs::read_to_string(&target).expect("read back");
+    assert_eq!(
+        on_disk, "ORIGINAL",
+        "the tool ran despite the cancel — the cancelled ask fell through to \
+         the policy, which allows"
+    );
+}
+
+/// A collector cannot approve anything, so it must answer rather than ignore:
+/// the run blocks until its request is decided, and an ignored event parks it
+/// until cancellation.
+#[tokio::test]
+async fn collect_denies_permission_requests_instead_of_parking() {
+    let (url, _bodies) = serve_recording(vec![
+        Canned::sse_tool_call("call_1", "Read", &json!({ "file_path": "Cargo.toml" })),
+        Canned::sse_text("understood"),
+        Canned::sse_text("understood"),
+    ]);
+
+    let agent = Arc::new(
+        Agent::builder()
+            .provider(provider_against(&url, "gpt-4o"))
+            .tools(cersei_tools::coding())
+            .permission_policy(cersei_tools::permissions::StreamDeferredPolicy)
+            .working_dir(".")
+            .model("gpt-4o")
+            .max_turns(4)
+            .max_tokens(64)
+            .build()
+            .expect("build agent"),
+    );
+
+    let out = tokio::time::timeout(
+        Duration::from_secs(10),
+        agent.run_stream("read it").collect(),
+    )
+    .await
+    .expect("collect() parked on an unanswered permission request")
+    .expect("run should complete");
+
+    let read = out
+        .tool_calls
+        .iter()
+        .find(|c| c.name == "Read")
+        .expect("no Read call recorded");
+    assert!(
+        read.result.contains("Permission denied"),
+        "an unattended collector approved a tool it could not have approved: {}",
+        read.result
     );
 }
 

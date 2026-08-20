@@ -6,7 +6,7 @@ use crate::{Agent, AgentOutput, ToolCallRecord};
 use cersei_hooks::{HookAction, HookContext, HookEvent};
 use cersei_provider::{CompletionRequest, ProviderOptions, StreamAccumulator};
 use cersei_tools::permissions::{PermissionDecision, PermissionRequest};
-use cersei_tools::{ToolContext, ToolResult};
+use cersei_tools::{Tool, ToolContext, ToolResult};
 use cersei_types::*;
 use std::sync::Arc;
 use std::time::Instant;
@@ -320,19 +320,48 @@ struct ControlState {
         parking_lot::Mutex<std::collections::HashMap<String, oneshot::Sender<PermissionDecision>>>,
 }
 
+/// Build the permission request for one tool call.
+///
+/// Shared by the stream-deferred pre-dispatch ask and the in-dispatch policy
+/// check so the two cannot describe the same call differently — they are keyed
+/// by `id`, so a drift there would silently mismatch a decision to its call.
+fn permission_request_for(
+    tool: &dyn Tool,
+    tool_id: &str,
+    tool_input: &serde_json::Value,
+) -> PermissionRequest {
+    PermissionRequest {
+        tool_name: tool.name().to_string(),
+        tool_input: tool_input.clone(),
+        permission_level: tool.permission_level(),
+        description: format!("Execute tool '{}'", tool.name()),
+        id: tool_id.to_string(),
+    }
+}
+
+/// The outcome of putting a permission question to the stream.
+///
+/// "Cancelled" is deliberately distinct from "nobody could answer": collapsing
+/// the two into one `None` made a cancel fall through to the policy's own
+/// `check`, and `StreamDeferredPolicy` allows — so cancelling mid-prompt ran
+/// the very tool the user was being asked about.
+enum PermissionAsk {
+    Decided(PermissionDecision),
+    /// No stream is consuming events — the plain `run()` path, or a detached
+    /// handle. The policy's own decision stands.
+    Undeliverable,
+    /// The run was cancelled with the question outstanding.
+    Cancelled,
+}
+
 impl ControlState {
     /// Ask the stream to decide a permission request, and wait for the answer.
-    ///
-    /// Returns `None` if the question could not be delivered or answered — no
-    /// stream is consuming events (the plain `run()` path), the handle was
-    /// dropped, or the run was cancelled while waiting. Callers fall back to
-    /// the policy's own decision.
     async fn ask_stream(
         &self,
         event_tx: &mpsc::Sender<AgentEvent>,
         request: &PermissionRequest,
         cancel_token: &tokio_util::sync::CancellationToken,
-    ) -> Option<PermissionDecision> {
+    ) -> PermissionAsk {
         let (tx, rx) = oneshot::channel();
         self.pending_permissions
             .lock()
@@ -344,17 +373,24 @@ impl ControlState {
             .is_err()
         {
             self.pending_permissions.lock().remove(&request.id);
-            return None;
+            return PermissionAsk::Undeliverable;
         }
 
-        let answer = tokio::select! {
-            answer = rx => answer.ok(),
-            _ = cancel_token.cancelled() => None,
+        let outcome = tokio::select! {
+            answer = rx => match answer {
+                Ok(decision) => PermissionAsk::Decided(decision),
+                // The pump is gone, so no answer can ever arrive.
+                Err(_) => PermissionAsk::Undeliverable,
+            },
+            _ = cancel_token.cancelled() => PermissionAsk::Cancelled,
+            // The consumer went away mid-question. Without this arm a detached
+            // stream — which does not cancel the token — parks the run forever.
+            _ = event_tx.closed() => PermissionAsk::Undeliverable,
         };
-        if answer.is_none() {
+        if !matches!(outcome, PermissionAsk::Decided(_)) {
             self.pending_permissions.lock().remove(&request.id);
         }
-        answer
+        outcome
     }
 
     /// Route a decision from the control channel to whoever is waiting on it.
@@ -386,7 +422,7 @@ pub async fn run_agent(agent: &Agent, prompt: &str) -> Result<AgentOutput> {
     drop(event_rx);
     // Likewise for control: no `AgentStream` exists here to send on it, and the
     // sender must drop so the pump's `recv()` completes instead of parking.
-    let (control_tx, control_rx) = mpsc::channel(64);
+    let (control_tx, control_rx) = mpsc::unbounded_channel();
     drop(control_tx);
 
     let prompt = prompt.to_string();
@@ -429,7 +465,7 @@ pub async fn run_agent_streaming(
     agent: &Agent,
     prompt: &str,
     event_tx: mpsc::Sender<AgentEvent>,
-    control_rx: mpsc::Receiver<AgentControl>,
+    control_rx: mpsc::UnboundedReceiver<AgentControl>,
     cancel_token: tokio_util::sync::CancellationToken,
 ) -> Result<AgentOutput> {
     // ── Control channel pump ──
@@ -1053,22 +1089,28 @@ pub async fn run_agent_streaming(
                         else {
                             continue;
                         };
-                        let request = PermissionRequest {
-                            tool_name: (*tool_name).clone(),
-                            tool_input: (*tool_input).clone(),
-                            permission_level: tool.permission_level(),
-                            description: format!("Execute tool '{}'", tool_name),
-                            id: (*tool_id).clone(),
-                        };
-                        if let Some(decision) = control
-                            .ask_stream(&event_tx, &request, &cancel_token)
-                            .await
-                        {
-                            stream_decisions.insert((*tool_id).clone(), decision);
+                        let request =
+                            permission_request_for(tool.as_ref(), tool_id, tool_input);
+                        agent.emit(AgentEvent::PermissionRequired(request.clone()));
+                        match control.ask_stream(&event_tx, &request, &cancel_token).await {
+                            PermissionAsk::Decided(decision) => {
+                                stream_decisions.insert((*tool_id).clone(), decision);
+                            }
+                            // Nobody is consuming the stream; the policy's own
+                            // `check` decides below, preserving prior behaviour.
+                            PermissionAsk::Undeliverable => {
+                                tracing::warn!(
+                                    tool = %tool_name,
+                                    "no stream consumer answered the permission request — \
+                                     falling back to the policy's own decision"
+                                );
+                            }
+                            // Bail before dispatch. Falling through would hand
+                            // the batch to the policy, and a stream-deferred
+                            // policy allows — running the very tool the user
+                            // cancelled out of.
+                            PermissionAsk::Cancelled => return Err(CerseiError::Cancelled),
                         }
-                        // No answer means nobody is consuming the stream (or
-                        // the run was cancelled); the policy's own `check`
-                        // decides below, preserving pre-existing behaviour.
                     }
                 }
 
@@ -1099,13 +1141,8 @@ pub async fn run_agent_streaming(
                             } else if let Some(idx) = tool_idx {
                                 let tool = &agent.tools[idx];
                                 // Check permissions
-                                let perm_req = PermissionRequest {
-                                    tool_name: tool_name.clone(),
-                                    tool_input: tool_input.clone(),
-                                    permission_level: tool.permission_level(),
-                                    description: format!("Execute tool '{}'", tool_name),
-                                    id: tool_id.clone(),
-                                };
+                                let perm_req =
+                                    permission_request_for(tool.as_ref(), &tool_id, &tool_input);
 
                                 // A decision the caller already gave over the
                                 // stream wins; otherwise ask the policy.

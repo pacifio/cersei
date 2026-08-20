@@ -180,7 +180,6 @@ pub async fn run_repl(
         while should_retry {
             should_retry = false;
 
-            running.store(true, Ordering::Relaxed);
             let result = run_agent_streaming(
                 &agent,
                 &input,
@@ -188,9 +187,9 @@ pub async fn run_repl(
                 &mut status,
                 json_mode,
                 is_first_turn,
+                &running,
             )
             .await;
-            running.store(false, Ordering::Relaxed);
 
             match result {
                 Ok(_) => {
@@ -274,10 +273,16 @@ pub async fn run_single_shot(
     let agent = Arc::new(agent);
     *active_agent.lock() = Some(Arc::clone(&agent));
 
-    running.store(true, Ordering::Relaxed);
-    let result =
-        run_agent_streaming(&agent, prompt, &mut renderer, &mut status, json_mode, true).await;
-    running.store(false, Ordering::Relaxed);
+    let result = run_agent_streaming(
+        &agent,
+        prompt,
+        &mut renderer,
+        &mut status,
+        json_mode,
+        true,
+        &running,
+    )
+    .await;
 
     match result {
         Ok(_) => Ok(()),
@@ -285,6 +290,15 @@ pub async fn run_single_shot(
             renderer.error(&msg);
             Err(anyhow::anyhow!("{msg}"))
         }
+    }
+}
+
+/// Clear the "a run is in flight" flag however the run ends.
+struct ClearOnDrop<'a>(&'a AtomicBool);
+
+impl Drop for ClearOnDrop<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Relaxed);
     }
 }
 
@@ -297,8 +311,15 @@ async fn run_agent_streaming(
     status: &mut StatusLine,
     json_mode: bool,
     _is_first: bool,
+    running: &AtomicBool,
 ) -> Result<(), String> {
     let mut stream = agent.run_stream(prompt);
+    // Only now: `run_stream` mints this run's cancellation token, and the
+    // signal handler cancels whatever token the agent currently holds. Setting
+    // the flag any earlier opens a window where Ctrl+C cancels the *previous*
+    // run's spent token and the press is lost.
+    running.store(true, Ordering::Relaxed);
+    let _running_guard = ClearOnDrop(running);
 
     while let Some(event) = stream.next().await {
         if json_mode {

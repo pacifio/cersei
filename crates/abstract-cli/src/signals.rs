@@ -22,8 +22,14 @@ pub fn new_active_agent() -> ActiveAgent {
 
 /// Install signal handlers.
 ///
-/// `active` names the agent to cancel while a run is in flight; `shutdown` is
-/// fired on the exit path so the TUI can unwind before the process goes away.
+/// `active` names the agent to cancel while a run is in flight. `shutdown` is
+/// the process-wide token every agent run descends from; it is fired on the
+/// exit path so anything watching it observes the shutdown, though this
+/// handler exits the process immediately afterwards.
+///
+/// Note the TUI never reaches the branches below for Ctrl+C: crossterm's raw
+/// mode disables ISIG, so the key arrives as an ordinary key event and is
+/// handled there (`tui::event_loop::cancel_run`).
 pub fn install(
     active: ActiveAgent,
     shutdown: CancellationToken,

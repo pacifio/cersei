@@ -135,7 +135,7 @@ impl Agent {
     /// [`Agent::into_stream`] and [`AgentBuilder::stream_with`].
     pub fn run_stream(self: &Arc<Self>, prompt: &str) -> AgentStream {
         let (event_tx, event_rx) = mpsc::channel(512);
-        let (control_tx, control_rx) = mpsc::channel(64);
+        let (control_tx, control_rx) = mpsc::unbounded_channel();
 
         // Claimed here, synchronously, rather than inside the spawned task: the
         // stream needs the very token this run will observe in order to cancel
