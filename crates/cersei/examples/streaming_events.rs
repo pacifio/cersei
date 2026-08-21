@@ -13,18 +13,18 @@ use std::time::Instant;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let agent = Agent::builder()
+    let start = Instant::now();
+
+    // `stream_with` builds and starts streaming in one call. For several
+    // streamed turns against one agent, use `build_shared()` + `run_stream()`.
+    let mut stream = Agent::builder()
         .provider(Anthropic::from_env()?)
         .tools(cersei::tools::coding())
         .system_prompt("You are a helpful coding assistant. Be concise.")
         .max_turns(5)
         .permission_policy(AllowAll)
         .working_dir(".")
-        .build()?;
-
-    let agent = std::sync::Arc::new(agent);
-    let start = Instant::now();
-    let mut stream = agent.run_stream("What files are in the current directory? List them.");
+        .stream_with("What files are in the current directory? List them.")?;
 
     let mut text_bytes = 0usize;
     let mut tool_count = 0u32;

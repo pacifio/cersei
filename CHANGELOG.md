@@ -1,5 +1,33 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`Agent::run_stream` — cancelling a run no longer retires the agent.** `Agent::cancel()` cancelled a `tokio_util::sync::CancellationToken` held for the agent's whole lifetime, and the runner re-checks that token at the top of every turn. A `CancellationToken` never un-cancels, so the *first* cancel was permanent: every later `run()`/`run_stream()` returned `Cancelled` without ever reaching the provider. The CLI hit this on every Ctrl+C. Every run now mints its own token, so cancellation ends the run in flight and nothing more — a fresh token, never the previous run's, because an `AgentStream` cancels on drop and a shared token would let a stale handle kill a run started after it. `AgentBuilder::cancel_token` is now explicitly a *process-shutdown* signal: each run's token is a child of it, so firing it stops the current run and every later one, while cancelling a run leaves it (and its other children) untouched. New `Agent::cancel_token()` accessor exposes the live run token for observation.
+- **`AgentStream`'s control channel is now read.** `run_agent_streaming` bound its control receiver as `_control_rx` and never touched it, so every message an `AgentStream` sent died in an undrained buffer. All three documented control methods were silent no-ops:
+  - `AgentStream::cancel()` now cancels the run (directly on the run's token, so it lands even if the control buffer is full or the pump has yet to be scheduled).
+  - `AgentStream::inject_message()` now appends the message to the conversation at the next turn boundary.
+  - `AgentStream::respond_permission()` now decides the request it names. The runner emits `AgentEvent::PermissionRequired` and waits for the answer whenever the permission policy opts into stream deferral, decided before dispatch so concurrent tool calls cannot interleave prompts. Previously the event was never emitted anywhere and `StreamDeferredPolicy` silently allowed everything; with no stream to ask (the non-streaming `run()` path) it still falls back to allowing, now with a warning.
+  - Cancelling with a prompt outstanding ends the run **without** executing the tool. "Cancelled" and "nobody could answer" are distinct outcomes; collapsing them would let a cancel fall through to the policy — which, for a stream-deferred policy, allows — and run the very tool the user cancelled out of.
+  - `collect()` and `collect_text()` answer a `PermissionRequired` with a denial rather than ignoring it. The run blocks until its request is decided, so an unattended collector would otherwise park until cancellation.
+  - The control channel is unbounded. It was bounded at 64 with `try_send`, so a dropped control message was silent — and a dropped permission response parks the run.
+- **Streamed runs emit their terminal event to the agent's own listeners.** `run()` emitted `Complete`/`Error` via `Agent::emit`; `run_stream()` sent them only down the event channel. `on_event` handlers, `Reporter`s and broadcast subscribers therefore saw every event of a streamed run except the one saying it had ended.
+- **Dropping an `AgentStream` cancels its run.** The run is driven by a spawned task owning an `Arc<Agent>`; dropping the handle only closed the receiver, and every send site swallows that failure, so the agent kept calling the provider — and spending — with nobody listening.
+- **`Agent::run()` no longer deadlocks on responses over ~512 events.** `run_agent` built a 512-slot event channel and bound the receiver as `_event_rx` — an underscore-prefixed binding lives to the end of scope, unlike a bare `_` — so the channel stayed open with nobody draining it and `event_tx.send().await` blocked forever once it filled. Any non-streaming run emitting more than 512 events (a few hundred text deltas) hung. The receiver is now dropped up front, making each send a no-op on that path.
+- **`abstract` CLI:** Ctrl+C during a run now cancels that run — through its `AgentStream` in the TUI, and through the active agent in the REPL/JSON path — instead of firing the process-wide token, so the next prompt works. The process-wide token now does what a shutdown signal should: it quits the TUI, and is fired on the exit path. `signals::fresh_cancel_token`, an unused `#[allow(dead_code)]` helper left over from an earlier attempt at this fix, is gone — the agent resets its own token per run.
+- Documented streaming snippet in `quick-start` that could not compile (`run_stream` needs `&Arc<Agent>`).
+
+### Added
+
+- **`AgentBuilder::stream_with(prompt)`** — the streaming twin of `run_with`: build and start streaming in one call, no `Arc` wrapping.
+- **`Agent::into_stream(prompt)`** — start a streaming run from an owned `Agent`.
+- **`AgentBuilder::build_shared()`** — build straight to `Arc<Agent>` for multi-turn streaming.
+- **`AgentStream::detach()`** — opt out of drop-cancellation and let a run outlive its handle.
+- **`Agent::cancel_token()`** — observe the current run's cancellation token.
+- **`PermissionPolicy::defers_to_stream()`** — defaulted to `false`, so existing policies are unaffected; `StreamDeferredPolicy` overrides it to opt into `AgentEvent::PermissionRequired`.
+- `AgentEvent` is now re-exported from the `cersei_agent` crate root.
+
 ## [0.2.5] - 2026-06-29
 
 ### Changed

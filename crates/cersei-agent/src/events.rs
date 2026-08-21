@@ -5,6 +5,7 @@ use cersei_tools::PermissionLevel;
 use cersei_types::*;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::AgentOutput;
 
@@ -136,37 +137,69 @@ pub enum CompactReason {
 
 /// Returned by `agent.run_stream()`. Provides async iteration over events
 /// and bidirectional control (permissions, cancellation, message injection).
+///
+/// Dropping the stream cancels the run behind it. The run is driven by a
+/// spawned task that owns an `Arc<Agent>`, so without drop-cancel a dropped
+/// handle left the agent calling the provider — and spending — with nobody
+/// listening. Use [`AgentStream::detach`] to opt out deliberately.
 pub struct AgentStream {
     rx: mpsc::Receiver<AgentEvent>,
-    control_tx: mpsc::Sender<AgentControl>,
+    /// Unbounded on purpose: control messages are rare and tiny, and a lost one
+    /// is expensive — a dropped permission response parks the run until it is
+    /// cancelled. A bounded channel plus `try_send` made that a silent
+    /// possibility.
+    control_tx: mpsc::UnboundedSender<AgentControl>,
+    /// The run's cancellation token. `None` once [`AgentStream::detach`] has
+    /// disarmed drop-cancellation.
+    cancel_token: Option<CancellationToken>,
 }
 
 impl AgentStream {
     pub(crate) fn new(
         rx: mpsc::Receiver<AgentEvent>,
-        control_tx: mpsc::Sender<AgentControl>,
+        control_tx: mpsc::UnboundedSender<AgentControl>,
+        cancel_token: CancellationToken,
     ) -> Self {
-        Self { rx, control_tx }
+        Self {
+            rx,
+            control_tx,
+            cancel_token: Some(cancel_token),
+        }
     }
 
     /// Respond to a PermissionRequired event.
     pub fn respond_permission(&self, request_id: String, decision: PermissionDecision) {
-        let _ = self.control_tx.try_send(AgentControl::PermissionResponse {
+        let _ = self.control_tx.send(AgentControl::PermissionResponse {
             request_id,
             decision,
         });
     }
 
-    /// Send a cancellation signal.
+    /// Cancel the run.
+    ///
+    /// Cancels the run's token directly rather than relying on the control
+    /// channel alone: cancellation has to land even if the control buffer is
+    /// full or the pump task has not been scheduled yet.
     pub fn cancel(&self) {
-        let _ = self.control_tx.try_send(AgentControl::Cancel);
+        if let Some(token) = &self.cancel_token {
+            token.cancel();
+        }
+        let _ = self.control_tx.send(AgentControl::Cancel);
     }
 
-    /// Inject a user message mid-stream.
+    /// Inject a user message mid-stream. It joins the conversation at the next
+    /// turn boundary, where history is quiescent.
     pub fn inject_message(&self, message: String) {
-        let _ = self
-            .control_tx
-            .try_send(AgentControl::InjectMessage(message));
+        let _ = self.control_tx.send(AgentControl::InjectMessage(message));
+    }
+
+    /// Let the run outlive this handle: disarms drop-cancellation and discards
+    /// the stream.
+    ///
+    /// Events still reach the agent's own listeners (`on_event`, reporters,
+    /// broadcast subscribers); only this handle goes away.
+    pub fn detach(mut self) {
+        self.cancel_token = None;
     }
 
     /// Receive the next event.
@@ -175,11 +208,18 @@ impl AgentStream {
     }
 
     /// Collect all events and return the final output.
+    ///
+    /// Unattended: a `PermissionRequired` is answered with a denial, since
+    /// there is no one here to approve it. To approve interactively, iterate
+    /// with [`AgentStream::next`] and call
+    /// [`AgentStream::respond_permission`]. Only a policy that opts into
+    /// stream deferral raises the event at all.
     pub async fn collect(mut self) -> cersei_types::Result<AgentOutput> {
         while let Some(event) = self.rx.recv().await {
             match event {
                 AgentEvent::Complete(output) => return Ok(output),
                 AgentEvent::Error(e) => return Err(CerseiError::Other(anyhow::anyhow!(e))),
+                AgentEvent::PermissionRequired(req) => self.deny_unattended(req),
                 _ => continue,
             }
         }
@@ -187,6 +227,8 @@ impl AgentStream {
     }
 
     /// Collect only text deltas into a single string.
+    ///
+    /// Answers permission requests the same way [`AgentStream::collect`] does.
     pub async fn collect_text(mut self) -> cersei_types::Result<String> {
         let mut text = String::new();
         while let Some(event) = self.rx.recv().await {
@@ -194,10 +236,35 @@ impl AgentStream {
                 AgentEvent::TextDelta(t) => text.push_str(&t),
                 AgentEvent::Complete(_) => return Ok(text),
                 AgentEvent::Error(e) => return Err(CerseiError::Other(anyhow::anyhow!(e))),
+                AgentEvent::PermissionRequired(req) => self.deny_unattended(req),
                 _ => continue,
             }
         }
         Ok(text)
+    }
+
+    /// Refuse a permission request nobody is present to answer.
+    ///
+    /// The run blocks until its request is decided, so a collector that
+    /// ignored the event would park until cancellation.
+    fn deny_unattended(&self, request: PermissionRequest) {
+        self.respond_permission(
+            request.id,
+            PermissionDecision::Deny(format!(
+                "'{}' needs approval, but this stream is being collected without an \
+                 interactive consumer. Iterate the stream and call respond_permission \
+                 to approve it.",
+                request.tool_name
+            )),
+        );
+    }
+}
+
+impl Drop for AgentStream {
+    fn drop(&mut self) {
+        if let Some(token) = self.cancel_token.take() {
+            token.cancel();
+        }
     }
 }
 
@@ -205,12 +272,10 @@ impl AgentStream {
 
 #[derive(Debug)]
 pub(crate) enum AgentControl {
-    #[allow(dead_code)]
     PermissionResponse {
         request_id: String,
         decision: PermissionDecision,
     },
     Cancel,
-    #[allow(dead_code)]
     InjectMessage(String),
 }

@@ -180,11 +180,46 @@ let output1 = agent.run("What files are in src/?").await?;
 let output2 = agent.run("Now fix the bug in main.rs").await?;
 ```
 
+### Streaming (one-shot shorthand)
+
+`stream_with()` is the streaming twin of `run_with()` — build and start streaming in one call, no `Arc` needed:
+
+```rust
+let mut stream = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .tools(cersei::tools::coding())
+    .stream_with("Deploy the application")?;
+
+while let Some(event) = stream.next().await {
+    // ...
+}
+```
+
+If you already hold an owned `Agent`, `into_stream()` does the same thing:
+
+```rust
+let mut stream = agent.into_stream("Deploy the application");
+```
+
+To stream several turns against one agent, build it shared:
+
+```rust
+let agent = Agent::builder()
+    .provider(Anthropic::from_env()?)
+    .build_shared()?;             // Arc<Agent>
+
+let first = agent.run_stream("What changed?").collect_text().await?;
+let second = agent.run_stream("Now fix it").collect_text().await?;
+```
+
 ### Streaming (events in real-time)
 
 Returns an `AgentStream` that yields events as they happen. Supports bidirectional control — you can respond to permission requests, inject messages, or cancel mid-stream.
 
+Dropping the stream cancels the run behind it; call `stream.detach()` to let a run outlive its handle on purpose. Cancelling ends that run only — the agent stays usable, and the next `run_stream()` starts clean. (`AgentBuilder::cancel_token` is the exception: it is a process-shutdown signal, and firing it stops every later run too.)
+
 ```rust
+let agent = Arc::new(agent);
 let mut stream = agent.run_stream("Deploy the application");
 
 while let Some(event) = stream.next().await {

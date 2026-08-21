@@ -129,8 +129,11 @@ pub async fn run_repl(
     memory_manager: &MemoryManager,
     json_mode: bool,
     running: Arc<AtomicBool>,
-    cancel_token: CancellationToken,
+    active_agent: crate::signals::ActiveAgent,
 ) -> anyhow::Result<()> {
+    // The agent this session's Ctrl+C should cancel. Re-registered below on a
+    // provider switch, which replaces the agent.
+    let cancel_token = CancellationToken::new();
     let mut input_reader = InputReader::new()?;
     let mut renderer = StreamRenderer::new(theme, json_mode);
     let mut status = StatusLine::new(theme, &config.model, session_id, !json_mode);
@@ -138,6 +141,7 @@ pub async fn run_repl(
     let mut is_first_turn = true;
     let mut current_model = config.model.clone();
     let mut agent = Arc::new(agent);
+    *active_agent.lock() = Some(Arc::clone(&agent));
 
     loop {
         let prompt_str = "\x1b[36m> \x1b[0m";
@@ -176,7 +180,6 @@ pub async fn run_repl(
         while should_retry {
             should_retry = false;
 
-            running.store(true, Ordering::Relaxed);
             let result = run_agent_streaming(
                 &agent,
                 &input,
@@ -184,9 +187,9 @@ pub async fn run_repl(
                 &mut status,
                 json_mode,
                 is_first_turn,
+                &running,
             )
             .await;
-            running.store(false, Ordering::Relaxed);
 
             match result {
                 Ok(_) => {
@@ -219,6 +222,7 @@ pub async fn run_repl(
                                 ) {
                                     Ok((new_agent, resolved)) => {
                                         agent = Arc::new(new_agent);
+                                        *active_agent.lock() = Some(Arc::clone(&agent));
                                         current_model = format!(
                                             "{}/{}",
                                             new_model.split('/').next().unwrap_or(""),
@@ -262,16 +266,23 @@ pub async fn run_single_shot(
     memory_manager: &MemoryManager,
     json_mode: bool,
     running: Arc<AtomicBool>,
-    _cancel_token: CancellationToken,
+    active_agent: crate::signals::ActiveAgent,
 ) -> anyhow::Result<()> {
     let mut renderer = StreamRenderer::new(theme, json_mode);
     let mut status = StatusLine::new(theme, &config.model, session_id, false);
     let agent = Arc::new(agent);
+    *active_agent.lock() = Some(Arc::clone(&agent));
 
-    running.store(true, Ordering::Relaxed);
-    let result =
-        run_agent_streaming(&agent, prompt, &mut renderer, &mut status, json_mode, true).await;
-    running.store(false, Ordering::Relaxed);
+    let result = run_agent_streaming(
+        &agent,
+        prompt,
+        &mut renderer,
+        &mut status,
+        json_mode,
+        true,
+        &running,
+    )
+    .await;
 
     match result {
         Ok(_) => Ok(()),
@@ -279,6 +290,15 @@ pub async fn run_single_shot(
             renderer.error(&msg);
             Err(anyhow::anyhow!("{msg}"))
         }
+    }
+}
+
+/// Clear the "a run is in flight" flag however the run ends.
+struct ClearOnDrop<'a>(&'a AtomicBool);
+
+impl Drop for ClearOnDrop<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Relaxed);
     }
 }
 
@@ -291,8 +311,15 @@ async fn run_agent_streaming(
     status: &mut StatusLine,
     json_mode: bool,
     _is_first: bool,
+    running: &AtomicBool,
 ) -> Result<(), String> {
     let mut stream = agent.run_stream(prompt);
+    // Only now: `run_stream` mints this run's cancellation token, and the
+    // signal handler cancels whatever token the agent currently holds. Setting
+    // the flag any earlier opens a window where Ctrl+C cancels the *previous*
+    // run's spent token and the press is lost.
+    running.store(true, Ordering::Relaxed);
+    let _running_guard = ClearOnDrop(running);
 
     while let Some(event) = stream.next().await {
         if json_mode {
@@ -319,7 +346,17 @@ async fn run_agent_streaming(
             } => {
                 renderer.tool_end(&name, &result, is_error, duration);
             }
-            AgentEvent::PermissionRequired(_request) => {}
+            AgentEvent::PermissionRequired(request) => {
+                // The REPL drives its own permission policies (see app.rs), so
+                // this only fires if someone wires a stream-deferred one. Answer
+                // rather than ignore: an unanswered request parks the run.
+                stream.respond_permission(
+                    request.id,
+                    cersei_tools::permissions::PermissionDecision::Deny(
+                        "the REPL cannot prompt for stream-deferred permissions".into(),
+                    ),
+                );
+            }
             AgentEvent::CostUpdate {
                 cumulative_cost,
                 input_tokens,
