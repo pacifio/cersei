@@ -549,12 +549,27 @@ fn parse_sse_event(raw: &str) -> Option<StreamEvent> {
                 .as_str()
                 .unwrap_or("text")
                 .to_string();
-            Some(StreamEvent::ContentBlockStart {
-                index,
-                block_type,
-                id: json["content_block"]["id"].as_str().map(String::from),
-                name: json["content_block"]["name"].as_str().map(String::from),
-            })
+            // A `redacted_thinking` block carries its entire opaque payload
+            // right here on the start event — there are no deltas for it.
+            // Route it to a dedicated event so the accumulator can round-trip
+            // it; falling through as a generic start used to reduce the block
+            // to empty `Text` in history, which the API rejects (#21).
+            if block_type == "redacted_thinking" {
+                Some(StreamEvent::RedactedThinking {
+                    index,
+                    data: json["content_block"]["data"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string(),
+                })
+            } else {
+                Some(StreamEvent::ContentBlockStart {
+                    index,
+                    block_type,
+                    id: json["content_block"]["id"].as_str().map(String::from),
+                    name: json["content_block"]["name"].as_str().map(String::from),
+                })
+            }
         }
         "content_block_delta" => {
             let index = json["index"].as_u64().unwrap_or(0) as usize;
@@ -712,6 +727,22 @@ mod tests {
                 assert_eq!(signature, "EqQBCgIY");
             }
             other => panic!("signature_delta must parse to SignatureDelta, got {other:?}"),
+        }
+    }
+
+    /// #21 (second half): a `redacted_thinking` block delivers its entire
+    /// opaque payload on `content_block_start` — there are no deltas for it.
+    /// The reader must map it to a dedicated event; as a generic start it
+    /// reaches the accumulator's fallthrough and comes back as empty `Text`.
+    #[test]
+    fn sse_redacted_thinking_start_carries_its_payload() {
+        let raw = "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"redacted_thinking\",\"data\":\"EmwKAhgBEgy3va\"}}";
+        match parse_sse_event(raw) {
+            Some(StreamEvent::RedactedThinking { index, data }) => {
+                assert_eq!(index, 0);
+                assert_eq!(data, "EmwKAhgBEgy3va");
+            }
+            other => panic!("redacted_thinking must parse to RedactedThinking, got {other:?}"),
         }
     }
 

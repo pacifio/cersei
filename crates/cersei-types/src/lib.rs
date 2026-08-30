@@ -386,6 +386,14 @@ pub enum StreamEvent {
         index: usize,
         signature: String,
     },
+    /// A `redacted_thinking` block (Anthropic). Its opaque `data` payload
+    /// arrives complete on `content_block_start` — there are no deltas — and
+    /// must be echoed back verbatim in multi-turn history just like a thinking
+    /// signature, or the API rejects the resent conversation.
+    RedactedThinking {
+        index: usize,
+        data: String,
+    },
     ContentBlockStop {
         index: usize,
     },
