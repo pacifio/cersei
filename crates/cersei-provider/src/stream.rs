@@ -10,6 +10,9 @@ pub struct StreamAccumulator {
     partial_json: HashMap<usize, String>,
     partial_thinking: HashMap<usize, String>,
     partial_signature: HashMap<usize, String>,
+    /// Opaque `redacted_thinking` payloads, keyed by block index. Captured
+    /// whole from the start event (redacted blocks have no deltas).
+    partial_redacted_data: HashMap<usize, String>,
     block_types: HashMap<usize, String>,
     tool_use_ids: HashMap<usize, String>,
     tool_use_names: HashMap<usize, String>,
@@ -34,6 +37,7 @@ impl StreamAccumulator {
             partial_json: HashMap::new(),
             partial_thinking: HashMap::new(),
             partial_signature: HashMap::new(),
+            partial_redacted_data: HashMap::new(),
             block_types: HashMap::new(),
             tool_use_ids: HashMap::new(),
             tool_use_names: HashMap::new(),
@@ -96,6 +100,13 @@ impl StreamAccumulator {
                     .or_default()
                     .push_str(&signature);
             }
+            StreamEvent::RedactedThinking { index, data } => {
+                // No `ContentBlockStart` is emitted for redacted blocks, so
+                // register the block type here as well as the payload.
+                self.block_types
+                    .insert(index, "redacted_thinking".to_string());
+                self.partial_redacted_data.insert(index, data);
+            }
             StreamEvent::ContentBlockStop { index } => {
                 let block_type = self.block_types.get(&index).cloned().unwrap_or_default();
                 let block = match block_type.as_str() {
@@ -138,6 +149,13 @@ impl StreamAccumulator {
                         // gate on `ContentBlock::Thinking` omits the field
                         // from echoed history instead of sending `""`.
                         signature: self.partial_signature.remove(&index).unwrap_or_default(),
+                    },
+                    "redacted_thinking" => ContentBlock::RedactedThinking {
+                        // Echoed back verbatim so multi-turn history stays
+                        // valid. The pre-fix fallthrough reduced this block to
+                        // an empty `Text`, which the API rejects on the next
+                        // request (#21).
+                        data: self.partial_redacted_data.remove(&index).unwrap_or_default(),
                     },
                     _ => ContentBlock::Text {
                         text: self.partial_text.remove(&index).unwrap_or_default(),
@@ -487,6 +505,68 @@ mod tests {
         // And deserializing a signatureless block still works (serde default).
         let back: ContentBlock = serde_json::from_value(without).unwrap();
         assert!(matches!(back, ContentBlock::Thinking { .. }));
+    }
+
+    // ── #21 second half: redacted_thinking blocks round-trip verbatim ──
+
+    #[test]
+    fn redacted_thinking_survives_as_a_redacted_block_not_empty_text() {
+        // A redacted block first, then a text block — the redacted block's
+        // type registration must not depend on a `ContentBlockStart`, which
+        // is never emitted for it.
+        let response = accumulate(vec![
+            StreamEvent::MessageStart {
+                id: "msg_1".into(),
+                model: "test-model".into(),
+                usage: None,
+            },
+            StreamEvent::RedactedThinking {
+                index: 0,
+                data: "EmwKAhgBEgy3va".into(),
+            },
+            StreamEvent::ContentBlockStop { index: 0 },
+            StreamEvent::ContentBlockStart {
+                index: 1,
+                block_type: "text".into(),
+                id: None,
+                name: None,
+            },
+            StreamEvent::TextDelta {
+                index: 1,
+                text: "answer".into(),
+            },
+            StreamEvent::ContentBlockStop { index: 1 },
+            StreamEvent::MessageStop,
+        ])
+        .into_response()
+        .expect("valid stream");
+
+        let MessageContent::Blocks(blocks) = &response.message.content else {
+            panic!("expected blocks");
+        };
+        assert_eq!(blocks.len(), 2);
+        let ContentBlock::RedactedThinking { data } = &blocks[0] else {
+            panic!(
+                "a redacted_thinking block must survive accumulation, got {:?}",
+                blocks[0]
+            );
+        };
+        assert_eq!(
+            data, "EmwKAhgBEgy3va",
+            "the opaque payload must be echoed verbatim — losing it (or the \
+             pre-fix empty-`Text` reduction) invalidates resent history"
+        );
+        assert!(matches!(&blocks[1], ContentBlock::Text { text } if text == "answer"));
+    }
+
+    #[test]
+    fn redacted_block_serializes_to_its_wire_shape_for_history() {
+        let wire = serde_json::to_value(ContentBlock::RedactedThinking {
+            data: "EmwKAhgBEgy3va".into(),
+        })
+        .unwrap();
+        assert_eq!(wire["type"], "redacted_thinking");
+        assert_eq!(wire["data"], "EmwKAhgBEgy3va");
     }
 
     // ── F-05b at this seam: malformed JSON keeps the raw text and the error ──
