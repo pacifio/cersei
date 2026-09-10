@@ -290,6 +290,14 @@ let mcp = McpManager::connect(&[
         "npx",
         &["-y", "mcp-remote", "https://search.parallel.ai/mcp"],
     ),
+    // You.com web search. Keyless basic search with `?profile=free`;
+    // use https://api.you.com/mcp with a YDC_API_KEY bearer token for
+    // you-contents and you-research as well.
+    McpServerConfig::stdio(
+        "you-search",
+        "npx",
+        &["-y", "mcp-remote", "https://api.you.com/mcp?profile=free"],
+    ),
 ]).await?;
 
 Agent::builder().tools(mcp.tool_definitions().await)
