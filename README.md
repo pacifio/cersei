@@ -288,7 +288,7 @@ let mcp = McpManager::connect(&[
     McpServerConfig::stdio(
         "parallel-search",
         "npx",
-        &["-y", "mcp-remote", "https://search.parallel.ai/mcp"],
+        &["-y", "mcp-remote", "https://search.parallel.ai/mcp", "--header", "User-Agent: Cersei"],
     ),
 ]).await?;
 
