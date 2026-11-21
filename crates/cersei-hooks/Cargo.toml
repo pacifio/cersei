@@ -14,3 +14,12 @@ async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+llm-budget = { version = "0.10.0", default-features = false, optional = true }
+
+[features]
+# Hard USD cap for an agent run: `BudgetHook` holds an estimate before each
+# model turn and books the real turn cost after it.
+budget = ["dep:llm-budget"]
+
+[dev-dependencies]
+tokio = { workspace = true }

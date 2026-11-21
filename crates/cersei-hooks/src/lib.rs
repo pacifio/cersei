@@ -8,6 +8,11 @@ use cersei_types::Message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[cfg(feature = "budget")]
+pub mod budget;
+#[cfg(feature = "budget")]
+pub use budget::BudgetHook;
+
 // ─── Hook trait ──────────────────────────────────────────────────────────────
 
 #[async_trait]

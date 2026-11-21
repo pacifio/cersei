@@ -50,6 +50,8 @@ agentlang = ["dep:cersei-agentlang"]
 agentrl = ["dep:cersei-agentrl", "agentlang", "vms"]
 # Workflows — the serializable, UI-buildable workflow engine.
 workflows = ["dep:cersei-workflows"]
+# BudgetHook: a hard USD cap that blocks a model turn before it is sent.
+budget = ["cersei-hooks/budget"]
 
 [dev-dependencies]
 tokio = { workspace = true }
