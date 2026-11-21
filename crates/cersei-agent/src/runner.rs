@@ -421,6 +421,27 @@ pub async fn run_agent_streaming(
         let _ = event_tx.send(AgentEvent::TurnStart { turn }).await;
         agent.emit(AgentEvent::TurnStart { turn });
 
+        // Fire PreModelTurn hooks before the request is built, so a hook can
+        // stop a turn (for example on a spending cap) before it is paid for.
+        let pre_turn_ctx = HookContext {
+            event: HookEvent::PreModelTurn,
+            tool_name: None,
+            tool_input: None,
+            tool_result: None,
+            tool_is_error: None,
+            turn,
+            cumulative_cost_usd: agent.cumulative_usage.lock().cost_usd.unwrap_or(0.0),
+            message_count: agent.messages.lock().len(),
+        };
+        if let HookAction::Block(reason) =
+            cersei_hooks::run_hooks(&agent.hooks, &pre_turn_ctx).await
+        {
+            return Err(CerseiError::Provider(format!(
+                "Blocked by hook: {}",
+                reason
+            )));
+        }
+
         // Apply tool result budget to keep context manageable
         {
             let mut msgs = agent.messages.lock();
